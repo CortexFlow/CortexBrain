@@ -2,7 +2,7 @@
 ![Contact](https://github.com/CortexFlow/demo-repository/actions/workflows/auto-assign.yml/badge.svg)
 
 ![Documentation](https://github.com/CortexFlow/demo-repository/actions/workflows/proof-html.yml/badge.svg)
-![CortexFlow Logo](Cortexflow(1).png)
+![CortexFlow Logo](banner.png)
 
 
 ## What's CortexBrain?
