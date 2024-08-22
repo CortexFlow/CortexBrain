@@ -14,11 +14,11 @@ CortexBrain provides a range of powerful features, including:
 - **Geolocalized Map**: Position simulated sensors on a geolocalized map.
 - **Scenario Simulation**: Create and test various scenarios with simulated sensors.
 
-Explore all the features in the [documentation](#documentation).
+Explore all the features in the [documentation](doc.md).
 
 ## Documentation
 
-For a comprehensive guide on getting started and making the most of CortexBrain, visit the [official documentation](doc.txt). The documentation includes:
+For a comprehensive guide on getting started and making the most of CortexBrain, visit the [official documentation](doc.md). The documentation includes:
 
 - **Getting Started**: Instructions on how to install and set up CortexBrain.
 - **Examples**: Practical examples to help you understand and use the main features.
