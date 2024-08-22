@@ -1,0 +1,10 @@
+name: Trello Board Link
+
+on: [push]
+
+jobs:
+  display-link:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Display Trello Link
+      run: echo "Visit the Trello board: https://trello.com/invite/b/66c731aab6030598aef7aed3/ATTIdfd7d08e42dca6f8b56a8b26f499ab8c95EB547E/cortexbrain"

@@ -1,5 +1,6 @@
 # CortexBrain
 ![Contact](https://github.com/CortexFlow/demo-repository/actions/workflows/auto-assign.yml/badge.svg)
+![Working on..](https://github.com/CortexFlow/demo-repository/actions/workflows/trello-link.yml/badge.svg)
 ![CortexFlow Logo](banner.png)
 
 ## What is CortexBrain?
