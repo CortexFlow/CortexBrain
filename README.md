@@ -7,7 +7,7 @@ Copyright (c) 2024
 
 ## What is CortexBrain?
 
-CortexBrain is a simulation framework developed by CortexFlow, designed to simplify the simulation of IoT devices. Our goal is to model various IoT sensor properties, including smart lights, accelerometers, gyroscopes, and temperature sensors. With CortexBrain, you can simulate IoT sensors, place them on a geolocalized map, monitor key metrics, and simulate specific scenarios.
+CortexBrain is a data simulation framework developed by CortexFlow, designed to simplify the simulation of IoT devices. Our goal is to model various IoT sensor properties, including smart lights, accelerometers, gyroscopes, and temperature sensors. With CortexBrain, you can simulate IoT sensors, place them on a geolocalized map, monitor key metrics, and simulate specific scenarios.
 
 ## Features
 
@@ -36,7 +36,7 @@ To get started with CortexBrain, follow these steps:
 3. **Test Library**:
 
    ```bash
-   python testLib.py
+   python .\testLib.py
 
 Explore all the features in the [documentation](doc.md).
 
