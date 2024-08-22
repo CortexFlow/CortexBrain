@@ -1,0 +1,24 @@
+name: Auto Assign
+
+on:
+  issues:
+    types: [opened]
+  pull_request:
+    types: [opened]
+
+jobs:
+  auto-assign:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Auto assign reviewers and assignees
+      uses: kentaro-m/auto-assign-action@v2
+      with:
+        # Assegna questi utenti quando viene aperta una pull request o issue
+        assignees: |
+          utente1
+          utente2
+        # Assegna questi utenti come revisori quando viene aperta una pull request
+        reviewers: |
+          reviewer1
+          reviewer2
