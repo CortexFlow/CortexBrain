@@ -52,7 +52,8 @@ To get started with CortexBrain, follow these steps:
 Explore all the features in the [documentation](doc.md).
 
 ## Roadmap
-![RoadMap](banner.png)
+
+![RoadMap](ROADMAP.png)
 
 
 ## Documentation
