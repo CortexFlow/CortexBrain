@@ -1,6 +1,10 @@
 # README
 
 We're currently moving the files from an old project. Please contact <lorenzotettamanti5@gmail.com> before cloning the repository
+Currently working on:
+-moving and testing all the models
+-creating examples
+-writing documentation
 
 # CortexBrain
 
