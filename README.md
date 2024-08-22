@@ -1,3 +1,7 @@
+# README
+
+We're currently moving the files from an old project. Please contact <lorenzotettamanti5@gmail.com> before cloning the repository
+
 # CortexBrain
 
 Copyright (c) 2024
