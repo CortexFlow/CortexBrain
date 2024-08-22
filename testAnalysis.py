@@ -5,7 +5,7 @@ from utils.DataProcessor import DataProcessor
 from SyntheticDatas.generateDatas import GenerateHotelDatas
 import time
 
-from utils.SendData import SendData
+from API.SendData import SendData
 import json
 import requests
 
