@@ -15,6 +15,16 @@ CortexBrain provides a range of powerful features, including:
 - **Geolocalized Map**: Position simulated sensors on a geolocalized map.
 - **Scenario Simulation**: Create and test various scenarios with simulated sensors.
 
+### Getting Started
+
+To get started with CortexBrain, follow these steps:
+
+1. **Clone the Repository**: First, clone the repository to your local machine.
+
+   ```bash
+   git clone https://github.com/CortexFlow/CortexBrain.git
+   cd CortexBrain
+
 Explore all the features in the [documentation](doc.md).
 
 ## Documentation
