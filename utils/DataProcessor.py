@@ -6,76 +6,74 @@ import json
 class DataProcessor:
     def CompareDatas1D(data, key):
         try:
-            datas = json.loads(data)  # Converte la stringa JSON in un dizionario
+            datas = json.loads(data)  # Convert JSON string to a dictionary
         except json.JSONDecodeError:
-            print("Errore nella decodifica del JSON.")
+            print("Error decoding JSON.")
             return None
 
-        
-        # Controlla se la chiave "Hotel List" esiste e se la lista è vuota
+        # Check if the key "Hotel List" exists and if the list is not empty
         if "Hotel List" not in datas or not datas["Hotel List"]:
             print("No data available")
             return None
         
-        # Accediamo alla lista sotto la chiave principale 'Hotel List'
+        # Access the list under the main key 'Hotel List'
         hotel_list = datas["Hotel List"]
         
-        # Verifica che la chiave esista in ogni dizionario nella lista
+        # Verify that the key exists in each dictionary in the list
         if not all(key in entry for entry in hotel_list):
-            print(f"La chiave '{key}' non è presente in tutti gli elementi della lista.")
+            print(f"The key '{key}' is not present in all list items.")
             return None
         
-        # Estraiamo le date e il numero di arrivi usando la chiave degli arrivi fornita
+        # Extract the dates and the values associated with the provided key
         dates = [entry["date"] for entry in hotel_list]
         setY = [entry[key] for entry in hotel_list]
         
-        # Creiamo il grafico
+        # Create the plot
         plt.figure(figsize=(10, 6))
         plt.style.use('ggplot')
         plt.plot(dates, setY, color='b', marker='o')
-        plt.xticks(fontsize=8)  # Puoi cambiare 14 con la dimensione del font che desideri
+        plt.xticks(fontsize=8)  # Adjust font size as needed
         
-        # Aggiungiamo i titoli e le etichette agli assi
-        plt.title(f'({key}) nel Tempo')
-        plt.xlabel('Data')
+        # Add titles and axis labels
+        plt.title(f'({key}) Over Time')
+        plt.xlabel('Date')
         plt.ylabel(f'({key})')
         
-        # Mostriamo il grafico
+        # Display the plot
         plt.grid(True)
-        plt.xticks(rotation=45)  # Rotazione delle etichette delle date per una migliore leggibilità
-        plt.tight_layout()  # Per evitare il taglio delle etichette
+        plt.xticks(rotation=45)  # Rotate date labels for better readability
+        plt.tight_layout()  # Prevent label cutting
         plt.show()
 
         return None
     
     
-    def CompareDatas2D(data,key1,key2):
-        # Accediamo alla lista sotto la chiave principale 'Hotel List'
+    def CompareDatas2D(data, key1, key2):
+        # Access the list under the main key 'Hotel List'
         hotel_list = data['Hotel List']
         
-        # Estraiamo le date e il numero di arrivi usando la chiave degli arrivi fornita
+        # Extract the values using the provided keys
         setX = [entry[key1] for entry in hotel_list]
         setY = [entry[key2] for entry in hotel_list]
         
-        # Creiamo il grafico
+        # Create the scatter plot
         plt.figure(figsize=(20,12))
-        # using the style for the plot 
-        plt.style.use('ggplot') 
-        plt.scatter(setX, setY,color='b')
+        plt.style.use('ggplot')  # Apply ggplot style
+        plt.scatter(setX, setY, color='b')
         
-        # Aggiungiamo i titoli e le etichette agli assi
-        plt.title(f'Confronto ({key1}) - ({key2})')
+        # Add titles and axis labels
+        plt.title(f'Comparison of ({key1}) and ({key2})')
         plt.xlabel(f'({key1})')
         plt.ylabel(f'({key2})')
         
-        # Mostriamo il grafico
+        # Display the plot
         plt.grid(True)
         plt.show()
         return 0
     
     def calculate_distance_factor(distance):
-        """Calculate the distance factor based on the distance ranges provided.
-            nella versione 2 del generatore si ha un fattore moltiplicativo
+        """Calculate the distance factor based on the provided distance ranges.
+        In version 2 of the generator, a multiplicative factor is used.
         """
         if 0.5 <= distance <= 1.5:
             return 20
@@ -93,23 +91,22 @@ class DataProcessor:
         doppie_utilizzate = 0
         triple_utilizzate = 0
         
-        # Distribuisci persone nelle camere triple
+        # Distribute people into triple rooms
         while numero_persone >= 3 and camere_triple > 0:
             numero_persone -= 3
             camere_triple -= 1
             triple_utilizzate += 1
             
-        # Distribuisci persone nelle camere doppie
+        # Distribute people into double rooms
         while numero_persone >= 2 and camere_doppie > 0:
             numero_persone -= 2
             camere_doppie -= 1
             doppie_utilizzate += 1
             
-        # Distribuisci persone nelle camere singole
+        # Distribute people into single rooms
         while numero_persone >= 1 and camere_singole > 0:
             numero_persone -= 1
             camere_singole -= 1
             singole_utilizzate += 1
         
         return singole_utilizzate, doppie_utilizzate, triple_utilizzate, numero_persone
-

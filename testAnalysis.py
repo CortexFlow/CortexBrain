@@ -1,11 +1,10 @@
-from utils.jsonEncoder import decompressJson
+from utils.jsonEncoder import DataEncoder
 from Analyze.analyze import add_mean, add_std, add_sum, classify_hotels
 import json
 from utils.DataProcessor import DataProcessor
 from SyntheticDatas.generateDatas import GenerateHotelDatas
 import time
 
-from API.SendData import SendData
 import json
 import requests
 
@@ -74,20 +73,10 @@ if __name__ == "__main__":
     elapsed_time = end_time - start_time  # Calcola il tempo trascorso
 
     print("Tempo di generazione:", round(elapsed_time, 2), "secondi")
-    
-    #prova di invio dati al server
-    # Inizializza la sessione
-    session = requests.Session()
+    print(dict_data)
 
-    # Effettua il login al cluster e al server
-    if SendData.LoginToCluster() and SendData.LoginToServer(session):
-        SendData.pushDataToServer(session, dict_data,batch_size=1000)
-    else:
-        print("Connessione con il cluster o login al server fallito")
-
-
-
-    """ LHotel, SHotel, BHotel = classify_hotels(jsonDatas)
+    jsonData=json.dumps(dict_data)
+    LHotel, SHotel, BHotel = classify_hotels(jsonData)
 
     JsonDataMean = add_mean(LHotel, "total_revenue")
     JsonDataDevStd = add_std(LHotel, "total_revenue")
@@ -125,7 +114,7 @@ if __name__ == "__main__":
     print("\n")
     print("Json Aggregato per la categoria S", SHotel_)
     print("\n")
-    print("Json Aggregato per la categoria B", BHotel_) """
+    print("Json Aggregato per la categoria B", BHotel_)
 
     # DataProcessor.CompareDatas1D(LHotel,"total_revenue(€)")
     # DataProcessor.CompareDatas1D(SHotel,"total_revenue(€)")

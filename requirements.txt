@@ -16,3 +16,4 @@ pyqt5==5.15.11
 PyQtWebEngine==5.15.7
 osmnx==1.9.4
 mesa==2.3.2
+openpyxl==3.1.5

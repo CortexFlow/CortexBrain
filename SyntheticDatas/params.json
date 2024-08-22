@@ -1,6 +1,6 @@
 {
     "Global": {
-        "num_hotels": 30,
+        "num_hotels": 1,
         "years": 1,
         "LuxuryMinPrice":250,
         "LuxuryMaxPrice":500,

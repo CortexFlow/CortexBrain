@@ -1,4 +1,4 @@
-""" Contiene il codice per classificare gli hotel e calcolare semplici metriche """
+""" Contains code for classifying hotels and calculating simple metrics """
 import os
 import sys
 import numpy as np
@@ -6,19 +6,19 @@ import pandas as pd
 import json
 from datetime import date, timedelta
 
-# Aggiungi la directory parent alla variabile di percorso
+# Add the parent directory to the path variable
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 #from SyntheticDatas.generateDatas import generateDataset
 
 
 
-# Funzione per la divisione in categorie degli hotel
+# Function to classify hotels into categories
 def classify_hotels(json_file):
-    # converte in Python
+    # Convert JSON to Python dictionary
     data = json.loads(json_file)
 
-    # controlla se il la lista è vuota
+    # Check if the hotel list is empty
     if not data["Hotel List"]:
        print("Hotel List is empty") 
 
@@ -41,27 +41,27 @@ def classify_hotels(json_file):
     B_json = json.dumps(B_hotels)
     return L_json, S_json, B_json
    
-# FUNZIONI PER IL CALCOLO DI METRICHE
+# FUNCTIONS FOR CALCULATING METRICS
 
-# Calcola e restituisce la media di una chiave selezionata per ciascun hotel in un file JSON
+# Calculates and returns the average of a selected key for each hotel in a JSON file
 def add_mean(json_file, key):
-    # Converte il JSON in un dizionario Python
+    # Convert JSON to a Python dictionary
     data = json.loads(json_file)
 
-    # Controlla se la lista degli hotel è vuota
+    # Check if the hotel list is empty
     if not data.get("Hotel List"):
         print("Hotel List is empty")
         return json_file
 
-    # Controlla se la chiave esiste almeno in un hotel
+    # Check if the key exists in at least one hotel
     if not any(key in hotel for hotel in data["Hotel List"]):
         print(f"key {key} does not exist")
         return json_file
 
-    # Dizionario per accumulare i valori della chiave per ciascun hotel
+    # Dictionary to accumulate the key values for each hotel
     hotel_values = {}
 
-    # Raccoglie i valori della chiave specificata per ciascun hotel
+    # Collect the specified key values for each hotel
     for hotel in data["Hotel List"]:
         hotel_name = hotel["HotelName"]
         if key in hotel:
@@ -69,10 +69,10 @@ def add_mean(json_file, key):
                 hotel_values[hotel_name] = []
             hotel_values[hotel_name].append(hotel[key])
 
-    # Calcola la media per ciascun hotel
+    # Calculate the mean for each hotel
     hotel_means = {hotel: round(np.mean(values),2) if values else 0 for hotel, values in hotel_values.items()}
 
-    # Crea la struttura del nuovo JSON con la chiave "Mean" all'interno di "Hotel List"
+    # Create the structure of the new JSON with the "Mean" key inside "Hotel List"
     result_data = {
         "Hotel List": {
             "Mean": {
@@ -81,68 +81,68 @@ def add_mean(json_file, key):
         }
     }
 
-    # Restituisce il risultato come JSON
+    # Return the result as JSON
     return json.dumps(result_data)
     
-# Calcola e aggiunge la media di una chiave selezionata in un file json nelll'ultimo trimestre
-#da ottimizzare ancora
+# Calculates and adds the mean of a selected key in a JSON file for the last quarter
+# still needs optimization
 def add_mean_trimester(json_file, key):
-    # converte in Python
+    # Convert JSON to Python dictionary
     data = json.loads(json_file)
 
-    # controlla se il la lista è vuota
+    # Check if the hotel list is empty
     if not data["Hotel List"]:
        print("Hotel List is empty")
        return json_file 
     
-    # data di oggi
+    # Current date
     today = date.today()
 
-    # controlla se la chiave esiste
-    if key in data["Hotel List"][0].keys(): # il tipo di dato deve contenere la chiave "Hotel List", perde generalità
+    # Check if the key exists
+    if key in data["Hotel List"][0].keys(): # data type must contain the "Hotel List" key, loses generality
 
-      all_key_data = [] # raccoglie tutti i dati chiave in una lista
+      all_key_data = [] # Collects all key data in a list
 
       for key_info in data["Hotel List"]:
-          mm_yyyy = key_info["date"].split("-") # si può cambiare per gestire date DD-MM-YYYY
+          mm_yyyy = key_info["date"].split("-") # Can be changed to handle DD-MM-YYYY dates
           month = float(mm_yyyy[0])
        
-          if month > today.month-3: # sceglie gli ultimi tre mesi consecutivi 
+          if month > today.month-3: # Chooses the last three consecutive months
              key_data = key_info[key]
              all_key_data.append(key_data)
 
       if not all_key_data:
-          all_key_data = 0  # nel caso in cui non ci sono valori
+          all_key_data = 0  # In case there are no values
 
       key_mean = np.mean(all_key_data)
       data.update({key + "_mean_last_trimester" : key_mean})
 
-      # conversione in JSON
+      # Convert to JSON
       return json.dumps(data)
     
     else:
        print("key does not exist")
        return json_file
     
-# Calcola e aggiunge la deviazione standard di una chiave selezionata in un file JSON
+# Calculates and adds the standard deviation of a selected key in a JSON file
 def add_std(json_file, key):
-    # Converte il JSON in un dizionario Python
+    # Convert JSON to a Python dictionary
     data = json.loads(json_file)
 
-    # Controlla se la lista degli hotel è vuota
+    # Check if the hotel list is empty
     if not data.get("Hotel List"):
         print("Hotel List is empty")
         return json_file
 
-    # Controlla se la chiave esiste almeno in un hotel
+    # Check if the key exists in at least one hotel
     if not any(key in hotel for hotel in data["Hotel List"]):
         print(f"key {key} does not exist")
         return json_file
 
-    # Dizionario per accumulare i valori della chiave per ciascun hotel
+    # Dictionary to accumulate the key values for each hotel
     hotel_values = {}
 
-    # Raccoglie i valori della chiave specificata per ciascun hotel
+    # Collect the specified key values for each hotel
     for hotel in data["Hotel List"]:
         hotel_name = hotel["HotelName"]
         if key in hotel:
@@ -150,10 +150,10 @@ def add_std(json_file, key):
                 hotel_values[hotel_name] = []
             hotel_values[hotel_name].append(hotel[key])
 
-    # Calcola la deviazione standard per ciascun hotel
+    # Calculate the standard deviation for each hotel
     hotel_std_devs = {hotel: round(np.std(values),2) if values else 0 for hotel, values in hotel_values.items()}
 
-    # Crea la struttura del nuovo JSON con la chiave "DevStd" all'interno di "Hotel List"
+    # Create the structure of the new JSON with the "DevStd" key inside "Hotel List"
     result_data = {
         "Hotel List": {
             "DevStd": {
@@ -162,27 +162,27 @@ def add_std(json_file, key):
         }
     }
 
-    # Restituisce il risultato come JSON
+    # Return the result as JSON
     return json.dumps(result_data)
       
 def add_sum(json_file, key):
-    # Converte il JSON in un dizionario Python
+    # Convert JSON to a Python dictionary
     data = json.loads(json_file)
 
-    # Controlla se la lista degli hotel è vuota
+    # Check if the hotel list is empty
     if not data.get("Hotel List"):
         print("Hotel List is empty")
         return json_file
 
-    # Controlla se la chiave esiste almeno in un hotel
+    # Check if the key exists in at least one hotel
     if not any(key in hotel for hotel in data["Hotel List"]):
         print(f"key {key} does not exist")
         return json_file
 
-    # Dizionario per accumulare le somme per ogni hotel
+    # Dictionary to accumulate sums for each hotel
     hotel_sums = {}
 
-    # Calcola la somma per ogni hotel
+    # Calculate the sum for each hotel
     for hotel in data["Hotel List"]:
         hotel_name = hotel["HotelName"]
         if key in hotel:
@@ -190,7 +190,7 @@ def add_sum(json_file, key):
                 hotel_sums[hotel_name] = 0
             hotel_sums[hotel_name] += hotel[key]
             
-    # Crea la struttura del nuovo JSON con le somme    
+    # Create the structure of the new JSON with the sums    
     result_data = {
         "Hotel List": {
            "Sum":{
@@ -199,15 +199,15 @@ def add_sum(json_file, key):
       }
    }
 
-    # Restituisce il risultato come JSON
+    # Return the result as JSON
     return json.dumps(result_data)
  
 if __name__ == "__main__":
-   # oggetto python (dict):
+   # Python object (dict):
    test_hotel_data = {
       "Hotel List": [
          {
-            "hotel": "Hotel Freddo",
+            "HotelName": "Hotel Freddo",
             "numero stanze": 300,
             "date": "05-2024",
             "category": "B",
@@ -229,7 +229,7 @@ if __name__ == "__main__":
             "varfact": 1.1468058806363377
          },
          {
-            "hotel": "Hotel Caldo",
+            "HotelName": "Hotel Caldo",
             "numero stanze": 300,
             "date": "07-2024",
             "category": "L",
@@ -251,7 +251,7 @@ if __name__ == "__main__":
             "varfact": 1.1290770956638854
          },
          {
-            "hotel": "Hotel Caldo",
+            "HotelName": "Hotel Caldo",
             "numero stanze": 300,
             "date": "08-2024",
             "category": "L",
@@ -275,7 +275,7 @@ if __name__ == "__main__":
       ]
    }
 
-   # conversione in JSON:
+   # Convert to JSON:
    test_hotel_json = json.dumps(test_hotel_data)
    print("Debug test")
    print("Test Json")   
@@ -283,24 +283,20 @@ if __name__ == "__main__":
    print("\n")   
    
    L_hotel_json, S_hotel_json, B_hotel_json = classify_hotels(test_hotel_json)
-   print("Hotel Category: L",L_hotel_json)
+   print("Hotel Category: L", L_hotel_json)
    print("\n")
-   print("Hotel Category: S",S_hotel_json)
+   print("Hotel Category: S", S_hotel_json)
    print("\n")
-   print("Hotel Category: B",B_hotel_json)
+   print("Hotel Category: B", B_hotel_json)
    print("\n")
    
    L_hotel_json = add_mean(L_hotel_json, "revenue_single(€)")
    L_hotel_json = add_std(L_hotel_json, "revenue_single(€)")
-   #L_hotel_json = add_mean_trimester(L_hotel_json, "num_families") #ancora da ottimizzare
+   #L_hotel_json = add_mean_trimester(L_hotel_json, "num_families") # still needs optimization
    L_hotel_json = add_mean(L_hotel_json, "num_families")
    L_hotel_json = add_sum(L_hotel_json, "num_families")
    
-   #N.B: Serve un aggregatore di parametri
+   # Note: An aggregator of parameters is needed
    
    print("Debug for L Category:")
    print(L_hotel_json)
-   
-
-    
-

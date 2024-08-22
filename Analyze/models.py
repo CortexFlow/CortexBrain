@@ -25,15 +25,15 @@ class Models:
     
     def prophet_with_customizations(self):
         # Load data
-        df = pd.read_excel("../generazione.xlsx")
+        df = pd.read_excel("../SyntheticDatas/output/generazione.xlsx")
         
         # Check for missing values
         if df.isnull().values.any():
             df = df.dropna()  # Remove rows with missing values or handle them differently
         
         # Filter and rename columns for Prophet
-        df_filtered = df[["date", "total_revenue"]].copy()
-        df_filtered = df_filtered.rename(columns={"date": "ds", "total_revenue": "y"})
+        df_filtered = df[["date", "arrivals_ordini"]].copy()
+        df_filtered = df_filtered.rename(columns={"date": "ds", "arrivals_ordini": "y"})
         
         # Ensure the 'ds' column is of datetime type
         df_filtered['ds'] = pd.to_datetime(df_filtered['ds'])
