@@ -1,5 +1,8 @@
 # CortexBrain
-![Contact](https://github.com/CortexFlow/CortexBrain/actions/workflows/auto-assign.yml/badge.svg)
+# Copyright (c) 2024
+# Author: Tettamanti Lorenzo,Lorenzo Bradanini
+# Contact: lorenzotettamanti5@gmail.com
+![Auto Assign](https://github.com/CortexFlow/CortexBrain/actions/workflows/auto-assign.yml/badge.svg)
 ![CortexFlow Logo](banner.png)
 
 ## What is CortexBrain?
