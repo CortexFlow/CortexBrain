@@ -1,0 +1,65 @@
+{
+    "Global": {
+        "num_hotels": 30,
+        "years": 1,
+        "LuxuryMinPrice":250,
+        "LuxuryMaxPrice":500,
+        "LuxuryRooms":300,
+        "StandardMinPrice":80,
+        "StandardMaxPrice":150,
+        "StandardRooms":120,
+        "BudgetMinPrice":50,
+        "BudgetMaxPrice":90,
+        "BudgetRooms":60
+    },
+    "Location": {
+        "Mare": {
+            "seasonality": {
+                "January": 0.3, "February": 0.2, "March": 0.3, "April": 0.4,
+                "May": 0.8, "June": 0.9, "July": 1.0, "August": 1.0,
+                "September": 0.4, "October": 0.3, "November": 0.3, "December": 0.5
+            },
+            "hotel": {
+                "p_singola": 0.20,
+                "p_doppia": 0.50,
+                "mean_stay":5
+            }
+        },
+        "Montagna": {
+            "seasonality": {
+                "January": 1, "February": 1, "March": 0.6, "April": 0.4,
+                "May": 0.3, "June": 0.4, "July": 0.5, "August": 0.5,
+                "September": 0.3, "October": 0.3, "November": 0.3, "December": 1
+            },
+            "hotel": {
+                "p_singola": 0.20,
+                "p_doppia": 0.50,
+                "mean_stay":5
+            }
+        },
+        "Lago": {
+            "seasonality": {
+                "January": 0.2, "February": 0.2, "March": 0.3, "April": 0.3,
+                "May": 0.5, "June": 1, "July": 1, "August": 1,
+                "September": 0.6, "October": 0.3, "November": 0.3, "December": 0.2
+            },
+            "hotel": {
+                "p_singola": 0.20,
+                "p_doppia": 0.50,
+                "mean_stay":2
+            }
+        },
+        "City": {
+            "seasonality": {
+                "January": 0.6, "February": 0.6, "March": 0.6, "April": 0.6,
+                "May": 0.6, "June": 0.4, "July": 0.4, "August": 0.4,
+                "September": 0.6, "October": 0.6, "November": 0.6, "December": 0.7
+            },
+            "hotel": {
+                "p_singola": 0.20,
+                "p_doppia": 0.50,
+                "mean_stay":2
+            }
+        }
+    }
+}

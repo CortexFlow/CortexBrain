@@ -1,0 +1,16 @@
+numpy==1.26.4
+pandas==2.2.2
+sdv==1.15.0
+matplotlib==3.8.4
+prophet==1.1.5
+requests==2.32.2
+pymongo==4.8.0
+asyncio==3.4.3
+aiohttp==3.9.5
+networkx==3.2.1
+simpy==4.1.1
+Mesa== 2.3.2
+osmnx==1.9.4
+geopy==2.4.1
+pydot==3.0.1
+folium==0.17.0

@@ -1,0 +1,50 @@
+/* styles.css */
+QWidget {
+    font-family: Poppins, sans-serif;
+    font-size: 14px;
+    background-color: #f0f0f0;
+}
+
+QLabel#configLabel {
+    font-size: 16px;
+    color: #333;
+}
+
+QLineEdit#configLineEdit {
+    padding: 5px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+}
+
+QPushButton#configBtn, QPushButton#runBtn {
+    padding: 10px;
+    border-radius: 5px;
+    border: none;
+    color: white;
+}
+
+QPushButton#configBtn {
+    background-color: #4CAF50;
+}
+
+QPushButton#configBtn:hover {
+    background-color: #45a049;
+}
+
+QPushButton#runBtn {
+    background-color: #2196F3;
+}
+
+QPushButton#runBtn:hover {
+    background-color: #0b7dda;
+}
+
+QFrame#dividerLine {
+    border: 1px solid #ddd;
+}
+
+QWidget#configFrame {
+    border: 1px solid #ddd;
+    padding: 10px;
+    background-color: transparent;
+}
