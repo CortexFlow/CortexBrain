@@ -2,32 +2,32 @@
 ![Contact](https://github.com/CortexFlow/demo-repository/actions/workflows/auto-assign.yml/badge.svg)
 ![CortexFlow Logo](banner.png)
 
+## What is CortexBrain?
 
-## What's CortexBrain?
-
-CortexBrain is a powerful platform designed by CortexFlow to simplify [brief project description]. With CortexBrain, users can [key benefits of the project], helping them achieve [specific goals].
+CortexBrain is a robust simulation framework developed by CortexFlow, designed to simplify the simulation of IoT devices. Our goal is to model various IoT sensor properties, including smart lights, accelerometers, gyroscopes, and temperature sensors. With CortexBrain, you can simulate IoT sensors, place them on a geolocalized map, monitor key metrics, and simulate specific scenarios.
 
 ## Features
 
-CortexBrain offers a range of key features, including:
+CortexBrain provides a range of powerful features, including:
 
-
+- **IoT Sensor Simulation**: Simulate a variety of IoT sensors, such as temperature, humidity, and light sensors.
+- **Geolocalized Map**: Position simulated sensors on a geolocalized map.
+- **Scenario Simulation**: Create and test various scenarios with simulated sensors.
 
 Explore all the features in the [documentation](#documentation).
 
 ## Documentation
 
-For a complete guide on how to get started and make the most out of CortexBrain, visit the [official documentation](link_to_documentation). You'll find:
+For a comprehensive guide on getting started and making the most of CortexBrain, visit the [official documentation](link_to_documentation). The documentation includes:
 
-- **Getting Started**: How to install and set up CortexBrain.
-- **Tutorials**: Practical examples to help you learn the main features.
-- **API Reference**: Detailed API documentation.
+- **Getting Started**: Instructions on how to install and set up CortexBrain.
+- **Examples**: Practical examples to help you understand and use the main features.
+- **API Reference**: Information on the available APIs and their usage (coming soon).
 
 ## Contributing
 
-We welcome contributions from the community! If you'd like to contribute to the project, follow these steps:
+We welcome contributions from the community! To contribute to the project, please follow these steps:
 
 1. Fork the repository.
-2. Create a branch for your feature (`git checkout -b feature/feature-name`).
+2. Create a new branch for your feature (`git checkout -b feature/feature-name`).
 3. Submit a Pull Request with a detailed explanation of your changes.
-
