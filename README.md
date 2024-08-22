@@ -1,4 +1,7 @@
 # CortexBrain
+![Contact](https://github.com/CortexFlow/demo-repository/actions/workflows/auto-assign.yml/badge.svg)
+
+![Documentation](https://github.com/CortexFlow/demo-repository/actions/workflows/proof-html.yml/badge.svg)
 
 ## What's CortexBrain?
 
