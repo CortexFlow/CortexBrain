@@ -10,7 +10,7 @@ from datetime import date, timedelta
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 #from SyntheticDatas.generateDatas import generateDataset
-from utils.jsonEncoding import decompressJson
+
 
 
 # Funzione per la divisione in categorie degli hotel

@@ -16,10 +16,9 @@ import matplotlib.pyplot as plt
 # Aggiungi la directory parent alla variabile di percorso
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from utils.jsonEncoding import compressJson, testEncoding
+from utils.jsonEncoder import compressJson, testEncoding
 from utils.DataProcessor import DataProcessor
 from utils.PlotDatas import CreateNetworkData
-from utils.jsonEncoding import decompressJson
 from Analyze.analyze import add_mean, add_std, add_sum, classify_hotels
 from SyntheticDatas.generateDatas import GenerateHotelDatas
 

@@ -1,4 +1,4 @@
-from utils.jsonEncoding import decompressJson
+from utils.jsonEncoder import decompressJson
 from Analyze.analyze import add_mean, add_std, add_sum, classify_hotels
 import json
 from utils.DataProcessor import DataProcessor

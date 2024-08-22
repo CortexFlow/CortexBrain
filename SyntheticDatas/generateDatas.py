@@ -11,7 +11,7 @@ warnings.filterwarnings("ignore")
 # Aggiungi la directory parent alla variabile di percorso
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from utils.jsonEncoding import compressJson,testEncoding
+from utils.jsonEncoder import DataEncoder
 from utils.DataProcessor import DataProcessor
 
 def is_valid_data(df):
@@ -174,7 +174,7 @@ def GenerateHotelDatas(params, key,debugMode=True):
             output_data = {
                 "Hotel List": data
             }
-            compressJson(output_data, 'hotel_data.json.gz')
+            DataEncoder.compressJson(output_data, 'hotel_data.json.gz')
             
             if debugMode==True:
                 # Salva i dati reali in un foglio chisamato 'RealData'
