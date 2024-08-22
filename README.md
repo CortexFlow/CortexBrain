@@ -18,7 +18,7 @@ Explore all the features in the [documentation](#documentation).
 
 ## Documentation
 
-For a comprehensive guide on getting started and making the most of CortexBrain, visit the [official documentation](link_to_documentation). The documentation includes:
+For a comprehensive guide on getting started and making the most of CortexBrain, visit the [official documentation](doc.txt). The documentation includes:
 
 - **Getting Started**: Instructions on how to install and set up CortexBrain.
 - **Examples**: Practical examples to help you understand and use the main features.
