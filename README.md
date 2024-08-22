@@ -7,7 +7,7 @@
 
 ## What's CortexBrain?
 
-CortexBrain is a powerful platform designed to simplify [brief project description]. With CortexBrain, users can [key benefits of the project], helping them achieve [specific goals].
+CortexBrain is a powerful platform designed by CortexFlow to simplify [brief project description]. With CortexBrain, users can [key benefits of the project], helping them achieve [specific goals].
 
 ## Features
 
