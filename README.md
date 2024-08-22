@@ -52,17 +52,7 @@ To get started with CortexBrain, follow these steps:
 Explore all the features in the [documentation](doc.md).
 
 ## Roadmap
-### Phase 1:
-
-### Phase 2: 
-
-
-### Phase 3: 
-
-
-### Phase 4:
-
-For detailed information on the project's roadmap, please see [ROADMAP.md](ROADMAP.md).
+![RoadMap](banner.png)
 
 
 ## Documentation
