@@ -2,23 +2,8 @@ import matplotlib.pyplot as plt
 from matplotlib import style 
 import json
 
-from sdv.single_table import GaussianCopulaSynthesizer
-from sdv.single_table import CTGANSynthesizer
-from sdv.evaluation.single_table import evaluate_quality, get_column_plot,get_column_pair_plot
 
 class DataProcessor:
-    #non utilizzata
-    def Synthesizer(metadata,RealData,nSamples):
-        # Crea il synthesizer
-        synthesizer = CTGANSynthesizer(metadata)
-
-        # Adatta il modello ai dati reali
-        synthesizer.fit(RealData)
-
-        # Genera dati sintetici
-        synthetic_data = synthesizer.sample(num_rows=nSamples)
-        return synthetic_data
-    
     def CompareDatas1D(data, key):
         try:
             datas = json.loads(data)  # Converte la stringa JSON in un dizionario

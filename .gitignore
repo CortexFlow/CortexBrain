@@ -158,7 +158,7 @@ cython_debug/
 dbConfig.json
 
 #output file
-*.html
+mappa_punti_interesse_satellitare.html
 
 # PyCharm
 #  JetBrains specific template is maintained in a separate JetBrains.gitignore that can

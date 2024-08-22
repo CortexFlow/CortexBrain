@@ -12,3 +12,7 @@ geopy==2.4.1
 pydot==3.0.1
 folium==0.17.0
 snowflake==0.12.0
+pyqt5==5.15.11
+PyQtWebEngine==5.15.7
+osmnx==1.9.4
+mesa==2.3.2

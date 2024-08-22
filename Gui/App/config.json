@@ -6,7 +6,7 @@
     "city": "Como,CO",
     "startingPlace": "Duomo",
     "searchCategory": [
-        "bar"
+        "school"
     ],
     "savePOI": "../output"
 }

@@ -21,5 +21,5 @@ if __name__=="__main__":
     # Example usage:
     libraries_to_check = ['numpy', 'pandas', 'matplotlib', 'prophet', 'requests', 'asyncio',
                         'aiohttp', 'networkx', 'folium', 'pydot',
-                        'geopy', 'simpy','pymongo','snowflake']
+                        'geopy', 'simpy','pymongo','snowflake','pyqt5','PyQtWebEngine','osmnx','mesa']
     CheckLib(libraries_to_check)

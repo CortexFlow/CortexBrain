@@ -52,8 +52,9 @@ class RealWorld:
                     "Coordinate": (coords[0], coords[1])
                 })
 
-                print(f"Nome: {row['name']}, Tipo: {
-                      row['amenity']}, Coordinate: ({coords[0]}, {coords[1]})")
+                print(f"Nome: {row['name']}, Tipo: {row['amenity']}, "
+                    f"Coordinate: ({coords[0]}, {coords[1]})")
+
 
         # Converti la lista di dizionari in un DataFrame
         df = pd.concat([df, pd.DataFrame(pois_list)], ignore_index=True)
