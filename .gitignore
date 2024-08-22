@@ -159,6 +159,8 @@ dbConfig.json
 
 #output file
 mappa_punti_interesse_satellitare.html
+DistanceFromPoi.csv
+POI.csv
 
 # PyCharm
 #  JetBrains specific template is maintained in a separate JetBrains.gitignore that can
