@@ -31,4 +31,3 @@ We welcome contributions from the community! If you'd like to contribute to the 
 2. Create a branch for your feature (`git checkout -b feature/feature-name`).
 3. Submit a Pull Request with a detailed explanation of your changes.
 
-Check out our [contributing guide](link_to_contributing_guide) for more information on best practices and coding standards.
