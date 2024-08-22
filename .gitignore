@@ -156,6 +156,7 @@ cython_debug/
 
 #config files
 dbConfig.json
+config.json
 
 #output file
 mappa_punti_interesse_satellitare.html
