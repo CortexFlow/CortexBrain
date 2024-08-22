@@ -1,4 +1,4 @@
-""" Contiene i modelli per analizzare le serie temporali di dati  """
+""" Contains models for analyzing time series data """
 import numpy as np
 import pandas as pd
 from prophet import Prophet
@@ -10,7 +10,7 @@ class Models:
         pass
     
     def calculate_metrics(self, actual, predicted):
-        """Calcola e stampa le metriche di valutazione."""
+        """Calculates and prints evaluation metrics."""
         mae = mean_absolute_error(actual, predicted)
         mse = mean_squared_error(actual, predicted)
         rmse = np.sqrt(mse)
@@ -24,53 +24,53 @@ class Models:
         return mae, mse, rmse, mape
     
     def prophet_with_customizations(self):
-        # Carica i dati
+        # Load data
         df = pd.read_excel("../generazione.xlsx")
         
-        # Verifica la presenza di valori mancanti
+        # Check for missing values
         if df.isnull().values.any():
-            df = df.dropna()  # Rimuove le righe con valori mancanti o gestiscile diversamente
+            df = df.dropna()  # Remove rows with missing values or handle them differently
         
-        # Filtra e rinomina le colonne per Prophet
+        # Filter and rename columns for Prophet
         df_filtered = df[["date", "total_revenue"]].copy()
         df_filtered = df_filtered.rename(columns={"date": "ds", "total_revenue": "y"})
         
-        # Assicurati che la colonna 'ds' sia di tipo datetime
+        # Ensure the 'ds' column is of datetime type
         df_filtered['ds'] = pd.to_datetime(df_filtered['ds'])
         
-        # Aggiungi una colonna di capacità per la crescita logistica
+        # Add a capacity column for logistic growth
         df_filtered['cap'] = 100
         
-        # Inizializza il modello Prophet
+        # Initialize the Prophet model
         m = Prophet(growth='logistic', interval_width=0.95)
         
-        # Aggiungi stagionalità personalizzata
+        # Add custom seasonality
         m.add_seasonality(name='quarterly', period=91.25, fourier_order=8)
         
-        # Fitta il modello con i dati storici
+        # Fit the model with historical data
         m.fit(df_filtered)
         
-        # Crea un dataframe per il futuro
+        # Create a dataframe for the future
         future = m.make_future_dataframe(periods=365)
         
-        # Assicurati che anche 'future' abbia la colonna 'ds' di tipo datetime
+        # Ensure that 'future' also has the 'ds' column as datetime
         future['ds'] = pd.to_datetime(future['ds'])
         
-        # Aggiungi la colonna 'cap' al dataframe futuro
+        # Add the 'cap' column to the future dataframe
         future['cap'] = 100
         
-        # Fai la previsione
+        # Make the prediction
         forecast = m.predict(future)
         
-        # Stampa le ultime previsioni
+        # Print the latest predictions
         print(forecast[["ds", "yhat"]].tail())
         
-        # Calcola le metriche di valutazione sulle previsioni per il periodo di training
+        # Calculate evaluation metrics on predictions for the training period
         actual = df_filtered['y']
         predicted = forecast.loc[forecast['ds'].isin(df_filtered['ds']), 'yhat']
         self.calculate_metrics(actual, predicted)
         
-        # Visualizza i grafici
+        # Display the plots
         fig1 = m.plot(forecast)
         fig2 = m.plot_components(forecast)
         
@@ -81,4 +81,4 @@ class Models:
 
 if __name__ == "__main__":
     model = Models()
-    model.prophet_with_customizations()  # Chiama la funzione con personalizzazioni
+    model.prophet_with_customizations()  # Call the function with customizations
