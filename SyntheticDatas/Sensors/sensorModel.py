@@ -7,6 +7,9 @@ import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
 
+import networkx as nx
+import folium
+
 class Sensor:
     """Base class for all sensors."""
 
@@ -108,9 +111,46 @@ class GPS_Sensor(Sensor):
         while time.time() - start_time < duration:
             self.UpdateDirection()
             print(f"Current Position: {self.ReadValue()}")
-            time.sleep(1)  # Wait for 1 second before updating again: NEXT UPDATE----> Simulate the refresh rate of the sensor
+            time.sleep(1)  # Wait for 1 second before updating again: Simulate the refresh rate of the sensor
 
         print(f"Final Position: {self.ReadValue()}")
+        
+    def PlaceSensor(self, pois):
+            """Places the sensor on the map and adds markers for each POI."""
+            # Create a graph and add nodes for each POI
+            G = nx.Graph()
+            for poi in pois:
+                # Here we assume pois is a list of tuples where each tuple contains (name, position)
+                name, position = poi
+                G.add_node(name, pos=(position[0], position[1]), category=name)
+            
+            # Initialize the map centered around the average position of all POIs
+            pos = nx.get_node_attributes(G, 'pos')
+            if not pos:
+                print("No positions found in the graph.")
+                return
+
+            # Compute the center position (average of all positions) for map initialization
+            avg_lat = np.mean([p[0] for p in pos.values()])
+            avg_lon = np.mean([p[1] for p in pos.values()])
+            center_position = [avg_lat, avg_lon]
+
+            mappa = folium.Map(location=center_position, zoom_start=13,
+                            tiles='http://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', attr='Google')
+            
+            # Add markers for each node on the map
+            for node, coords in pos.items():
+                # Custom marker for POIs with informational popup
+                popup_content = f"<strong>{node}</strong><br>Type: POI"
+                folium.Marker(
+                    location=coords,
+                    popup=popup_content,
+                    icon=folium.Icon(color='blue', icon='cloud')
+                ).add_to(mappa)
+            
+            # Save the map to an HTML file or display it in a Jupyter notebook
+            mappa.save('sensor_map.html')
+            print("Map has been saved to 'sensor_map.html'.")
 
     def __del__(self):
         print(f"Sensor {self.type}, name: {self.name} deleted")
@@ -145,3 +185,10 @@ if __name__ == "__main__":
     print(f"Is Moving? {'Yes' if moving_gps_sensor.isMoving() else 'No'}")
     print("\nStarting GPS sensor simulation...")
     moving_gps_sensor.SimulateMovement(duration=10)  # Simulate for 10 seconds
+    
+    # Test placing sensors on the map
+    pois = [
+        ("Static GPS Sensor", [45.712460, 8.986586]),
+        ("Static GPS Sensor2", [45.812460, 8.986586])
+    ]
+    static_gps_sensor.PlaceSensor(pois=pois)

@@ -195,6 +195,7 @@ def CreateNetworkData(df, poi="CentralPlace", pos=(0, 0), poi_types=None, plotGr
 
     return G
 
+
 if __name__ == "__main__":
     """ Creates a city based on random generation of structures around a point of interest """
     if os.path.exists('./output/generazione.xlsx'):
