@@ -1,6 +1,6 @@
 # Documentation
 Full documentation of the CortexBrain library
-### Getting Started
+# Getting Started
 
 To get started with CortexBrain, follow these steps:
 
@@ -21,12 +21,14 @@ To get started with CortexBrain, follow these steps:
    ```bash
    python testLib.py
 
-### Functions and Examples
+# Functions and Examples
+Documentation of Classes,Functions and Examples featured in CortexBrain 
+
 # Class: Sensor
 The Sensor class is a base class for various types of sensors. It encapsulates basic functionalities such as reading and updating the sensor's value, and it includes attributes for the sensor's type, label, and current value.
 
-## Class Methods and Attributes
-## Attributes:
+
+### Attributes:
 
 name: A string representing the label or name of the sensor.
 type: A string representing the type of sensor (e.g., Temperature, Humidity).
@@ -41,8 +43,7 @@ UpdateValue(self, new_value): Updates the sensor's value with the given new_valu
 # Class: GPS_Sensor
 The GPS_Sensor class inherits from the Sensor class and models a GPS sensor. It includes attributes for latitude, longitude, speed, and direction, along with methods for updating position, checking if the sensor is moving, and simulating movement over a period of time.
 
-## Class Methods and Attributes
-## Attributes:
+### Attributes:
 
 lat: The latitude of the sensor.
 lon: The longitude of the sensor.
@@ -63,8 +64,7 @@ SimulateMovement(self, duration): Simulates the movement of the sensor for a spe
 # Class: Map
 The Map class manages a collection of sensors using a graph-based structure and provides functionalities to generate an interactive map displaying these sensors. The class uses networkx for graph management and folium for map visualization. Sensors are added as nodes in the graph, and their positions are marked on the map.
 
-## Class Methods and Attributes
-## Attributes:
+### Attributes:
 
 G: A networkx.Graph object that stores sensors as nodes, with attributes such as position and category.
 Methods:
@@ -75,5 +75,5 @@ CreateMap(self): Generates and saves an interactive map with markers representin
 
 
 
-### API
+# API
 The api integration will be featured in the next release
