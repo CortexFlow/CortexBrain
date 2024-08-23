@@ -104,10 +104,3 @@ At CortexFlow, we're continually working to expand the capabilities of CortexBra
 
 To stay updated on our progress and view what we're currently working on, check out our [Trello board](https://trello.com/invite/b/66c731aab6030598aef7aed3/ATTIdfd7d08e42dca6f8b56a8b26f499ab8c95EB547E/cortexbrain).
 
-# Contributing
-
-We welcome contributions from the community! To contribute to the project, please follow these steps:
-
-1. Fork the repository.
-2. Create a new branch for your feature (`git checkout -b feature/feature-name`).
-3. Submit a Pull Request with a detailed explanation of your changes.
