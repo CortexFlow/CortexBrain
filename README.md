@@ -20,7 +20,7 @@ Copyright (c) 2024
 
 CortexBrain is a data simulation framework developed by CortexFlow, designed to simplify the simulation of IoT devices. Our goal is to model various IoT sensor properties, including smart lights, accelerometers, gyroscopes, and temperature sensors. With CortexBrain, you can simulate IoT sensors, place them on a geolocalized map, monitor key metrics, and simulate specific scenarios.
 
-## Features
+# Features
 
 CortexBrain provides a range of powerful features, including:
 
@@ -28,7 +28,7 @@ CortexBrain provides a range of powerful features, including:
 - **Geolocalized Map**: Position simulated sensors on a geolocalized map.
 - **Scenario Simulation**: Create and test various scenarios with simulated sensors.
 
-### Getting Started
+# Getting Started
 
 To get started with CortexBrain, follow these steps:
 
@@ -82,11 +82,11 @@ Open [sensor_map_tutorial.html](./Examples//sensor_map_tutorial.html) and check 
 Check all the examples in the [Examples](./Examples/) folder
 Explore all the features in the [documentation](doc.md).
 
-#### Roadmap
+# Roadmap
 
 ![RoadMap](ROADMAP.png)
 
-##### Documentation
+# Documentation
 
 For a comprehensive guide on getting started and making the most of CortexBrain, visit the [official documentation](doc.md). The documentation includes:
 
@@ -94,7 +94,7 @@ For a comprehensive guide on getting started and making the most of CortexBrain,
 - **Examples**: Practical examples to help you understand and use the main features.
 - **API Reference**: Information on the available APIs and their usage (coming soon).
 
-###### Future Developments
+# Future Developments
 
 At CortexFlow, we're continually working to expand the capabilities of CortexBrain. Our current focus includes:
 
@@ -104,7 +104,7 @@ At CortexFlow, we're continually working to expand the capabilities of CortexBra
 
 To stay updated on our progress and view what we're currently working on, check out our [Trello board](https://trello.com/invite/b/66c731aab6030598aef7aed3/ATTIdfd7d08e42dca6f8b56a8b26f499ab8c95EB547E/cortexbrain).
 
-###### Contributing
+# Contributing
 
 We welcome contributions from the community! To contribute to the project, please follow these steps:
 
