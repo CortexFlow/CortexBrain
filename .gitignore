@@ -164,6 +164,7 @@ DistanceFromPoi.csv
 POI.csv
 cache
 sensor_map.html
+img
 
 # PyCharm
 #  JetBrains specific template is maintained in a separate JetBrains.gitignore that can

@@ -49,14 +49,44 @@ To get started with CortexBrain, follow these steps:
    ```bash
    python .\testLib.py
 
+4. **Create a simple program**:
+
+   ```bash
+   import os
+   import sys
+   sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../')))
+
+   from SyntheticDatas.Sensors.sensorModel import GPS_Sensor
+   from SyntheticDatas.Sensors.sensorModel import Map
+
+   if __name__=="__main__":
+      #create the sensors using the constructors
+      gps_sensor_1 = GPS_Sensor(initial_position=[0, 0], label="Static GPS Sensor ")
+      gps_sensor_2 = GPS_Sensor(initial_position=[0, 0], label="Static GPS Sensor 2")
+      
+      #set the positions
+      gps_sensor_1.SetPosition((45.812460, 8.986586))
+      gps_sensor_2.SetPosition((45.832460, 8.986586))
+      
+      #create the map
+      map=Map()
+      #add the sensors on the map
+      map.AddSensor(gps_sensor_1)
+      map.AddSensor(gps_sensor_2)
+      #create the sensor_map.html file
+      map.CreateMap()
+
+Open [sensor_map.html](./Examples//sensor_map.html) and check the sensors on the map
+![SensorMap](./Examples//img//tutorial.png)
+
+Check all the examples in the [Examples](./Examples/) folder
 Explore all the features in the [documentation](doc.md).
 
-## Roadmap
+#### Roadmap
 
 ![RoadMap](ROADMAP.png)
 
-
-## Documentation
+##### Documentation
 
 For a comprehensive guide on getting started and making the most of CortexBrain, visit the [official documentation](doc.md). The documentation includes:
 
@@ -64,7 +94,7 @@ For a comprehensive guide on getting started and making the most of CortexBrain,
 - **Examples**: Practical examples to help you understand and use the main features.
 - **API Reference**: Information on the available APIs and their usage (coming soon).
 
-## Future Developments
+###### Future Developments
 
 At CortexFlow, we're continually working to expand the capabilities of CortexBrain. Our current focus includes:
 
@@ -74,7 +104,7 @@ At CortexFlow, we're continually working to expand the capabilities of CortexBra
 
 To stay updated on our progress and view what we're currently working on, check out our [Trello board](https://trello.com/invite/b/66c731aab6030598aef7aed3/ATTIdfd7d08e42dca6f8b56a8b26f499ab8c95EB547E/cortexbrain).
 
-## Contributing
+###### Contributing
 
 We welcome contributions from the community! To contribute to the project, please follow these steps:
 
