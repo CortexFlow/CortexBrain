@@ -116,41 +116,44 @@ class GPS_Sensor(Sensor):
         print(f"Final Position: {self.ReadValue()}")
         
     def PlaceSensor(self, pois):
-            """Places the sensor on the map and adds markers for each POI."""
-            # Create a graph and add nodes for each POI
-            G = nx.Graph()
-            for poi in pois:
-                # Here we assume pois is a list of tuples where each tuple contains (name, position)
-                name, position = poi
-                G.add_node(name, pos=(position[0], position[1]), category=name)
-            
-            # Initialize the map centered around the average position of all POIs
-            pos = nx.get_node_attributes(G, 'pos')
-            if not pos:
-                print("No positions found in the graph.")
-                return
+        """Places all POIs on the map with markers."""
+        # Create a graph
+        G = nx.Graph()
 
-            # Compute the center position (average of all positions) for map initialization
-            avg_lat = np.mean([p[0] for p in pos.values()])
-            avg_lon = np.mean([p[1] for p in pos.values()])
-            center_position = [avg_lat, avg_lon]
+        # Add nodes for each POI using current sensor's coordinates
+        for poi in pois:
+            # Ensure that the POI is an instance of GPS_Sensor
+            if isinstance(poi, GPS_Sensor):
+                position = poi.ReadValue()
+                G.add_node(poi.name, pos=(position[0], position[1]), category=poi.name)
 
-            mappa = folium.Map(location=center_position, zoom_start=13,
-                            tiles='http://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', attr='Google')
-            
-            # Add markers for each node on the map
-            for node, coords in pos.items():
-                # Custom marker for POIs with informational popup
-                popup_content = f"<strong>{node}</strong><br>Type: POI"
-                folium.Marker(
-                    location=coords,
-                    popup=popup_content,
-                    icon=folium.Icon(color='blue', icon='cloud')
-                ).add_to(mappa)
-            
-            # Save the map to an HTML file or display it in a Jupyter notebook
-            mappa.save('sensor_map.html')
-            print("Map has been saved to 'sensor_map.html'.")
+        # Initialize the map centered around the average position of all POIs
+        pos = nx.get_node_attributes(G, 'pos')
+        if not pos:
+            print("No positions found in the graph.")
+            return
+
+        # Compute the center position (average of all positions) for map initialization
+        avg_lat = np.mean([p[0] for p in pos.values()])
+        avg_lon = np.mean([p[1] for p in pos.values()])
+        center_position = [avg_lat, avg_lon]
+
+        mappa = folium.Map(location=center_position, zoom_start=13,
+                           tiles='http://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', attr='Google')
+        
+        # Add markers for each node on the map
+        for node, coords in pos.items():
+            # Custom marker for POIs with informational popup
+            popup_content = f"<strong>{node}</strong><br>Type: POI"
+            folium.Marker(
+                location=coords,
+                popup=popup_content,
+                icon=folium.Icon(color='blue', icon='cloud')
+            ).add_to(mappa)
+        
+        # Save the map to an HTML file or display it in a Jupyter notebook
+        mappa.save('sensor_map.html')
+        print("Map has been saved to 'sensor_map.html'.")
 
     def __del__(self):
         print(f"Sensor {self.type}, name: {self.name} deleted")
@@ -166,7 +169,7 @@ if __name__ == "__main__":
     print(f"Updated Sensor Value: {sensor.ReadValue()}")
 
     print("\nTesting GPS Sensor (Static)")
-    static_gps_sensor = GPS_Sensor(initial_position=[0.0, 0.0], label="Static GPS Sensor")
+    static_gps_sensor = GPS_Sensor(initial_position=[45.712460, 8.986586], label="Static GPS Sensor")
     print(f"Sensor Name: {static_gps_sensor.name}")
     print(f"Sensor Coordinates: {static_gps_sensor.ReadValue()}")
     static_gps_sensor.GetStatus()
@@ -186,9 +189,7 @@ if __name__ == "__main__":
     print("\nStarting GPS sensor simulation...")
     moving_gps_sensor.SimulateMovement(duration=10)  # Simulate for 10 seconds
     
-    # Test placing sensors on the map
-    pois = [
-        ("Static GPS Sensor", [45.712460, 8.986586]),
-        ("Static GPS Sensor2", [45.812460, 8.986586])
-    ]
-    static_gps_sensor.PlaceSensor(pois=pois)
+    # Testing the PlaceSensor function
+    static_gps_sensor2 = GPS_Sensor(initial_position=[45.812460, 8.986586], label="Static GPS Sensor 2")
+    # Call PlaceSensor with a list of sensor instances
+    static_gps_sensor.PlaceSensor(pois=[static_gps_sensor, static_gps_sensor2])
