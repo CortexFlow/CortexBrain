@@ -114,21 +114,23 @@ class GPS_Sensor(Sensor):
             time.sleep(1)  # Wait for 1 second before updating again: Simulate the refresh rate of the sensor
 
         print(f"Final Position: {self.ReadValue()}")
-        
-    def PlaceSensor(self, pois):
-        """Places all POIs on the map with markers."""
-        # Create a graph
-        G = nx.Graph()
 
-        # Add nodes for each POI using current sensor's coordinates
-        for poi in pois:
-            # Ensure that the POI is an instance of GPS_Sensor
-            if isinstance(poi, GPS_Sensor):
-                position = poi.ReadValue()
-                G.add_node(poi.name, pos=(position[0], position[1]), category=poi.name)
 
-        # Initialize the map centered around the average position of all POIs
-        pos = nx.get_node_attributes(G, 'pos')
+class Map:
+    """Class responsible for creating and managing the map with sensors."""
+    
+    def __init__(self):
+        self.G = nx.Graph()
+
+    def AddSensor(self, sensor):
+        """Adds a sensor to the graph."""
+        if isinstance(sensor, GPS_Sensor):
+            position = sensor.ReadValue()
+            self.G.add_node(sensor.name, pos=(position[0], position[1]), category=sensor.name)
+
+    def CreateMap(self):
+        """Creates and saves the map with all sensors added."""
+        pos = nx.get_node_attributes(self.G, 'pos')
         if not pos:
             print("No positions found in the graph.")
             return
@@ -138,25 +140,22 @@ class GPS_Sensor(Sensor):
         avg_lon = np.mean([p[1] for p in pos.values()])
         center_position = [avg_lat, avg_lon]
 
-        mappa = folium.Map(location=center_position, zoom_start=13,
+        map = folium.Map(location=center_position, zoom_start=15,
                            tiles='http://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', attr='Google')
         
         # Add markers for each node on the map
         for node, coords in pos.items():
-            # Custom marker for POIs with informational popup
-            popup_content = f"<strong>{node}</strong><br>Type: POI"
+            # Custom marker for sensors with informational popup
+            popup_content = f"<strong>{node}</strong><br>Type: {self.G.nodes[node]['category']}"
             folium.Marker(
                 location=coords,
                 popup=popup_content,
                 icon=folium.Icon(color='blue', icon='cloud')
-            ).add_to(mappa)
+            ).add_to(map)
         
         # Save the map to an HTML file or display it in a Jupyter notebook
-        mappa.save('sensor_map.html')
+        map.save('sensor_map.html')
         print("Map has been saved to 'sensor_map.html'.")
-
-    def __del__(self):
-        print(f"Sensor {self.type}, name: {self.name} deleted")
 
 
 if __name__ == "__main__":
@@ -189,7 +188,13 @@ if __name__ == "__main__":
     print("\nStarting GPS sensor simulation...")
     moving_gps_sensor.SimulateMovement(duration=10)  # Simulate for 10 seconds
     
-    # Testing the PlaceSensor function
+    # Testing the Map class
     static_gps_sensor2 = GPS_Sensor(initial_position=[45.812460, 8.986586], label="Static GPS Sensor 2")
-    # Call PlaceSensor with a list of sensor instances
-    static_gps_sensor.PlaceSensor(pois=[static_gps_sensor, static_gps_sensor2])
+
+    # Create a Map instance and add sensors
+    map = Map()
+    map.AddSensor(static_gps_sensor)
+    map.AddSensor(static_gps_sensor2)
+
+    # Generate the map
+    map.CreateMap()
