@@ -1,0 +1,1 @@
+This folder aims to build a simulation of a small city with hotels

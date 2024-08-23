@@ -1,0 +1,1 @@
+This folder contains a simulation of sensors with basic proprierties
