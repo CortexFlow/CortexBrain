@@ -77,7 +77,7 @@ To get started with CortexBrain, follow these steps:
       map.CreateMap()
 
 Open [sensor_map.html](./Examples//sensor_map.html) and check the sensors on the map
-![SensorMap](./Examples//img//tutorial.png)
+![tutorial.png](./Examples//img//tutorial.png)
 
 Check all the examples in the [Examples](./Examples/) folder
 Explore all the features in the [documentation](doc.md).
