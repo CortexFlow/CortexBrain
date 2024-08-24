@@ -6,19 +6,23 @@ Currently working on:
 - moving and testing all the models
 - creating examples
 - writing documentation
+- expanding actual features
+- creating new frameworks
+- integrating big data analysis tools
 
 # CortexBrain
 
 Copyright (c) 2024
 
-- Author: Tettamanti Lorenzo,Lorenzo Bradanini
+- Author: Tettamanti Lorenzo, Lorenzo Bradanini
 - Contact: <lorenzotettamanti5@gmail.com>/<lorenzolollobrada@gmail.com>
 ![Auto Assign](https://github.com/CortexFlow/CortexBrain/actions/workflows/auto-assign.yml/badge.svg)
 ![CortexFlow Logo](banner.png)
 
 ## What is CortexBrain?
 
-CortexBrain is a data simulation framework developed by CortexFlow, designed to simplify the simulation of IoT devices. Our goal is to model various IoT sensor properties, including smart lights, accelerometers, gyroscopes, and temperature sensors. With CortexBrain, you can simulate IoT sensors, place them on a geolocalized map, monitor key metrics, and simulate specific scenarios.
+CortexBrain is a cutting-edge data simulation and big data analysis framework developed by CortexFlow, designed to simplify the simulation and analysis of IoT (Internet of Things) devices. CortexBrain enables you to model and train various IoT sensor properties, including smart lights, accelerometers, gyroscopes, and temperature sensors. With CortexBrain, you can simulate IoT sensors, position them on a geolocalized map, monitor key metrics, and simulate specific scenarios.
+
 
 # Features
 
@@ -27,6 +31,11 @@ CortexBrain provides a range of powerful features, including:
 - **IoT Sensor Simulation**: Simulate a variety of IoT sensors, such as temperature, humidity, and light sensors.
 - **Geolocalized Map**: Position simulated sensors on a geolocalized map.
 - **Scenario Simulation**: Create and test various scenarios with simulated sensors.
+-  **Advanced data analysis** : Leverage big data tools for in-depth analysis and seamless visualization of simulated data.
+-  **Machine Learning Integration** : Implement and test machine learning models on your simulated data to uncover patterns and make predictions.
+-  **Predictive Maintenance** : Utilize the simulated data for predictive maintenance, identifying potential issues before they occur.
+-  **Real-time Data Streams** : Integrate real-time data streams to enhance the accuracy and responsiveness of your simulations.
+
 
 # Getting Started
 
