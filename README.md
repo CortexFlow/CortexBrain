@@ -121,6 +121,7 @@ We welcome contributions from the community! To contribute to the project, pleas
 2. Create a new branch for your feature (`git checkout -b feature/feature-name`).
 3. Submit a Pull Request with a detailed explanation of your changes.
 
+
 **Proposing New Features**
 
 If you would like to contribute a new feature to the project, we ask that you open a discussion before submitting a PR. This is to ensure that all new features align with the project's goals and to avoid overlapping work or conflicting views.
