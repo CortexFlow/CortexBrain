@@ -86,4 +86,4 @@ class CameraMap:
                 ).add_to(folium_map)
 
         folium_map.save("sensor_map.html")
-        print("Folium map with sensors and fields of view has been saved to 'sensor_map.html'.")
+        print("Map has been saved to 'sensor_map.html'.")
