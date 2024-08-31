@@ -65,8 +65,8 @@ To get started with CortexBrain, follow these steps:
    import sys
    sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../')))
 
-   from SyntheticDatas.Sensors.sensorModel import GPS_Sensor
-   from SyntheticDatas.Sensors.sensorModel import Map
+   from GPSModel import GPS_Sensor
+   from Map import Map
 
    if __name__=="__main__":
       #create the sensors using the constructors
@@ -85,8 +85,8 @@ To get started with CortexBrain, follow these steps:
       #create the sensor_map.html file
       map.CreateMap()
 
-Open [sensor_map_tutorial.html](./Examples//sensor_map_tutorial.html) and check the sensors on the map
-![tutorial.png](./Examples//img//tutorial.png)
+Open [sensor_map_tutorial.html](./SyntheticDatas/Sensors/Examples/sensor_map_tutorial.html) and check the sensors on the map
+![tutorial.png](./SyntheticDatas/Sensors/Examples/img/tutorial.png)
 
 Check all the examples in the [Examples](./Examples/) folder
 Explore all the features in the [documentation](doc.md).
