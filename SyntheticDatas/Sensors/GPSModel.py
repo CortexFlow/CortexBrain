@@ -1,11 +1,5 @@
 import numpy as np
 import time
-import sys
-import os
-
-# Add parent directories to the system path
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
 
 import networkx as nx
 

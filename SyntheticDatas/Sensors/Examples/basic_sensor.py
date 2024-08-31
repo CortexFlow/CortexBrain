@@ -2,7 +2,7 @@ import os
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../')))
 
-from SyntheticDatas.Sensors.BaseSensor import Sensor
+from BaseSensor import Sensor
 
 if __name__=="__main__":
     #create a dumb sensor 
