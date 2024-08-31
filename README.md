@@ -11,6 +11,7 @@ Copyright (c) 2024
 [![License](https://img.shields.io/badge/licenza-Apache%202.0-blue.svg?style=for-the-badge)](./LICENSE)
 [![Discussions](https://img.shields.io/github/discussions/CortexFlow/CortexBrain?style=for-the-badge)](https://github.com/CortexFlow/CortexBrain/discussions)
 ![NumPy](https://img.shields.io/badge/numpy-%23013243.svg?style=for-the-badge&logo=numpy&logoColor=white)
+[![Looking for Contributors](https://img.shields.io/badge/Looking_for_Contributors-brightgreen?style=for-the-badge&logo=github)](https://github.com/CortexFlow/CortexBrain#contributing)
 
 
 
