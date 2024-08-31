@@ -17,6 +17,10 @@ Copyright (c) 2024
 - Author: Tettamanti Lorenzo, Lorenzo Bradanini
 - Contact: <lorenzotettamanti5@gmail.com>/<lorenzolollobrada@gmail.com>
 ![Auto Assign](https://github.com/CortexFlow/CortexBrain/actions/workflows/auto-assign.yml/badge.svg)
+[![Trello](https://img.shields.io/badge/Trello-%23026AA7.svg?style=for-the-badge&logo=Trello&logoColor=white)](https://trello.com/invite/b/66c731aab6030598aef7aed3/ATTIdfd7d08e42dca6f8b56a8b26f499ab8c95EB547E/cortexbrain)
+[![License](https://img.shields.io/badge/licenza-Apache%202.0-blue.svg)](./LICENSE)
+
+
 ![CortexFlow Logo](banner.png)
 
 ## What is CortexBrain?
