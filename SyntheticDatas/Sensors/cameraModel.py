@@ -1,10 +1,10 @@
 from BaseSensor import Sensor # base class
-from Map import IndoorArea
 import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
 
 from utils.DataProcessor import DataProcessor
+from Map import CameraMap
 
 
 
@@ -61,7 +61,7 @@ class CameraSensor(Sensor):
         print("-----------------------------")
 
 if __name__ == "__main__":
-    indoor_area = IndoorArea()
+    cameraMap = CameraMap()
 
     cam1 = CameraSensor(position=[45.80, 8.953], width=60, range=100, label="cam1")
     cam2 = CameraSensor(position=[45.80, 8.955], width=60, range=100, label="cam2")
@@ -75,8 +75,8 @@ if __name__ == "__main__":
     cam2.GetStatus()
     cam3.GetStatus()
 
-    indoor_area.addSensorIndoor(cam1)
-    indoor_area.addSensorIndoor(cam2)
-    indoor_area.addSensorIndoor(cam3)
+    cameraMap.addSensor(cam1)
+    cameraMap.addSensor(cam2)
+    cameraMap.addSensor(cam3)
 
-    indoor_area.create_map_with_sensors()
+    cameraMap.CreateMap()

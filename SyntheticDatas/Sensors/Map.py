@@ -52,14 +52,14 @@ class Map:
         print("Map has been saved to 'sensor_map.html'.")
 
 
-class IndoorArea:
+class CameraMap:
     def __init__(self):
         self.sensors = []
 
-    def addSensorIndoor(self, sensor):
+    def addSensor(self, sensor):
         self.sensors.append(sensor)
 
-    def create_map_with_sensors(self):
+    def CreateMap(self):
         folium_map = folium.Map(location=[45.81, 8.98], zoom_start=14,
                                 tiles='https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', attr='Google Maps')
 
