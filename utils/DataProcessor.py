@@ -2,6 +2,8 @@ import matplotlib.pyplot as plt
 from matplotlib import style 
 import json
 
+import math
+import numpy as np
 
 class DataProcessor:
     def CompareDatas1D(data, key):
@@ -110,3 +112,32 @@ class DataProcessor:
             singole_utilizzate += 1
         
         return singole_utilizzate, doppie_utilizzate, triple_utilizzate, numero_persone
+
+    def computeFovAngle(width, distance):
+        """Calculates the visual field angle (angular FoV) based on width and distance."""
+        return 2 * math.degrees(math.atan(width / (2 * distance)))
+
+    def generateCameraPoints(center_lat, center_lon, angle, fov_angle, radius, num_points=100):
+        """Generate points for a semicircle centered on (center_lat, center_lon)."""
+        points = []
+        angle_rad = math.radians(angle)
+        fov_angle_rad = math.radians(fov_angle)
+        
+        # Calculate the points of the semicircle
+        for theta in np.linspace(-fov_angle_rad / 2, fov_angle_rad / 2, num_points):
+            x = radius * math.cos(theta)
+            y = radius * math.sin(theta)
+            
+            # Rotazione dei punti in base all'angolo del sensore
+            x_rot = x * math.cos(angle_rad) - y * math.sin(angle_rad)
+            y_rot = x * math.sin(angle_rad) + y * math.cos(angle_rad)
+            
+            # Conversion of rotational coordinates to latitude and longitude
+            lat_gps = center_lat + y_rot / 111000
+            lon_gps = center_lon + x_rot / (111000 * math.cos(math.radians(center_lat)))
+            points.append([lat_gps, lon_gps])
+        
+        points.append([center_lat, center_lon])
+        points.append([center_lat + radius / 111000, center_lon])
+        
+        return points
