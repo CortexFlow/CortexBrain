@@ -66,17 +66,26 @@ if __name__ == "__main__":
     cam1 = CameraSensor(position=[45.80, 8.953], width=60, range=100, label="cam1")
     cam2 = CameraSensor(position=[45.80, 8.955], width=60, range=100, label="cam2")
     cam3 = CameraSensor(position=[45.80, 8.956], width=110, range=100, label="cam3")
+    cam4 = CameraSensor(position=[45.803, 8.953], width=50, range=50, label="cam4")
+    cam5 = CameraSensor(position=[45.8025, 8.956], width=50, range=40, label="cam5")
 
     cam1.setAngle(135)
     cam2.setAngle(135)
-    cam3.setAngle(300)
+    cam3.setAngle(150)
+    cam4.setAngle(135)
+    cam5.setAngle(135)
+    
     
     cam1.GetStatus()
     cam2.GetStatus()
     cam3.GetStatus()
+    cam4.GetStatus()
+    cam5.GetStatus()
 
     cameraMap.addSensor(cam1)
     cameraMap.addSensor(cam2)
     cameraMap.addSensor(cam3)
+    cameraMap.addSensor(cam4)
+    cameraMap.addSensor(cam5)
 
     cameraMap.CreateMap()
