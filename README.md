@@ -1,15 +1,3 @@
-# README
-
-We're currently moving the files from an old project. Please contact <lorenzotettamanti5@gmail.com> before cloning the repository
-Currently working on:
-
-- moving and testing all the models
-- creating examples
-- writing documentation
-- expanding actual features
-- creating new frameworks
-- integrating big data analysis tools
-
 # CortexBrain
 
 Copyright (c) 2024
@@ -31,6 +19,16 @@ Copyright (c) 2024
 
 CortexBrain is a cutting-edge data simulation and big data analysis framework developed by CortexFlow, designed to simplify the simulation and analysis of IoT (Internet of Things) devices. CortexBrain enables you to model and train various IoT sensor properties, including smart lights, accelerometers, gyroscopes, and temperature sensors. With CortexBrain, you can simulate IoT sensors, position them on a geolocalized map, monitor key metrics, and simulate specific scenarios.
 
+## Currently Development Focus
+
+Currently working on:
+
+- creating examples
+- writing documentation
+- working on predictive mantainance
+- expanding actual features
+- creating new frameworks
+- integrating big data analysis tools
 
 # Features
 
