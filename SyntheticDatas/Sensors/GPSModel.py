@@ -8,34 +8,17 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
 
 import networkx as nx
-import folium
 
-class Sensor:
-    """Base class for all sensors."""
+from Map import Map
 
-    def __init__(self, SensorType, value=0.0, label="Sensor"):
-        self.name = label
-        self.type = SensorType
-        self.value = value
-
-    def __del__(self):
-        print(f"Sensor {self.type}, name: {self.name} deleted")
-
-    def ReadValue(self):
-        """Returns the current value of the sensor."""
-        return self.value
-
-    def UpdateValue(self, new_value):
-        """Updates the sensor's value."""
-        self.value = new_value
-        return self.value
+from BaseSensor import Sensor
 
 
 class GPS_Sensor(Sensor):
     """Class for GPS sensors that can be static or moving."""
 
     def __init__(self, initial_position, speed=0.0, direction='N', label="GPS Sensor"):
-        super().__init__(SensorType="GPS", value=[0.0, 0.0], label=label)
+        super().__init__(SensorType="GPS", initial_position=[0.0,0.0], value=[0.0, 0.0], label=label)
         self.lat = float(initial_position[0])
         self.lon = float(initial_position[1])
         self.speed = float(speed)
@@ -114,48 +97,6 @@ class GPS_Sensor(Sensor):
             time.sleep(1)  # Wait for 1 second before updating again: Simulate the refresh rate of the sensor
 
         print(f"Final Position: {self.ReadValue()}")
-
-
-class Map:
-    """Class responsible for creating and managing the map with sensors."""
-    
-    def __init__(self):
-        self.G = nx.Graph()
-
-    def AddSensor(self, sensor):
-        """Adds a sensor to the graph."""
-        if isinstance(sensor, GPS_Sensor):
-            position = sensor.ReadValue()
-            self.G.add_node(sensor.name, pos=(position[0], position[1]), category=sensor.name)
-
-    def CreateMap(self):
-        """Creates and saves the map with all sensors added."""
-        pos = nx.get_node_attributes(self.G, 'pos')
-        if not pos:
-            print("No positions found in the graph.")
-            return
-
-        # Compute the center position (average of all positions) for map initialization
-        avg_lat = np.mean([p[0] for p in pos.values()])
-        avg_lon = np.mean([p[1] for p in pos.values()])
-        center_position = [avg_lat, avg_lon]
-
-        map = folium.Map(location=center_position, zoom_start=15,
-                           tiles='http://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', attr='Google')
-        
-        # Add markers for each node on the map
-        for node, coords in pos.items():
-            # Custom marker for sensors with informational popup
-            popup_content = f"<strong>{node}</strong><br>Type: {self.G.nodes[node]['category']}"
-            folium.Marker(
-                location=coords,
-                popup=popup_content,
-                icon=folium.Icon(color='blue', icon='cloud')
-            ).add_to(map)
-        
-        # Save the map to an HTML file or display it in a Jupyter notebook
-        map.save('sensor_map.html')
-        print("Map has been saved to 'sensor_map.html'.")
 
 
 if __name__ == "__main__":

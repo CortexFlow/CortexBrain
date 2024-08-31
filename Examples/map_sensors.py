@@ -2,8 +2,8 @@ import os
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../')))
 
-from SyntheticDatas.Sensors.sensorModel import GPS_Sensor
-from SyntheticDatas.Sensors.sensorModel import Map
+from SyntheticDatas.Sensors.GPSModel import GPS_Sensor
+from SyntheticDatas.Sensors.Map import Map
 
 if __name__=="__main__":
     #create the sensors using the constructors
