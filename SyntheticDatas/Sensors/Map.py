@@ -71,12 +71,13 @@ class CameraMap:
                 <strong>{sensor.label}</strong><br>
                 Angle: {sensor.angle}°<br>
                 FOV: {sensor.fov}°<br>
-                Range: {sensor.range}
+                Focal Length: {sensor.focal_length} mm
+                Sensor Width: {sensor.sensor_width} mm
                 """,
                 icon=folium.Icon(color='blue', icon='cloud')
             ).add_to(folium_map)
 
-            points = DataProcessor.generateCameraPoints(sensor.lat, sensor.lon, sensor.angle, sensor.fov, sensor.range)
+            points = DataProcessor.generateCameraPoints(sensor.lat, sensor.lon, sensor.angle, sensor.fov, sensor.focal_length)
             if points:
                 folium.Polygon(
                     locations=points,
