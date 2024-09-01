@@ -164,6 +164,7 @@ DistanceFromPoi.csv
 POI.csv
 cache
 sensor_map.html
+merge-branches.sh
 
 
 # PyCharm
