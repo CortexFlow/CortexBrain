@@ -1,4 +1,3 @@
-from utils.DataProcessor import DataProcessor
 from BaseSensor import Sensor
 import numpy as np
 import networkx as nx
@@ -10,7 +9,7 @@ sys.path.append(os.path.abspath(
 sys.path.append(os.path.abspath(
     os.path.join(os.path.dirname(__file__), '../')))
 
-
+from utils.DataProcessor import DataProcessor
 class Map:
     """Class responsible for creating and managing the map with sensors."""
 
