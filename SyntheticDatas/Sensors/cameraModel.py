@@ -22,6 +22,7 @@ class CameraSensor(Sensor):
         self.label = label
         self.fov = DataProcessor.computeFovAngle(sensor_width, self.focal_length)  # evalutate the fov angle
         self.angle = 0  # Default angle
+        self.max_range = DataProcessor.computeMaxDistance(self.fov,self.sensor_width) #max distance covered
 
     def SetPosition(self, position):
         self.lat = float(position[0])
@@ -55,6 +56,9 @@ class CameraSensor(Sensor):
     def getSensorWidth(self):
         return self.sensor_width
     
+    def getMaxDistance(self):
+        return self.max_range
+    
     def getStatus(self):
         """Prints the current status of the GPS sensor."""
         print("-----------------------------")
@@ -64,17 +68,18 @@ class CameraSensor(Sensor):
         print(f"Focal Lenght: {self.getFocalLenght()} mm")
         print(f"Sensor Width: {self.getSensorWidth()} mm ")
         print(f"Fov: {self.getFov()} °")
+        print(f"Max Distance covered: {self.getMaxDistance()} m")
         print(f"Angle: {self.getAngle()}° ")
         print("-----------------------------")
 
 if __name__ == "__main__":
     cameraMap = CameraMap()
 
-    cam1 = CameraSensor(position=[45.80, 8.953], sensor_width=60, focal_length=100, label="cam1")
-    cam2 = CameraSensor(position=[45.80, 8.955], sensor_width=60, focal_length=100, label="cam2")
-    cam3 = CameraSensor(position=[45.80, 8.956], sensor_width=110, focal_length=100, label="cam3")
-    cam4 = CameraSensor(position=[45.803, 8.953], sensor_width=50, focal_length=50, label="cam4")
-    cam5 = CameraSensor(position=[45.8025, 8.956], sensor_width=50, focal_length=40, label="cam5")
+    cam1 = CameraSensor(position=[45.80, 8.953], sensor_width=12.8, focal_length=15.9, label="cam1")
+    cam2 = CameraSensor(position=[45.80, 8.955], sensor_width=12.8, focal_length=15.9, label="cam2")
+    cam3 = CameraSensor(position=[45.80, 8.956], sensor_width=12.8, focal_length=15.9, label="cam3")
+    cam4 = CameraSensor(position=[45.803, 8.953], sensor_width=12.8, focal_length=15.9, label="cam4")
+    cam5 = CameraSensor(position=[45.8025, 8.956], sensor_width=12.8, focal_length=15.9, label="cam5")
 
     cam1.SetAngle(135)
     cam2.SetAngle(135)

@@ -141,3 +141,8 @@ class DataProcessor:
         points.append([center_lat + radius / 111000, center_lon])
         
         return points
+    
+    def computeMaxDistance(fov,sensor_width):
+        D = sensor_width/(2*math.tan(math.radians(fov)/2))
+        return round(D,3)
+        
