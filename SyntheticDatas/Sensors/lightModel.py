@@ -1,4 +1,3 @@
-from sympy import evaluate
 from BaseSensor import Sensor
 from Map import LightMap
 import math
@@ -7,7 +6,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 from luxpy import iolidfiles as iolid
-from matplotlib.colors import Normalize
+
+
 
 # The `Light` class represents a smart light sensor with properties such as position, power, lumen,
 # height, diffusion angle, and orientation angle, along with methods to get and set these properties
@@ -18,18 +18,18 @@ from matplotlib.colors import Normalize
 
 
 class Light(Sensor):
-    def __init__(self, position, power, diffusion_angle, orientation_angle, label="Smart Light"):
+    def __init__(self, position, power, diffusion_angle, orientation_angle, photometric_map, solid_angles, label="Smart Light"):
         super().__init__(SensorType="Light", value=[0.0, 0.0], label=label)
         self.lat = float(position[0])
         self.lon = float(position[1])
         self.power = power
-        # self.lumen = lumen
+        self.lumen, self.min_lumen, self.max_lumen = Light.evaluateLumen(self,photometric_map, solid_angles)
         self.label = label
         self.height = float(position[2])
         self.theta = diffusion_angle
         self.orientation = orientation_angle
 
-        # self.light_efficiency = self.lumen/self.power
+        self.light_efficiency = round(((self.min_lumen+self.max_lumen)/2)/self.power,3)
 
     def SetPosition(self, position):
         self.lat = float(position[0])
@@ -41,6 +41,9 @@ class Light(Sensor):
 
     def getLumen(self):
         return self.lumen
+
+    def getLumenRange(self):
+        return [self.min_lumen, self.max_lumen]
 
     def getPower(self):
         return self.power
@@ -76,16 +79,16 @@ class Light(Sensor):
         print(f"Name: {self.name}")
         print(f"Coordinates: {self.getPosition()}")
         print(f"Power: {self.getPower()} W")
-        # print(f"Lumen: {self.getLumen()} lm")
+        print(f"Lumen: {self.getLumenRange()} lm")
         print(f"Height: {self.getHeight()} m")
         print(f"Diffusion Angle: {self.getDiffusionAngle()}° ")
         print(f"Orientation Angle: {self.getAngle()}° ")
         print(f"Max Range Covered: {self.computeMaxRange()} m ")
-        # print(f"Light Efficiency: {self.getLightEfficiency()} lm/W")
+        print(f"Light Efficiency: {self.getLightEfficiency()} lm/W")
         print("-----------------------------")
 
     # Function to calculate the intensity in candelas at a point (x, y, z)
-    def evaluateE(self, x, y, z, df,debug="False"):
+    def evaluateE(self, x, y, z, df, debug="False"):
         """
         This Python function evaluates the illuminance at a given point based on the distance to a lamp and
         the intensity data from a CSV file.
@@ -140,7 +143,7 @@ class Light(Sensor):
             I_theta = 0  # If the angle is out of range, the intensity is zero
 
         E = I_theta / d**2  # Illuminance (lux)
-        if debug =="True":
+        if debug == "True":
             print(f"E: {E} cd")
             return E
         else:
@@ -196,9 +199,47 @@ class Light(Sensor):
 
         return x_grid, y_grid, I_grid
 
+    def evaluateLumen(self, df, solid_angles, debug="False"):
+        """
+        Evaluate the luminous flux (in lumens) for each column in the DataFrame using the corresponding solid angles.
+
+        Args:
+            df (pd.DataFrame): DataFrame of luminous intensities (in candelas).
+            solid_angles (array-like): Array of corresponding solid angles (in steradians).
+
+        Returns:
+            pd.DataFrame: A new DataFrame representing the luminous flux in lumens for each column.
+        """
+        df_lumen = df.copy()
+
+        # Loop through the columns and apply the corresponding solid angle
+        # Skip the first column (angles)
+        for idx, col in enumerate(df.columns[1:]):
+            df_lumen[col] = df[col] * solid_angles[idx]
+            if debug == "True":
+                print(f"col: {col} , idx value: {solid_angles[idx]}")  # debug
+
+        # find max of lumen dataframe:
+        max_lumen_per_col = []
+        for col in df_lumen.columns[1:]:
+            max_lumen_per_col.append(df_lumen[col].max())
+        # print(max_lumen_per_col)
+        # find max value of the max_lumen_per_col list:
+        max_lumen = round(max(max_lumen_per_col), 2)
+
+        # find min lumen
+        min_lumen_per_col = []
+        for col in df_lumen.columns[1:]:
+            min_lumen_per_col.append(df_lumen[col].min())
+        # print(min_lumen_per_col)
+        # find min value of the min_lumen_per_col list:
+        min_lumen = round(max(min_lumen_per_col), 2)
+        print(f"lumen range: {min_lumen} lm - {max_lumen}  lm")
+
+        return df_lumen, min_lumen, max_lumen
+
+
 # Function to read and prepare the data
-
-
 def loadFromCSV(file_path, delimiter=";"):
     """
     The function `loadFromCSV` reads a CSV file, replaces commas with periods, converts the data to
@@ -285,7 +326,8 @@ def CreateHeatmap(fig, df, angles):
 
     c = ax2.pcolormesh(angle_matrix, r_matrix, matrix,
                        cmap='plasma', shading='auto')
-    fig.colorbar(c, ax=ax2, orientation='horizontal',label="luminous intensity (cd)")
+    fig.colorbar(c, ax=ax2, orientation='horizontal',
+                 label="luminous intensity (cd)")
 
     ax2.set_theta_zero_location('S')
     ax2.set_theta_direction(-1)
@@ -327,34 +369,43 @@ def Create2DProjection(fig, x_grid, y_grid, I_grid, h, center_x=0, center_y=0, m
     fig.colorbar(c, ax=ax3, label='Illuminance (lux)')
 
     # Add isolux contours
-    if 0<light.getHeight()<=2 :
-        contour_levels = np.arange(0, 30, 5)  # Define levels for the contour lines
-    elif 2<light.getHeight()<=6 :
-        contour_levels = np.arange(0, 30, 1)  # Define levels for the contour lines
+    if 0 < light.getHeight() <= 2:
+        # Define levels for the contour lines
+        contour_levels = np.arange(0, 30, 5)
+    elif 2 < light.getHeight() <= 6:
+        # Define levels for the contour lines
+        contour_levels = np.arange(0, 30, 1)
     else:
-        contour_levels = np.arange(0, 30, 1)  # Define levels for the contour lines
-    
-    contours = ax3.contour(x_grid, y_grid, I_grid, levels=contour_levels, colors='yellow', linewidths=1.0)
-    ax3.clabel(contours, inline=True, fontsize=8, fmt='%d lux', colors='yellow')
+        # Define levels for the contour lines
+        contour_levels = np.arange(0, 30, 1)
+
+    contours = ax3.contour(
+        x_grid, y_grid, I_grid, levels=contour_levels, colors='yellow', linewidths=1.0)
+    ax3.clabel(contours, inline=True, fontsize=8,
+               fmt='%d lux', colors='yellow')
 
     # Draw radial lines from the center and add labels for distances
     if max_distance is None:
-        max_distance = np.max(np.sqrt((x_grid - center_x)**2 + (y_grid - center_y)**2))
+        max_distance = np.max(
+            np.sqrt((x_grid - center_x)**2 + (y_grid - center_y)**2))
 
     # Calculate distances from the center to each point in the grid
     distance_grid = np.sqrt((x_grid - center_x)**2 + (y_grid - center_y)**2)
 
     # Add distance labels next to the isolux contours
     for level in contour_levels:
-        contour = ax3.contour(x_grid, y_grid, I_grid, levels=[level], colors='red', linewidths=1.0)
+        contour = ax3.contour(x_grid, y_grid, I_grid, levels=[
+                              level], colors='red', linewidths=1.0)
         # For each curve, find a point to label
         for collection in contour.collections:
             for path in collection.get_paths():
                 # Find a point on the path (use the first point for simplicity)
                 point = path.vertices[len(path.vertices)//2]
                 # Calculate distance from the center
-                distance = np.sqrt((point[0] - center_x)**2 + (point[1] - center_y)**2)
-                ax3.text(point[0], point[1], f'{distance:.1f} m', color='white', fontsize=9, ha='center', va='center')
+                distance = np.sqrt(
+                    (point[0] - center_x)**2 + (point[1] - center_y)**2)
+                ax3.text(point[0], point[1], f'{distance:.1f} m',
+                         color='white', fontsize=9, ha='center', va='center')
 
     # Set labels and title
     ax3.set_xlabel('X (meters)')
@@ -363,6 +414,53 @@ def Create2DProjection(fig, x_grid, y_grid, I_grid, h, center_x=0, center_y=0, m
         f"Illuminance Distribution on the Road Plane at height = {h} m from the ground")
 
     return ax3
+
+
+
+
+
+def CalculateSolidAngle(df):
+    """
+    Calculate the solid angle in steradians for each column in the DataFrame,
+    based on the last non-zero intensity value in each column.
+
+    Args:
+        df (pd.DataFrame): DataFrame with angles and columns of intensities.
+
+    Returns:
+        np.ndarray: Solid angles in steradians for each column.
+    """
+    # Initialize a list to store solid angles
+    solid_angles = []
+    
+    # Get the column names excluding 'val'
+    intensity_columns = df.columns[1:]
+
+    # Iterate over each column of intensities in the DataFrame
+    for col in intensity_columns:
+        # Get the intensity values for the current column
+        intensities = df[col].values
+        angles = df['val'].values
+        
+        # Find the index of the last non-zero intensity
+        if np.any(intensities > 0):
+            last_non_zero_idx = np.max(np.nonzero(intensities)[0])
+            last_non_zero_angle = angles[last_non_zero_idx]
+        else:
+            # If no non-zero intensity, skip this column
+            solid_angles.append(0)
+            continue
+        
+        # Convert the angle to radians
+        last_non_zero_angle_rad = np.deg2rad(last_non_zero_angle)
+        
+        # Calculate the solid angle for the column
+        solid_angle = 2 * np.pi * (1 - np.cos(last_non_zero_angle_rad))
+        
+    
+    
+    # Convert the list to a NumPy array
+    return solid_angle
 
 
 # Main Function
@@ -375,15 +473,27 @@ if __name__ == "__main__":
     val = np.arange(0, 181, 1)
     angles = np.radians(val)
 
-    # Load the data
     df = loadFromCSV("./Datasets/LED12W.csv")
+    # List to store solid angles
+    sAng = []
 
+    # Calculate solid angle for each column (except the first one)
+    for col in df.columns[1:]:
+        solid_angle = CalculateSolidAngle(df)
+        sAng.append(solid_angle)
+
+    # Convert list to NumPy array
+    sAng = np.array(sAng)
+    print(sAng)
     # Create a Light object
+    
     light = Light(position=[45.800043, 8.952930, 8], power=12,
-                  orientation_angle=290, diffusion_angle=60, label="Light 1")
-
+                  orientation_angle=290, diffusion_angle=60, photometric_map=df, solid_angles=sAng, label="Light 1")
+    
     # Get the light sensor status
     light.getStatus()
+
+
 
     # Calculate the grid and illuminance
     x_grid, y_grid, I_grid = light.SimGrid(x_range, y_range, df)
@@ -394,9 +504,12 @@ if __name__ == "__main__":
     ax3 = Create2DProjection(fig, x_grid, y_grid, I_grid, light.getHeight())
 
     plt.tight_layout()
-    plt.show()
-
+    plt.show() 
+    
+""" 
     # Create a LightMap object and add the light sensor
     map = LightMap()
     map.addSensor(light)
     map.CreateMap()
+ """
+ 
