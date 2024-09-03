@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from luxpy import iolidfiles as iolid
 from scipy.signal import argrelextrema
+import time
 
 
 # The `Light` class represents a smart light sensor with properties such as position, power, lumen,
@@ -561,11 +562,11 @@ def CalculateSolidAngleMonteCarlo(df, num_samples=1000000, vertical_angle=100, d
         # Solid angle for a cone is 2π(1 - cos(θ/2)), where θ is the vertical angle
         solid_angle = 2 * np.pi * (1 - np.cos(vertical_angle_rad / 2))
         
+        
         if debug:
             print(f"Column: {col}, Vertical Angle: {np.rad2deg(vertical_angle_rad)}, Solid Angle: {solid_angle}")
         
-        
-    return np.array(solid_angle)
+    return solid_angle
 
 
 # Main Function
@@ -578,18 +579,20 @@ if __name__ == "__main__":
     val = np.arange(0, 181, 1)
     angles = np.radians(val)
 
-    df = loadFromCSV("./Datasets/LED6W.csv")
+    df = loadFromCSV("./Datasets/LED9W.csv")
     # List to store solid angles
     sAng = []
-
+    start_time = time.time() 
     # Calculate solid angle for each column (except the first one)
     for col in df.columns[1:]:
         solid_angle = CalculateSolidAngleMonteCarlo(df)
         sAng.append(solid_angle)
 
+    end_time = time.time()    
+    print(f"elapsed time: {round(end_time-start_time,2)} s ")
+    
     # Convert list to NumPy array
     sAng = np.array(sAng)
-    print(sAng)
     # Create a Light object
 
     light = Light(position=[45.800043, 8.952930, 8], power=9,
