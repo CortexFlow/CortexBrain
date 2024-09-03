@@ -6,7 +6,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 from luxpy import iolidfiles as iolid
-
+from scipy.signal import argrelextrema
 
 
 # The `Light` class represents a smart light sensor with properties such as position, power, lumen,
@@ -23,13 +23,14 @@ class Light(Sensor):
         self.lat = float(position[0])
         self.lon = float(position[1])
         self.power = power
-        self.lumen, self.min_lumen, self.max_lumen = Light.evaluateLumen(self,photometric_map, solid_angles)
+        self.lumen, self.min_lumen, self.max_lumen, self.angular_range, self.lumen_lower_bound,self.lumen_upper_bound,self.mean_lumen = Light.evaluateLumen(self, photometric_map, solid_angles)
         self.label = label
         self.height = float(position[2])
         self.theta = diffusion_angle
         self.orientation = orientation_angle
 
-        self.light_efficiency = round(((self.min_lumen+self.max_lumen)/2)/self.power,3)
+        self.light_efficiency = round(
+            ((self.lumen_lower_bound+self.lumen_upper_bound)/2)/self.power, 1)
 
     def SetPosition(self, position):
         self.lat = float(position[0])
@@ -43,13 +44,13 @@ class Light(Sensor):
         return self.lumen
 
     def getLumenRange(self):
-        return [self.min_lumen, self.max_lumen]
+        return [self.lumen_lower_bound, self.mean_lumen,self.lumen_upper_bound]
 
     def getPower(self):
         return self.power
 
     def getLightEfficiency(self):
-        return self.light_efficiency
+        return round(self.light_efficiency-(0.35*self.light_efficiency),2)
 
     def getHeight(self):
         return self.height
@@ -64,8 +65,14 @@ class Light(Sensor):
     def getAngle(self):
         return self.orientation
 
+    def getAngularRange(self):
+        return self.angular_range
+
     def computeMaxRange(self):
         return round(self.height*(math.tan(math.radians(90-self.theta))), 3)
+    
+    def getPeakLumen(self):
+        return round(np.max(self.lumen),2)
 
     def getStatus(self):
         """
@@ -79,7 +86,9 @@ class Light(Sensor):
         print(f"Name: {self.name}")
         print(f"Coordinates: {self.getPosition()}")
         print(f"Power: {self.getPower()} W")
-        print(f"Lumen: {self.getLumenRange()} lm")
+        print(f"Lumen (LB-M-UB): {self.getLumenRange()} lm")
+        print(f"Lumen Peak: {self.getPeakLumen()} lm")
+        print(f"Angular Range (Horizontal): {self.getAngularRange()} ")
         print(f"Height: {self.getHeight()} m")
         print(f"Diffusion Angle: {self.getDiffusionAngle()}° ")
         print(f"Orientation Angle: {self.getAngle()}° ")
@@ -202,44 +211,85 @@ class Light(Sensor):
     def evaluateLumen(self, df, solid_angles, debug="False"):
         """
         Evaluate the luminous flux (in lumens) for each column in the DataFrame using the corresponding solid angles.
+        Additionally, calculate the angular range where the lumen values fall within one standard deviation from the mean.
 
         Args:
             df (pd.DataFrame): DataFrame of luminous intensities (in candelas).
             solid_angles (array-like): Array of corresponding solid angles (in steradians).
+            debug (str): If "True", prints debugging information.
 
         Returns:
-            pd.DataFrame: A new DataFrame representing the luminous flux in lumens for each column.
+            tuple: A tuple containing the DataFrame of luminous flux (in lumens), 
+                the minimum and maximum lumen values, 
+                and the angular range within one standard deviation from the mean.
         """
         df_lumen = df.copy()
 
-        # Loop through the columns and apply the corresponding solid angle
-        # Skip the first column (angles)
+        # Step 1: Calculate luminous flux (in lumens)
         for idx, col in enumerate(df.columns[1:]):
             df_lumen[col] = df[col] * solid_angles[idx]
             if debug == "True":
                 print(f"col: {col} , idx value: {solid_angles[idx]}")  # debug
 
-        # find max of lumen dataframe:
-        max_lumen_per_col = []
-        for col in df_lumen.columns[1:]:
-            max_lumen_per_col.append(df_lumen[col].max())
-        # print(max_lumen_per_col)
-        # find max value of the max_lumen_per_col list:
+        # Step 2: Calculate mean and max lumen per column
+        mean_lumen_per_column = df_lumen.max()
+        if debug == "True":
+            print(f"Mean lumen per column: {mean_lumen_per_column}")
+            print(
+                f"Average lumen for first 23 columns: {mean_lumen_per_column[1:23].mean()}")
+
+        # Step 3: Find the max and min of the lumen values across all columns
+        max_lumen_per_col = [df_lumen[col].max()
+                             for col in df_lumen.columns[1:]]
         max_lumen = round(max(max_lumen_per_col), 2)
 
-        # find min lumen
-        min_lumen_per_col = []
-        for col in df_lumen.columns[1:]:
-            min_lumen_per_col.append(df_lumen[col].min())
-        # print(min_lumen_per_col)
-        # find min value of the min_lumen_per_col list:
-        min_lumen = round(max(min_lumen_per_col), 2)
-        print(f"lumen range: {min_lumen} lm - {max_lumen}  lm")
+        min_lumen_per_col = [df_lumen[col].min()
+                             for col in df_lumen.columns[1:]]
+        min_lumen = round(min(min_lumen_per_col), 2)
 
-        return df_lumen, min_lumen, max_lumen
+        if debug == "True":
+            print(f"Lumen range: {min_lumen} lm - {max_lumen} lm")
 
+        # Step 4: Calculate the angular range within one standard deviation of the lumen distribution
+        # Exclude the first column which contains angles
+        lumen_values = np.array(mean_lumen_per_column[1:])
+        mean_lumen = np.mean(lumen_values)
+        std_lumen = np.std(lumen_values)
+
+        lower_bound = mean_lumen - (std_lumen)#adding half of the standard deviation
+        upper_bound = mean_lumen + (std_lumen) #adding half of the standard deviation
+
+        if debug == "True":
+            print(f"Mean lumen: {mean_lumen}")
+            print(f"Standard deviation of lumen: {std_lumen}")
+            print(
+                f"Lumen range within one standard deviation: ({lower_bound}, {upper_bound})")
+
+        # Find the range of angles where the lumen values fall within the first deviation
+        selected_angles = []
+        for i, lumen_value in enumerate(lumen_values):
+            if lower_bound <= lumen_value <= upper_bound:
+                # Extract the angle from column name (CXX)
+                angle = int(df.columns[i + 1][1:])
+                selected_angles.append(angle)
+
+        if selected_angles:
+            min_angle = min(selected_angles)
+            max_angle = max(selected_angles)
+            angular_range = (min_angle, max_angle)
+        else:
+            angular_range = (None, None)
+
+        if debug == "True" and angular_range != (None, None):
+            print(
+                f"Angular range within one standard deviation: {angular_range[0]} - {angular_range[1]} degrees")
+
+        # Step 5: Return the DataFrame and relevant data
+        return df_lumen, min_lumen, max_lumen, angular_range, round(lower_bound,2), round(upper_bound,2),round(mean_lumen,2)
 
 # Function to read and prepare the data
+
+
 def loadFromCSV(file_path, delimiter=";"):
     """
     The function `loadFromCSV` reads a CSV file, replaces commas with periods, converts the data to
@@ -416,23 +466,20 @@ def Create2DProjection(fig, x_grid, y_grid, I_grid, h, center_x=0, center_y=0, m
     return ax3
 
 
-
-
-
-def CalculateSolidAngle(df):
+def CalculateSolidAngle(df, threshold=180):
     """
-    Calculate the solid angle in steradians for each column in the DataFrame,
-    based on the last non-zero intensity value in each column.
+    Calculate the solid angles in steradians based on local maxima within specified angular intervals.
 
     Args:
         df (pd.DataFrame): DataFrame with angles and columns of intensities.
+        threshold (float): Angular interval in degrees for identifying local maxima.
 
     Returns:
         np.ndarray: Solid angles in steradians for each column.
     """
     # Initialize a list to store solid angles
     solid_angles = []
-    
+
     # Get the column names excluding 'val'
     intensity_columns = df.columns[1:]
 
@@ -441,25 +488,29 @@ def CalculateSolidAngle(df):
         # Get the intensity values for the current column
         intensities = df[col].values
         angles = df['val'].values
-        
-        # Find the index of the last non-zero intensity
-        if np.any(intensities > 0):
-            last_non_zero_idx = np.max(np.nonzero(intensities)[0])
-            last_non_zero_angle = angles[last_non_zero_idx]
-        else:
-            # If no non-zero intensity, skip this column
-            solid_angles.append(0)
-            continue
-        
-        # Convert the angle to radians
-        last_non_zero_angle_rad = np.deg2rad(last_non_zero_angle)
-        
-        # Calculate the solid angle for the column
-        solid_angle = 2 * np.pi * (1 - np.cos(last_non_zero_angle_rad))
-        
-    
-    
-    # Convert the list to a NumPy array
+
+        # Find local maxima
+        # `order` is the number of points on each side to consider for a peak
+        order = int(threshold / (angles[1] - angles[0]))
+        # print(f"Order for local maxima (based on threshold {threshold} degrees): {order}")
+
+        local_maxima_indices = argrelextrema(
+            intensities, np.greater, order=order)[0]
+        # print(f"Local maxima indices: {local_maxima_indices}")
+
+        # Filter unique local maxima angles
+        unique_local_maxima_angles = np.unique(angles[local_maxima_indices])
+        # print(f"Unique local maxima angles: {unique_local_maxima_angles}")
+
+        # Calculate solid angle for each local maximum angle
+        for angle in unique_local_maxima_angles:
+            # Convert the angle to radians
+            angle_rad = np.deg2rad(angle)
+
+            # Calculate the solid angle for the angle
+            solid_angle = 2 * np.pi * (1 - np.cos(angle_rad))
+            # print(f"Angle: {angle} degrees, Angle (radians): {angle_rad}, Solid angle: {solid_angle}")
+
     return solid_angle
 
 
@@ -473,7 +524,7 @@ if __name__ == "__main__":
     val = np.arange(0, 181, 1)
     angles = np.radians(val)
 
-    df = loadFromCSV("./Datasets/LED12W.csv")
+    df = loadFromCSV("./Datasets/LED6W.csv")
     # List to store solid angles
     sAng = []
 
@@ -484,16 +535,14 @@ if __name__ == "__main__":
 
     # Convert list to NumPy array
     sAng = np.array(sAng)
-    print(sAng)
+    # print(sAng)
     # Create a Light object
-    
-    light = Light(position=[45.800043, 8.952930, 8], power=12,
+
+    light = Light(position=[45.800043, 8.952930, 8], power=9,
                   orientation_angle=290, diffusion_angle=60, photometric_map=df, solid_angles=sAng, label="Light 1")
-    
+
     # Get the light sensor status
     light.getStatus()
-
-
 
     # Calculate the grid and illuminance
     x_grid, y_grid, I_grid = light.SimGrid(x_range, y_range, df)
@@ -504,12 +553,11 @@ if __name__ == "__main__":
     ax3 = Create2DProjection(fig, x_grid, y_grid, I_grid, light.getHeight())
 
     plt.tight_layout()
-    plt.show() 
-    
+    plt.show()
+
 """ 
     # Create a LightMap object and add the light sensor
     map = LightMap()
     map.addSensor(light)
     map.CreateMap()
  """
- 
