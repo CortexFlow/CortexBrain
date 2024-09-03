@@ -117,7 +117,7 @@ class DataProcessor:
         """Calculates the visual field angle (angular FoV) based on width and distance."""
         return 2 * math.degrees(math.atan(width / (2 * distance)))
 
-    def generateCameraPoints(center_lat, center_lon, angle, fov_angle, radius, num_points=100):
+    def generateCameraPoints(center_lat, center_lon, angle, fov_angle, radius, num_points=1000):
         """Generate points for a semicircle centered on (center_lat, center_lon)."""
         points = []
         angle_rad = math.radians(angle)

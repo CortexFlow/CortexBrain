@@ -110,14 +110,12 @@ class LightMap:
                 popup=f"""
                 <strong>{sensor.label}</strong><br>
                 Power: {sensor.power} W <br>
-                Lumen : {sensor.lumen} lm <br>
-                Light Efficiency: {sensor.light_efficiency} lm/W
                 """,
                 icon=folium.Icon(color='blue', icon='cloud')
             ).add_to(folium_map)
 
             points = DataProcessor.generateCameraPoints(
-                sensor.lat, sensor.lon, sensor.angle, sensor.diffusion_angle, sensor.computeMaxRange())
+                sensor.lat, sensor.lon, sensor.orientation, sensor.theta, sensor.computeMaxRange())
             if points:
                 folium.Polygon(
                     locations=points,
