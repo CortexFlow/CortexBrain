@@ -1,3 +1,20 @@
+""" Copyright (C) 1883 Thomas Edison - All Rights Reserved
+* You may use, distribute and modify this code under the
+* terms of the XYZ license, which unfortunately won't be
+* written for another century.
+*
+* You should have received a copy of the XYZ license with
+* this file. If not, please write to: , or visit :
+"""
+""" 
+Working on:
+    1.Improvements in the max range covered --> coming soon
+    2.add power consumption metrics 
+    3.add functions to load datas from .LDT files 
+    4.add interactions between lights
+"""
+
+
 from BaseSensor import Sensor
 from Map import LightMap
 import math
@@ -8,16 +25,14 @@ import numpy as np
 from luxpy import iolidfiles as iolid
 from scipy.signal import argrelextrema
 import time
-
+from functools import lru_cache
 from joblib import Parallel, delayed
+
 
 
 # The `Light` class represents a smart light sensor with properties such as position, power, lumen,
 # height, diffusion angle, and orientation angle, along with methods to get and set these properties
 # and compute the maximum range covered by the light sensor.
-
-# Add Photometric Curves --->coming soon
-# Improvements in the max range covered --> coming soon
 
 class Light(Sensor):
     def __init__(self, position, power, diffusion_angle, orientation_angle, photometric_map, solid_angles, label="Smart Light"):
@@ -250,7 +265,7 @@ class Light(Sensor):
 
         # Step 4: Calculate the angular range within one standard deviation of the lumen distribution
         # Exclude the first column which contains angles
-        lumen_values = np.array(mean_lumen_per_column[1:])
+        lumen_values = np.array(mean_lumen_per_column[1:]) #CUDA OPTIMIZATION
         mean_lumen = np.mean(lumen_values)
         std_lumen = np.std(lumen_values)
 
@@ -287,7 +302,7 @@ class Light(Sensor):
 
 
 
-
+    
     def evaluateLumenParallel(self, df, solid_angles, debug="False"):
         """
         The function `evaluateLumenParallel` calculates lumen values based on solid angles, finds mean
@@ -346,7 +361,7 @@ class Light(Sensor):
 
         # Step 4: Calculate the angular range within one standard deviation of the lumen distribution
         # Exclude the first column which contains angles
-        lumen_values = np.array(mean_lumen_per_column[1:])
+        lumen_values = np.array(mean_lumen_per_column[1:]) #CUDA OPTIMIZATION
         mean_lumen = np.mean(lumen_values)
         std_lumen = np.std(lumen_values)
 
@@ -384,8 +399,6 @@ class Light(Sensor):
 
 
 # Function to read and prepare the data
-
-
 def loadFromCSV(file_path, delimiter=";"):
     """
     The function `loadFromCSV` reads a CSV file, replaces commas with periods, converts the data to
@@ -439,7 +452,7 @@ def CreatePolarGraph(df, angles):
         [0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330, 360]))
     ax1.set_xticklabels(['0°', '30°', '60°', '90°', '120°',
                         '150°', '180°', '150°', '120°', '90°', '60°', '30°', '0°'])
-    ax1.set_yticks(np.arange(0, 651, 130))
+    ax1.set_yticks(np.arange(0, 651, 130)) 
     ax1.set_yticklabels([f'{i}' for i in np.arange(0, 651, 130)])
     ax1.set_rlabel_position(0)
     ax1.set_title("Photometric Map")
@@ -447,8 +460,6 @@ def CreatePolarGraph(df, angles):
     return fig, ax1
 
 # Function to create the polar heatmap
-
-
 def CreateHeatmap(fig, df, angles):
     """
     The function `CreateHeatmap` creates a polar heatmap using the provided DataFrame and angles on a
@@ -494,8 +505,6 @@ def CreateHeatmap(fig, df, angles):
     return ax2
 
 # Function to create the 2D illuminance plot
-
-
 def Create2DProjection(fig, x_grid, y_grid, I_grid, h, center_x=0, center_y=0, max_distance=None):
     """
     The function `Create2DProjection` generates a 2D projection of illuminance distribution on a road
@@ -710,6 +719,7 @@ def CalculateSolidAngleMonteCarlo(df, num_samples=1000000, vertical_angle=100, d
 ####################### PARALLELIZATION ############################################################################################################
 ####################################################################################################################################################
 ####################################################################################################################################################
+
 def CalculateSolidAngleForColum(col, df, num_samples, vertical_angle_rad, debug=False):
     """
     The function calculates the solid angle for a given column in a DataFrame using Monte Carlo sampling
@@ -764,6 +774,7 @@ def CalculateSolidAngleForColum(col, df, num_samples, vertical_angle_rad, debug=
     
     return solid_angle
 
+
 def CalculateSolidAngleMonteCarloParallel(df, num_samples=1000000, vertical_angle=100, debug=False, n_jobs=-1):
     """
     The function CalculateSolidAngleMonteCarloParallel calculates solid angles using Monte Carlo method
@@ -804,10 +815,10 @@ def CalculateSolidAngleMonteCarloParallel(df, num_samples=1000000, vertical_angl
         delayed(CalculateSolidAngleForColum)(col, df, num_samples, vertical_angle_rad, debug)
         for col in intensity_columns
     )
-    # Converti ogni elemento in una lista se non lo è già
+    # Convert every element in a list if not
     solid_angles = [item if isinstance(item, list) else [item] for item in solid_angles]
 
-    # Appiattisci la lista di liste
+    # flatten list
     solid_angles = [item for sublist in solid_angles for item in sublist]
     return solid_angles
 
@@ -861,9 +872,9 @@ if __name__ == "__main__":
     plt.tight_layout()
     plt.show() 
 
-""" 
+ 
     # Create a LightMap object and add the light sensor
     map = LightMap()
     map.addSensor(light)
     map.CreateMap()
- """
+ 
