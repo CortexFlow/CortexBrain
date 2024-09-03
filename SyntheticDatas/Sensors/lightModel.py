@@ -50,7 +50,7 @@ class Light(Sensor):
         return self.power
 
     def getLightEfficiency(self):
-        return round(self.light_efficiency-(0.35*self.light_efficiency),2)
+        return round(self.light_efficiency,2)
 
     def getHeight(self):
         return self.height
@@ -514,6 +514,60 @@ def CalculateSolidAngle(df, threshold=180):
     return solid_angle
 
 
+def CalculateSolidAngleMonteCarlo(df, num_samples=1000000, vertical_angle=100, debug=False):
+    """
+    Calculate the solid angles in steradians using Monte Carlo sampling, with a fixed vertical angle.
+
+    Args:
+        df (pd.DataFrame): DataFrame with angles and columns of intensities.
+        num_samples (int): Number of random samples to generate for Monte Carlo simulation.
+        vertical_angle (float): The fixed vertical angle in degrees (e.g., zenith angle for a hemisphere).
+        debug (bool): If True, prints debug information.
+
+    Returns:
+        np.ndarray: Solid angles in steradians for each column.
+    """
+    # Initialize a list to store solid angles
+    solid_angles = []
+    
+    # Convert the fixed vertical angle to radians
+    vertical_angle_rad = np.deg2rad(vertical_angle)
+    
+    # Get the column names excluding 'val'
+    intensity_columns = df.columns[1:]
+
+    # Iterate over each column of intensities in the DataFrame
+    for col in intensity_columns:
+        # Generate random points on a sphere (using spherical coordinates)
+        phi = np.random.uniform(0, 2 * np.pi, num_samples)  # Azimuthal angle
+        theta = np.random.uniform(0, vertical_angle_rad, num_samples)  # Polar angle (constrained to vertical_angle)
+        
+        # Convert spherical coordinates to Cartesian coordinates
+        x = np.sin(theta) * np.cos(phi)
+        y = np.sin(theta) * np.sin(phi)
+        z = np.cos(theta)
+        
+        # Calculate the fraction of points that fall within the desired angular range
+        intensities = df[col].values
+        angles = df['val'].values
+        
+        # Find the corresponding intensity values for the sampled angles
+        sampled_intensities = np.interp(theta, np.deg2rad(angles), intensities)
+        
+        # Normalize intensities to create a probability distribution
+        normalized_intensities = sampled_intensities / np.sum(sampled_intensities)
+        
+        # Calculate the solid angle using the given formula
+        # Solid angle for a cone is 2π(1 - cos(θ/2)), where θ is the vertical angle
+        solid_angle = 2 * np.pi * (1 - np.cos(vertical_angle_rad / 2))
+        
+        if debug:
+            print(f"Column: {col}, Vertical Angle: {np.rad2deg(vertical_angle_rad)}, Solid Angle: {solid_angle}")
+        
+        
+    return np.array(solid_angle)
+
+
 # Main Function
 if __name__ == "__main__":
     # Parameters and configurations
@@ -530,12 +584,12 @@ if __name__ == "__main__":
 
     # Calculate solid angle for each column (except the first one)
     for col in df.columns[1:]:
-        solid_angle = CalculateSolidAngle(df)
+        solid_angle = CalculateSolidAngleMonteCarlo(df)
         sAng.append(solid_angle)
 
     # Convert list to NumPy array
     sAng = np.array(sAng)
-    # print(sAng)
+    print(sAng)
     # Create a Light object
 
     light = Light(position=[45.800043, 8.952930, 8], power=9,
