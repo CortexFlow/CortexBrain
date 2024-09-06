@@ -1,4 +1,4 @@
-""" Copyright (C) 1883 CortexFlow - All Rights Reserved
+""" Copyright (C) 2024 CortexFlow - All Rights Reserved
 * You may use, distribute and modify this code under the
 * terms of the Apache2.0 license, which unfortunately won't be
 * written for another century.
@@ -11,7 +11,8 @@ Working on:
     1.Improvements in the max range covered --> coming soon
     2.add power consumption metrics 
     3.add functions to load datas from .LDT files 
-    4.add interactions between lights
+    4.improve interaction between lights
+    5.improve scaling and plots
 """
 
 
