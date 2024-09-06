@@ -1,4 +1,4 @@
-""" Copyright (C) 1883 Thomas Edison - All Rights Reserved
+""" Copyright (C) 1883 CortexFlow - All Rights Reserved
 * You may use, distribute and modify this code under the
 * terms of the Apache2.0 license, which unfortunately won't be
 * written for another century.
@@ -15,10 +15,16 @@ Working on:
 """
 
 
+# The `Light` class represents a smart light sensor with properties such as position, power, lumen,
+# height, diffusion angle, and orientation angle, along with methods to get and set these properties
+# and compute the maximum range covered by the light sensor.
+
+
+
+
 from BaseSensor import Sensor
 from Map import LightMap
 import math
-
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
@@ -27,24 +33,20 @@ from scipy.signal import argrelextrema
 import time
 from functools import lru_cache
 from joblib import Parallel, delayed
-
-
-
-# The `Light` class represents a smart light sensor with properties such as position, power, lumen,
-# height, diffusion angle, and orientation angle, along with methods to get and set these properties
-# and compute the maximum range covered by the light sensor.
-
 class Light(Sensor):
-    def __init__(self, position, power, diffusion_angle, orientation_angle, photometric_map, solid_angles, label="Smart Light"):
+    def __init__(self, position, power, diffusion_angle, orientation_angle, photometric_map, solid_angles, label="Smart Light", photometric_map_path="./Datasets"):
         super().__init__(SensorType="Light", value=[0.0, 0.0], label=label)
         self.lat = float(position[0])
         self.lon = float(position[1])
         self.power = power
-        self.lumen, self.min_lumen, self.max_lumen, self.angular_range, self.lumen_lower_bound,self.lumen_upper_bound,self.mean_lumen = Light.evaluateLumenParallel(self, photometric_map, solid_angles)
+        self.lumen, self.min_lumen, self.max_lumen, self.angular_range, self.lumen_lower_bound, self.lumen_upper_bound, self.mean_lumen = Light.evaluateLumenParallel(
+            self, photometric_map, solid_angles)
         self.label = label
         self.height = float(position[2])
         self.theta = diffusion_angle
         self.orientation = orientation_angle
+        self.photometric_map = photometric_map
+        self.photometric_map_path = photometric_map_path
 
         self.light_efficiency = round(
             ((self.lumen_lower_bound+self.lumen_upper_bound)/2)/self.power, 1)
@@ -61,13 +63,13 @@ class Light(Sensor):
         return self.lumen
 
     def getLumenRange(self):
-        return [self.lumen_lower_bound, self.mean_lumen,self.lumen_upper_bound]
+        return [self.lumen_lower_bound, self.mean_lumen, self.lumen_upper_bound]
 
     def getPower(self):
         return self.power
 
     def getLightEfficiency(self):
-        return round(self.light_efficiency,2)
+        return round(self.light_efficiency, 2)
 
     def getHeight(self):
         return self.height
@@ -87,9 +89,12 @@ class Light(Sensor):
 
     def computeMaxRange(self):
         return round(self.height*(math.tan(math.radians(90-self.theta))), 3)
-    
+
     def getPeakLumen(self):
-        return round(np.max(self.lumen),2)
+        return round(np.max(self.lumen), 2)
+
+    def getFilePath(self):
+        return self.photometric_map_path
 
     def getStatus(self):
         """
@@ -111,14 +116,15 @@ class Light(Sensor):
         print(f"Orientation Angle: {self.getAngle()}° ")
         print(f"Max Range Covered: {self.computeMaxRange()} m ")
         print(f"Light Efficiency: {self.getLightEfficiency()} lm/W")
+        print(f"Photometric Map Path: {self.getFilePath()}")
         print("-----------------------------")
 
     # Function to calculate the intensity in candelas at a point (x, y, z)
-    def evaluateE(self, x, y, z, df, debug="False"):
+    def evaluateE(self, x, y, z, lamp_coords, df, debug="False"):
         """
         The function evaluates the illuminance at a given point based on distance from a lamp and
         intensity values from a CSV file.
-        
+
         :param x: x is the x-coordinate of the point where you want to evaluate the illuminance
         :param y: The `y` parameter in the `evaluateE` function represents the y-coordinate of the point
         for which you are calculating the illuminance. It is used in the calculation of the distance `d`
@@ -139,9 +145,9 @@ class Light(Sensor):
         it will also print the illuminance value before returning it.
         """
         # Calculate the distance from the point to the lamp
-        x_lamp = 0
-        y_lamp = 0
-        z_lamp = self.height
+        x_lamp = lamp_coords[0]
+        y_lamp = lamp_coords[1]
+        z_lamp = lamp_coords[2]
         horizontal_angle = 0
         theta_lamp = self.theta
 
@@ -163,7 +169,7 @@ class Light(Sensor):
             return E  # Returns the illuminance in lux
 
     # Function to create the 2D grid and calculate the intensity for each point
-    def SimGrid(self, x_range, y_range, df):
+    def SimGrid(self, x_range, y_range, lamp_coords, df):
         """
         The function SimGrid generates a grid of points and calculates illuminance values at each point
         based on given parameters and a specified evaluation function.
@@ -208,15 +214,33 @@ class Light(Sensor):
         for i in range(x_grid.shape[0]):
             for j in range(y_grid.shape[1]):
                 I_grid[i, j] = Light.evaluateE(
-                    self, x_grid[i, j], y_grid[i, j], z, df)
+                    self, x_grid[i, j], y_grid[i, j], z, lamp_coords, df)
 
-        return x_grid, y_grid, I_grid
+        return x_grid, y_grid, np.array(I_grid)
+
+    # sim multiple particles
+
+    def SumMultipleGrid(self, *args):
+        if not args:
+            raise ValueError("Nessuna matrice passata alla funzione")
+
+        # Converte tutti gli argomenti in array numpy se non lo sono già
+        args = [np.array(grid) for grid in args]
+
+        # Inizializza I_grid_total come una matrice di zeri della stessa forma della prima matrice in args
+        I_grid_total = np.zeros_like(args[0])
+
+        # Somma elemento per elemento le matrici
+        for grid in args:
+            I_grid_total += grid
+
+        return I_grid_total
 
     def evaluateLumen(self, df, solid_angles, debug="False"):
         """
         The function `evaluateLumen` calculates various lumen-related metrics from a DataFrame using
         solid angles and provides optional debug information.
-        
+
         :param df: The `evaluateLumen` function takes a DataFrame `df`, a list of solid angles, and an
         optional `debug` parameter to enable debugging output. The function performs several
         calculations related to luminous flux and returns the modified DataFrame along with some
@@ -235,7 +259,7 @@ class Light(Sensor):
         4. `angular_range`: Tuple representing the range of angles where lumen values fall within one
         standard deviation
         """
-        
+
         df_lumen = df.copy()
 
         # Step 1: Calculate luminous flux (in lumens)
@@ -265,12 +289,14 @@ class Light(Sensor):
 
         # Step 4: Calculate the angular range within one standard deviation of the lumen distribution
         # Exclude the first column which contains angles
-        lumen_values = np.array(mean_lumen_per_column[1:]) #CUDA OPTIMIZATION
+        lumen_values = np.array(mean_lumen_per_column[1:])  # CUDA OPTIMIZATION
         mean_lumen = np.mean(lumen_values)
         std_lumen = np.std(lumen_values)
 
-        lower_bound = mean_lumen - (std_lumen)#adding half of the standard deviation
-        upper_bound = mean_lumen + (std_lumen) #adding half of the standard deviation
+        # adding half of the standard deviation
+        lower_bound = mean_lumen - (std_lumen)
+        # adding half of the standard deviation
+        upper_bound = mean_lumen + (std_lumen)
 
         if debug == "True":
             print(f"Mean lumen: {mean_lumen}")
@@ -298,17 +324,14 @@ class Light(Sensor):
                 f"Angular range within one standard deviation: {angular_range[0]} - {angular_range[1]} degrees")
 
         # Step 5: Return the DataFrame and relevant data
-        return df_lumen, min_lumen, max_lumen, angular_range, round(lower_bound,2), round(upper_bound,2),round(mean_lumen,2)
+        return df_lumen, min_lumen, max_lumen, angular_range, round(lower_bound, 2), round(upper_bound, 2), round(mean_lumen, 2)
 
-
-
-    
     def evaluateLumenParallel(self, df, solid_angles, debug="False"):
         """
         The function `evaluateLumenParallel` calculates lumen values based on solid angles, finds mean
         and max lumen per column, determines lumen range and angular range within one standard
         deviation, and returns relevant data.
-        
+
         :param df: The `evaluateLumenParallel` function takes several parameters and performs
         calculations on a DataFrame `df` based on solid angles provided. Here's a breakdown of the
         parameters:
@@ -330,9 +353,9 @@ class Light(Sensor):
 
         df_lumen = df.copy()
         solid_angles = list(zip(*solid_angles))
-
+        solid_angles = np.array(solid_angles)
         # Check if the length of `solid_angles` matches the number of columns (excluding the first column)
-        #num_columns = len(df.columns) - 1  # Exclude the angle column
+        # num_columns = len(df.columns) - 1  # Exclude the angle column
 
         # Step 1: Calculate luminous flux (in lumens)
         for idx, col in enumerate(df.columns[1:]):
@@ -361,12 +384,12 @@ class Light(Sensor):
 
         # Step 4: Calculate the angular range within one standard deviation of the lumen distribution
         # Exclude the first column which contains angles
-        lumen_values = np.array(mean_lumen_per_column[1:]) #CUDA OPTIMIZATION
+        lumen_values = np.array(mean_lumen_per_column[1:])  # CUDA OPTIMIZATION
         mean_lumen = np.mean(lumen_values)
         std_lumen = np.std(lumen_values)
 
         lower_bound = mean_lumen - (std_lumen)
-        upper_bound = mean_lumen + (std_lumen) 
+        upper_bound = mean_lumen + (std_lumen)
 
         if debug == "True":
             print(f"Mean lumen: {mean_lumen}")
@@ -397,8 +420,83 @@ class Light(Sensor):
         return df_lumen, min_lumen, max_lumen, angular_range, round(lower_bound, 2), round(upper_bound, 2), round(mean_lumen, 2)
 
 
+class Simulate:
+    def __init__(self, gridParams=[(-30, 30, 101), (-30, 30, 101)], label="Simulation", lights=None, light_coords=None):
+        self.xgrid = gridParams[0]  # x_grid
+        self.ygrid = gridParams[1]  # y grid
+        self.grid_divisions = gridParams[0][2]
+        self.name = label
+        self.angles = np.radians(np.arange(0, 181, 1))
+        self.lights = lights if lights is not None else []
+        self.light_coords = light_coords if light_coords is not None else {}
+        self.light_path_names = [
+            light.photometric_map_path for light in self.lights]
+        self.lightFlag = np.all(self.light_path_names ==
+                                self.light_path_names[0])
+
+    def __del__(self):
+        print(f"Simulation object deleted")
+
+    def SetXgrid(self, new_xgrid):
+        self.xgrid = new_xgrid
+
+    def SetYgrid(self, new_ygrid):
+        self.ygrid = new_ygrid
+
+    def getXgrid(self):
+        return self.xgrid
+
+    def getYgrid(self):
+        return self.ygrid
+
+    def getLightsObject(self):
+        return self.lights
+
+    def getLightPathNames(self):
+        return self.light_path_names
+
+    def getLightFlag(self):
+        return self.lightFlag
+
+    def getGridPace(self):
+        return (self.xgrid[1] - self.xgrid[0])/(self.grid_divisions-1)
+
+    def getStatus(self):
+        print(f"Objects: {self.getLightsObject()}")
+        print(f"Path Names {self.getLightPathNames()}")
+        print(f"Light Flag {self.getLightFlag()}")
+        print(f"Grid: {self.getXgrid(),self.getYgrid()}")
+        print(f"Grid Pace: {self.getGridPace()}")
+
+    def RunSimulation(self):
+        results = []
+        for light in self.lights:
+            coords = self.light_coords.get(light, [0, 0, light.getHeight()])
+            x_grid, y_grid, I_grid = light.SimGrid(
+                self.getXgrid(), self.getYgrid(), coords, light.photometric_map)
+            results.append((x_grid, y_grid, I_grid))
+
+        # Process results
+        x_grid, y_grid, I_grid = results[0]
+
+        # Combine results from multiple lights
+        multiple_lights = Light.SumMultipleGrid(
+            *[1] + [result[2] for result in results])
+        print("Sim multiple grids:", multiple_lights)
+
+        # Create a figure with specified dimensions
+        fig = plt.figure(figsize=(14, 4))
+
+        # Use Create2DProjection to create axis and configure the figure
+        ax1 = Create2DProjection(
+            fig, x_grid, y_grid, multiple_lights, lights[0].getHeight())
+        plt.tight_layout()
+        plt.show()
+        return results
 
 # Function to read and prepare the data
+
+
 def loadFromCSV(file_path, delimiter=";"):
     """
     The function `loadFromCSV` reads a CSV file, replaces commas with periods, converts the data to
@@ -416,6 +514,7 @@ def loadFromCSV(file_path, delimiter=";"):
     numeric format, and handles any conversion errors by coercing them. Finally, it returns the
     processed DataFrame `df`.
     """
+
     df = pd.read_csv(file_path, delimiter=delimiter)
     df.replace(',', '.', regex=True, inplace=True)
     df = df.apply(pd.to_numeric, errors='coerce')
@@ -427,7 +526,7 @@ def CreatePolarGraph(df, angles):
     """
     The function `CreatePolarGraph` creates a polar graph with data from a DataFrame using specified
     angles.
-    
+
     :param df: The `df` parameter in the `CreatePolarGraph` function is likely a DataFrame containing
     the data to be plotted on the polar graph. The function seems to iterate over the columns of this
     DataFrame to plot the data on the polar graph
@@ -452,7 +551,7 @@ def CreatePolarGraph(df, angles):
         [0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330, 360]))
     ax1.set_xticklabels(['0°', '30°', '60°', '90°', '120°',
                         '150°', '180°', '150°', '120°', '90°', '60°', '30°', '0°'])
-    ax1.set_yticks(np.arange(0, 651, 130)) 
+    ax1.set_yticks(np.arange(0, 651, 130))
     ax1.set_yticklabels([f'{i}' for i in np.arange(0, 651, 130)])
     ax1.set_rlabel_position(0)
     ax1.set_title("Photometric Map")
@@ -460,11 +559,13 @@ def CreatePolarGraph(df, angles):
     return fig, ax1
 
 # Function to create the polar heatmap
+
+
 def CreateHeatmap(fig, df, angles):
     """
     The function `CreateHeatmap` creates a polar heatmap using the provided DataFrame and angles on a
     given figure.
-    
+
     :param fig: The `fig` parameter in the `CreateHeatmap` function is a matplotlib figure object where
     the polar heatmap will be added as a subplot. This figure object is typically created using
     `plt.figure()` in matplotlib before calling this function
@@ -505,11 +606,13 @@ def CreateHeatmap(fig, df, angles):
     return ax2
 
 # Function to create the 2D illuminance plot
+
+
 def Create2DProjection(fig, x_grid, y_grid, I_grid, h, center_x=0, center_y=0, max_distance=None):
     """
     The function `Create2DProjection` generates a 2D projection of illuminance distribution on a road
     plane with isolux contours and radial distance labels.
-    
+
     :param fig: The `fig` parameter is the figure object that the subplot will be added to. It is
     typically created using `plt.figure()` from the matplotlib library
     :param x_grid: The `x_grid` parameter in the `Create2DProjection` function represents the grid of
@@ -547,7 +650,9 @@ def Create2DProjection(fig, x_grid, y_grid, I_grid, h, center_x=0, center_y=0, m
                        shading='auto', vmin=0, vmax=50)
     fig.colorbar(c, ax=ax3, label='Illuminance (lux)')
 
-    # Add isolux contours
+    """
+    FIX THIS!     
+    # Add isolux contours (need to be added to light class)
     if 0 < light.getHeight() <= 2:
         # Define levels for the contour lines
         contour_levels = np.arange(0, 30, 5)
@@ -556,7 +661,9 @@ def Create2DProjection(fig, x_grid, y_grid, I_grid, h, center_x=0, center_y=0, m
         contour_levels = np.arange(0, 30, 1)
     else:
         # Define levels for the contour lines
-        contour_levels = np.arange(0, 30, 1)
+        contour_levels = np.arange(0, 30, 1) """
+
+    contour_levels = np.arange(0, 300, 5)
 
     contours = ax3.contour(
         x_grid, y_grid, I_grid, levels=contour_levels, colors='yellow', linewidths=1.0)
@@ -599,7 +706,7 @@ def CalculateSolidAngle(df, threshold=180):
     """
     The function CalculateSolidAngle calculates the solid angle for local maximum angles in a DataFrame
     based on intensity values and a specified threshold.
-    
+
     :param df: The function `CalculateSolidAngle` takes a DataFrame `df` as input, which contains
     intensity values and corresponding angles. The function calculates the solid angle for each unique
     local maximum angle in the intensity values based on a specified threshold
@@ -613,7 +720,6 @@ def CalculateSolidAngle(df, threshold=180):
 
     # Initialize a list to store solid angles
     solid_angles = []
-
     # Get the column names excluding 'val'
     intensity_columns = df.columns[1:]
 
@@ -652,7 +758,7 @@ def CalculateSolidAngleMonteCarlo(df, num_samples=1000000, vertical_angle=100, d
     """
     The function CalculateSolidAngleMonteCarlo calculates the solid angle for a cone based on Monte
     Carlo sampling of intensity values within a specified vertical angle range.
-    
+
     :param df: The function `CalculateSolidAngleMonteCarlo` takes a DataFrame `df` as input, which
     contains intensity values and corresponding angles. The function calculates the solid angle using a
     Monte Carlo method based on the provided parameters
@@ -674,10 +780,10 @@ def CalculateSolidAngleMonteCarlo(df, num_samples=1000000, vertical_angle=100, d
 
     # Initialize a list to store solid angles
     solid_angles = []
-    
+
     # Convert the fixed vertical angle to radians
     vertical_angle_rad = np.deg2rad(vertical_angle)
-    
+
     # Get the column names excluding 'val'
     intensity_columns = df.columns[1:]
 
@@ -685,33 +791,34 @@ def CalculateSolidAngleMonteCarlo(df, num_samples=1000000, vertical_angle=100, d
     for col in intensity_columns:
         # Generate random points on a sphere (using spherical coordinates)
         phi = np.random.uniform(0, 2 * np.pi, num_samples)  # Azimuthal angle
-        theta = np.random.uniform(0, vertical_angle_rad, num_samples)  # Polar angle (constrained to vertical_angle)
-        
+        # Polar angle (constrained to vertical_angle)
+        theta = np.random.uniform(0, vertical_angle_rad, num_samples)
+
         # Convert spherical coordinates to Cartesian coordinates
         x = np.sin(theta) * np.cos(phi)
         y = np.sin(theta) * np.sin(phi)
         z = np.cos(theta)
-        
+
         # Calculate the fraction of points that fall within the desired angular range
         intensities = df[col].values
         angles = df['val'].values
-        
+
         # Find the corresponding intensity values for the sampled angles
         sampled_intensities = np.interp(theta, np.deg2rad(angles), intensities)
-        
+
         # Normalize intensities to create a probability distribution
-        normalized_intensities = sampled_intensities / np.sum(sampled_intensities)
-        
+        normalized_intensities = sampled_intensities / \
+            np.sum(sampled_intensities)
+
         # Calculate the solid angle using the given formula
         # Solid angle for a cone is 2π(1 - cos(θ/2)), where θ is the vertical angle
         solid_angle = 2 * np.pi * (1 - np.cos(vertical_angle_rad / 2))
-        
-        
-        if debug:
-            print(f"Column: {col}, Vertical Angle: {np.rad2deg(vertical_angle_rad)}, Solid Angle: {solid_angle}")
-        
-    return solid_angle
 
+        if debug:
+            print(
+                f"Column: {col}, Vertical Angle: {np.rad2deg(vertical_angle_rad)}, Solid Angle: {solid_angle}")
+
+    return solid_angle
 
 
 ####################################################################################################################################################
@@ -724,7 +831,7 @@ def CalculateSolidAngleForColum(col, df, num_samples, vertical_angle_rad, debug=
     """
     The function calculates the solid angle for a given column in a DataFrame using Monte Carlo sampling
     on a sphere.
-    
+
     :param col: The `col` parameter in the `CalculateSolidAngleForColumn` function represents the column
     name in the DataFrame `df` from which intensities and angles are extracted for calculation. It is
     used to specify which column contains the intensity values to be used in the calculation
@@ -749,29 +856,31 @@ def CalculateSolidAngleForColum(col, df, num_samples, vertical_angle_rad, debug=
 
     # Generate random points on the sphere (spherical coordinates)
     phi = np.random.uniform(0, 2 * np.pi, num_samples)  # Azimuthal angle
-    theta = np.random.uniform(0, vertical_angle_rad, num_samples)  # Polar angle
-    
+    theta = np.random.uniform(0, vertical_angle_rad,
+                              num_samples)  # Polar angle
+
     # Convert spherical coordinates to Cartesian coordinates
     x = np.sin(theta) * np.cos(phi)
     y = np.sin(theta) * np.sin(phi)
     z = np.cos(theta)
-    
+
     # Extract intensity and angle values from the DataFrame
     intensities = df[col].values
     angles = df['val'].values
-    
+
     # Interpolate intensities for sampled angles
     sampled_intensities = np.interp(theta, np.deg2rad(angles), intensities)
-    
+
     # Normalize intensities to create a probability distribution
     normalized_intensities = sampled_intensities / np.sum(sampled_intensities)
-    
+
     # Calculate the solid angle using the given formula
     solid_angle = 2 * np.pi * (1 - np.cos(vertical_angle_rad / 2))
-    
+
     if debug:
-        print(f"Column: {col}, Vertical Angle: {np.rad2deg(vertical_angle_rad)}, Solid Angle: {solid_angle}")
-    
+        print(
+            f"Column: {col}, Vertical Angle: {np.rad2deg(vertical_angle_rad)}, Solid Angle: {solid_angle}")
+
     return solid_angle
 
 
@@ -779,7 +888,7 @@ def CalculateSolidAngleMonteCarloParallel(df, num_samples=1000000, vertical_angl
     """
     The function CalculateSolidAngleMonteCarloParallel calculates solid angles using Monte Carlo method
     in parallel for multiple intensity columns in a DataFrame.
-    
+
     :param df: The function `CalculateSolidAngleMonteCarloParallel` takes a DataFrame `df` as input
     along with optional parameters `num_samples`, `vertical_angle`, `debug`, and `n_jobs`
     :param num_samples: The `num_samples` parameter specifies the number of samples to use in the Monte
@@ -806,75 +915,145 @@ def CalculateSolidAngleMonteCarloParallel(df, num_samples=1000000, vertical_angl
 
     # Convert the fixed vertical angle to radians
     vertical_angle_rad = np.deg2rad(vertical_angle)
-    
+
     # Get column names excluding 'val'
     intensity_columns = df.columns[1:]
-    
+
     # Parallelize the calculation using joblib
     solid_angles = Parallel(n_jobs=n_jobs)(
-        delayed(CalculateSolidAngleForColum)(col, df, num_samples, vertical_angle_rad, debug)
+        delayed(CalculateSolidAngleForColum)(
+            col, df, num_samples, vertical_angle_rad, debug)
         for col in intensity_columns
     )
     # Convert every element in a list if not
-    solid_angles = [item if isinstance(item, list) else [item] for item in solid_angles]
+    solid_angles = [item if isinstance(item, list) else [
+        item] for item in solid_angles]
 
     # flatten list
     solid_angles = [item for sublist in solid_angles for item in sublist]
     return solid_angles
 
 
-
-
-
-
-
-
-
-
-
 # Main Function
 if __name__ == "__main__":
-    # Parameters and configurations
 
-    x_range = (-30, 30, 100)
-    y_range = (-30, 30, 100)
-
-    val = np.arange(0, 181, 1)
-    angles = np.radians(val)
-
+    # Load photometric data
     df = loadFromCSV("./Datasets/LED9W.csv")
+
     # List to store solid angles
     sAng = []
-    start_time = time.time() 
-    # Calculate solid angle for each column (except the first one)
-    #for col in df.columns[1:]:
+
+    # Calculate solid angle
+    start_time = time.time()
     solid_angle = CalculateSolidAngleMonteCarloParallel(df)
     sAng.append(solid_angle)
+    print(sAng)
+    end_time = time.time()
+    print(f"Elapsed time: {round(end_time - start_time, 2)} s")
 
-    end_time = time.time()    
-    print(f"elapsed time: {round(end_time-start_time,2)} s ")
+    # Initialize the Light objects
+    lights = [
+
+        Light(position=[45.800043, 8.952930, 6], power=9,
+              orientation_angle=290, diffusion_angle=60,
+              photometric_map=df, solid_angles=sAng, label="Light 0"),
+
+        Light(position=[45.800043, 8.952930, 6], power=9,
+              orientation_angle=290, diffusion_angle=60,
+              photometric_map=df, solid_angles=sAng, label="Light 1"),
+
+        Light(position=[45.800043, 8.952930, 6], power=9,
+              orientation_angle=290, diffusion_angle=60,
+              photometric_map=df, solid_angles=sAng, label="Light 2"),
+
+        Light(position=[45.800043, 8.952930, 6], power=9,
+              orientation_angle=290, diffusion_angle=60,
+              photometric_map=df, solid_angles=sAng, label="Light 3"),
+
+        Light(position=[45.800043, 8.952930, 6], power=9,
+              orientation_angle=290, diffusion_angle=60,
+              photometric_map=df, solid_angles=sAng, label="Light 4"),
+
+
+        Light(position=[45.800043, 8.952930, 2], power=9,
+              orientation_angle=290, diffusion_angle=60,
+              photometric_map=df, solid_angles=sAng, label="Light 5"),
+
+        Light(position=[45.800043, 8.952930, 2], power=9,
+              orientation_angle=290, diffusion_angle=60,
+              photometric_map=df, solid_angles=sAng, label="Light 6"),
+
+        Light(position=[45.800043, 8.952930, 2], power=9,
+              orientation_angle=290, diffusion_angle=60,
+              photometric_map=df, solid_angles=sAng, label="Light 7"),
+
+        Light(position=[45.800043, 8.952930, 2], power=9,
+              orientation_angle=290, diffusion_angle=60,
+              photometric_map=df, solid_angles=sAng, label="Light 8"),
+
+        Light(position=[45.800043, 8.952930, 2], power=9,
+              orientation_angle=290, diffusion_angle=60,
+              photometric_map=df, solid_angles=sAng, label="Light 9"),
+
+        Light(position=[45.800043, 8.952930, 2], power=9,
+              orientation_angle=290, diffusion_angle=60,
+              photometric_map=df, solid_angles=sAng, label="Light 10"),
+
+        Light(position=[45.800043, 8.952930, 2], power=9,
+              orientation_angle=290, diffusion_angle=60,
+              photometric_map=df, solid_angles=sAng, label="Light 11"),
+
+        Light(position=[45.800043, 8.952930, 2], power=9,
+              orientation_angle=290, diffusion_angle=60,
+              photometric_map=df, solid_angles=sAng, label="Light 12"),
+
+        Light(position=[45.800043, 8.952930, 2], power=9,
+              orientation_angle=290, diffusion_angle=60,
+              photometric_map=df, solid_angles=sAng, label="Light 13"),
+
+        Light(position=[45.800043, 8.952930, 2], power=9,
+              orientation_angle=290, diffusion_angle=60,
+              photometric_map=df, solid_angles=sAng, label="Light 14")
+    ]
+    
+    #for light in lights:
+     #   light.getStatus()
+
+    # Define coordinates for each light
+    light_coords = {
+        lights[0] : [0, 0, lights[0].getHeight()],
+        lights[1] : [-10, -20, lights[1].getHeight()],
+        lights[2] : [-20, 20, lights[2].getHeight()],
+        lights[3] : [20, 20, lights[3].getHeight()],
+        lights[4] : [10, -10, lights[4].getHeight()],
+        lights[5] : [80, 50, lights[5].getHeight()],
+        lights[6] : [-30, -40, lights[6].getHeight()],
+        lights[7] : [-60, 45, lights[7].getHeight()],
+        lights[8] : [210, 110, lights[8].getHeight()],
+        lights[9] : [180, -180, lights[9].getHeight()],
+        lights[10] : [150, 50, lights[10].getHeight()],
+        lights[11] : [-10, -200, lights[11].getHeight()],
+        lights[12] : [-200, 20, lights[12].getHeight()],
+        lights[13] : [200, 200, lights[13].getHeight()],
+        lights[14] : [100, -100, lights[14].getHeight()]
+    }
+    
     
 
-    light = Light(position=[45.800043, 8.952930, 8], power=9,
-                  orientation_angle=290, diffusion_angle=60, photometric_map=df, solid_angles=sAng, label="Light 1")
+    # Create Simulate object with the list of Light objects and their coordinates
+    simulation = Simulate(label="Lights Simulation", lights=lights,
+                          light_coords=light_coords)
+    simulation.getStatus()
+    simulation.SetXgrid((-250,250,100))
+    simulation.SetYgrid((-250,250,100))
+    # Run the simulation
+    results = simulation.RunSimulation()
 
-    # Get the light sensor status
-    light.getStatus()
+    # add get status based on setgrid
 
-    # Calculate the grid and illuminance
-    x_grid, y_grid, I_grid = light.SimGrid(x_range, y_range, df)
-
-    # Create the plots
-    fig, ax1 = CreatePolarGraph(df, angles)
-    ax2 = CreateHeatmap(fig, df, angles)
-    ax3 = Create2DProjection(fig, x_grid, y_grid, I_grid, light.getHeight())
-
-    plt.tight_layout()
-    plt.show() 
-
- 
+    """     
     # Create a LightMap object and add the light sensor
-    map = LightMap()
-    map.addSensor(light)
-    map.CreateMap()
- 
+    light_map = LightMap()
+    light_map.addSensor(light)
+    light_map.CreateMap() 
+    """
