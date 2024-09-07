@@ -1,7 +1,6 @@
 """ Copyright (C) 2024 CortexFlow - All Rights Reserved
 * You may use, distribute and modify this code under the
-* terms of the Apache2.0 license, which unfortunately won't be
-* written for another century.
+* terms of the Apache2.0 license.
 *
 * You should have received a copy of the Apache2.0 license with
 * this file. If not, please write to:lorenzotettamanti5@gmail.com 
@@ -12,7 +11,7 @@ Working on:
     2.add power consumption metrics 
     3.add functions to load datas from .LDT files 
     4.improve interaction between lights
-    5.improve scaling and plots
+    5.improve scaling and plots for large grids >100
 """
 
 
@@ -34,6 +33,12 @@ from scipy.signal import argrelextrema
 import time
 from functools import lru_cache
 from joblib import Parallel, delayed
+
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../')))
+
+from OpenGLIntegration.opengl import Projection2D
 class Light(Sensor):
     def __init__(self, position, power, diffusion_angle, orientation_angle, photometric_map, solid_angles, label="Smart Light", photometric_map_path="./Datasets"):
         super().__init__(SensorType="Light", value=[0.0, 0.0], label=label)
@@ -422,7 +427,7 @@ class Light(Sensor):
 
 
 class Simulate:
-    def __init__(self, gridParams=[(-30, 30, 101), (-30, 30, 101)], label="Simulation", lights=None, light_coords=None):
+    def __init__(self, gridParams=[(-30, 30, 101), (-30, 30, 101)], label="Simulation", lights=None, light_coords=None,render_mode="matplotlib"):
         self.xgrid = gridParams[0]  # x_grid
         self.ygrid = gridParams[1]  # y grid
         self.grid_divisions = gridParams[0][2]
@@ -434,6 +439,7 @@ class Simulate:
             light.photometric_map_path for light in self.lights]
         self.lightFlag = np.all(self.light_path_names ==
                                 self.light_path_names[0])
+        self.render_mode=render_mode
 
     def __del__(self):
         print(f"Simulation object deleted")
@@ -458,16 +464,27 @@ class Simulate:
 
     def getLightFlag(self):
         return self.lightFlag
+    
+    def getGridDivisions(self):
+        return self.grid_divisions
 
     def getGridPace(self):
-        return (self.xgrid[1] - self.xgrid[0])/(self.grid_divisions-1)
+        return (self.xgrid[1] - self.xgrid[0])/(self.getGridDivisions()-1)
+    
+    def SetRenderMode(self,new_render_mode):
+        self.render_mode=new_render_mode
+    
+    def getRenderMode(self):
+        return self.render_mode
 
-    def getStatus(self):
+    def getProprierties(self):
         print(f"Objects: {self.getLightsObject()}")
         print(f"Path Names {self.getLightPathNames()}")
         print(f"Light Flag {self.getLightFlag()}")
-        print(f"Grid: {self.getXgrid(),self.getYgrid()}")
-        print(f"Grid Pace: {self.getGridPace()}")
+        print(f"Grid: {self.getXgrid(),self.getYgrid()} m^2")
+        print(f"Grid Divisions {self.getGridDivisions} points")
+        print(f"Grid Pace: {self.getGridPace()} m ")
+        print(f"Render Mode: {self.getRenderMode()}")
 
     def RunSimulation(self):
         results = []
@@ -485,14 +502,23 @@ class Simulate:
             *[1] + [result[2] for result in results])
         print("Sim multiple grids:", multiple_lights)
 
-        # Create a figure with specified dimensions
-        fig = plt.figure(figsize=(14, 4))
-
-        # Use Create2DProjection to create axis and configure the figure
-        ax1 = Create2DProjection(
+        
+        if self.getRenderMode()=="matplotlib":
+            # Create a figure with specified dimensions
+            fig = plt.figure(figsize=(12,12))
+            ax1 = Create2DProjection(
             fig, x_grid, y_grid, multiple_lights, lights[0].getHeight())
-        plt.tight_layout()
-        plt.show()
+            plt.tight_layout()
+            plt.show()
+            
+        #integration with openGL
+        elif self.getRenderMode()=="OpenGL":
+            projection = Projection2D()
+            projection.setup_buffers(x_grid, y_grid, multiple_lights)
+            projection.render()
+
+        else:
+            print ("Visualization disabled")
         return results
 
 # Function to read and prepare the data
@@ -614,7 +640,7 @@ def Create2DProjection(fig, x_grid, y_grid, I_grid, h, center_x=0, center_y=0, m
     The function `Create2DProjection` generates a 2D projection of illuminance distribution on a road
     plane with isolux contours and radial distance labels.
 
-    :param fig: The `fig` parameter is the figure object that the subplot will be added to. It is
+    :param fig: The `fig` parameter is the figure object that the plot will be added to. It is
     typically created using `plt.figure()` from the matplotlib library
     :param x_grid: The `x_grid` parameter in the `Create2DProjection` function represents the grid of
     x-coordinates where the illuminance values are calculated and plotted. It likely defines the spatial
@@ -639,36 +665,24 @@ def Create2DProjection(fig, x_grid, y_grid, I_grid, h, center_x=0, center_y=0, m
     specify the maximum distance from the center point (defined by `center_x` and `center_y`) to
     consider when drawing radial lines and adding distance labels on the plot. If `max_distance` is not
     provided
-    :return: The function `Create2DProjection` returns the subplot `ax3` that is added to the provided
+    :return: The function `Create2DProjection` returns the plot `ax` that is added to the provided
     `fig` object after plotting the illuminance distribution, isolux contours, radial lines from the
     center, and distance labels on the plot.
     """
 
-    ax3 = fig.add_subplot(133)
+    # Create an axis in the figure
+    ax = fig.add_axes([0.3, 0.25, 0.5, 0.5])  # [left, bottom, width, height]
 
     # Plot the illuminance distribution as a colormap
-    c = ax3.pcolormesh(x_grid, y_grid, I_grid, cmap='binary_r',
+    c = ax.pcolormesh(x_grid, y_grid, I_grid, cmap='binary_r',
                        shading='auto', vmin=0, vmax=50)
-    fig.colorbar(c, ax=ax3, label='Illuminance (lux)')
-
-    """
-    FIX THIS!     
-    # Add isolux contours (need to be added to light class)
-    if 0 < light.getHeight() <= 2:
-        # Define levels for the contour lines
-        contour_levels = np.arange(0, 30, 5)
-    elif 2 < light.getHeight() <= 6:
-        # Define levels for the contour lines
-        contour_levels = np.arange(0, 30, 1)
-    else:
-        # Define levels for the contour lines
-        contour_levels = np.arange(0, 30, 1) """
+    fig.colorbar(c, ax=ax, label='Illuminance (lux)')
 
     contour_levels = np.arange(0, 300, 5)
 
-    contours = ax3.contour(
+    contours = ax.contour(
         x_grid, y_grid, I_grid, levels=contour_levels, colors='yellow', linewidths=1.0)
-    ax3.clabel(contours, inline=True, fontsize=8,
+    ax.clabel(contours, inline=True, fontsize=8,
                fmt='%d lux', colors='yellow')
 
     # Draw radial lines from the center and add labels for distances
@@ -681,7 +695,7 @@ def Create2DProjection(fig, x_grid, y_grid, I_grid, h, center_x=0, center_y=0, m
 
     # Add distance labels next to the isolux contours
     for level in contour_levels:
-        contour = ax3.contour(x_grid, y_grid, I_grid, levels=[
+        contour = ax.contour(x_grid, y_grid, I_grid, levels=[
                               level], colors='red', linewidths=1.0)
         # For each curve, find a point to label
         for collection in contour.collections:
@@ -691,17 +705,19 @@ def Create2DProjection(fig, x_grid, y_grid, I_grid, h, center_x=0, center_y=0, m
                 # Calculate distance from the center
                 distance = np.sqrt(
                     (point[0] - center_x)**2 + (point[1] - center_y)**2)
-                ax3.text(point[0], point[1], f'{distance:.1f} m',
+                ax.text(point[0], point[1], f'{distance:.1f} m',
                          color='white', fontsize=9, ha='center', va='center')
 
     # Set labels and title
-    ax3.set_xlabel('X (meters)')
-    ax3.set_ylabel('Y (meters)')
-    ax3.set_title(
+    ax.set_xlabel('X (meters)')
+    ax.set_ylabel('Y (meters)')
+    ax.set_title(
         f"Illuminance Distribution on the Road Plane at height = {h} m from the ground")
 
-    return ax3
+    return ax
 
+
+#overload 2D Projection for making only 1 plot
 
 def CalculateSolidAngle(df, threshold=180):
     """
@@ -975,7 +991,6 @@ if __name__ == "__main__":
               orientation_angle=290, diffusion_angle=60,
               photometric_map=df, solid_angles=sAng, label="Light 4"),
 
-
         Light(position=[45.800043, 8.952930, 2], power=9,
               orientation_angle=290, diffusion_angle=60,
               photometric_map=df, solid_angles=sAng, label="Light 5"),
@@ -1025,28 +1040,28 @@ if __name__ == "__main__":
         lights[0] : [0, 0, lights[0].getHeight()],
         lights[1] : [-10, -20, lights[1].getHeight()],
         lights[2] : [-20, 20, lights[2].getHeight()],
-        lights[3] : [20, 20, lights[3].getHeight()],
+        lights[3] : [24, 53, lights[3].getHeight()],
         lights[4] : [10, -10, lights[4].getHeight()],
         lights[5] : [80, 50, lights[5].getHeight()],
         lights[6] : [-30, -40, lights[6].getHeight()],
         lights[7] : [-60, 45, lights[7].getHeight()],
-        lights[8] : [210, 110, lights[8].getHeight()],
-        lights[9] : [180, -180, lights[9].getHeight()],
-        lights[10] : [150, 50, lights[10].getHeight()],
-        lights[11] : [-10, -200, lights[11].getHeight()],
-        lights[12] : [-200, 20, lights[12].getHeight()],
-        lights[13] : [200, 200, lights[13].getHeight()],
-        lights[14] : [100, -100, lights[14].getHeight()]
+        lights[8] : [7, 11, lights[8].getHeight()],
+        lights[9] : [4, -30, lights[9].getHeight()],
+        lights[10] : [15, 50, lights[10].getHeight()],
+        lights[11] : [-12, -23, lights[11].getHeight()],
+        lights[12] : [-20, 25, lights[12].getHeight()],
+        lights[13] : [23, 14, lights[13].getHeight()],
+        lights[14] : [55, -70, lights[14].getHeight()]
     }
     
     
 
     # Create Simulate object with the list of Light objects and their coordinates
     simulation = Simulate(label="Lights Simulation", lights=lights,
-                          light_coords=light_coords)
-    simulation.getStatus()
-    simulation.SetXgrid((-250,250,100))
-    simulation.SetYgrid((-250,250,100))
+                          light_coords=light_coords,render_mode="matplotlib")
+    simulation.SetXgrid((-100,100,500))
+    simulation.SetYgrid((-100,100,500))
+    simulation.getProprierties()
     # Run the simulation
     results = simulation.RunSimulation()
 

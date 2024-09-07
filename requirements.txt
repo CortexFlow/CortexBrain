@@ -17,3 +17,6 @@ PyQtWebEngine==5.15.7
 osmnx==1.9.4
 mesa==2.3.2
 openpyxl==3.1.5
+pyopengl==3.1.7
+pyopengl_accelerate==3.1.7
+glfw==2.7.0
