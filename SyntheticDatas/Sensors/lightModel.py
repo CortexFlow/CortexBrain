@@ -20,8 +20,6 @@ Working on:
 # and compute the maximum range covered by the light sensor.
 
 
-
-
 from BaseSensor import Sensor
 from Map import LightMap
 import math
@@ -33,12 +31,13 @@ from scipy.signal import argrelextrema
 import time
 from functools import lru_cache
 from joblib import Parallel, delayed
-
 import sys
 import os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../')))
+sys.path.append(
+    os.path.abspath(os.path.join(os.path.dirname(__file__), '../')))
 
-from OpenGLIntegration.opengl import Projection2D
+#from GPUIntegration.CUDA import Create2DProjectionCUDA
+
 class Light(Sensor):
     def __init__(self, position, power, diffusion_angle, orientation_angle, photometric_map, solid_angles, label="Smart Light", photometric_map_path="./Datasets"):
         super().__init__(SensorType="Light", value=[0.0, 0.0], label=label)
@@ -427,19 +426,20 @@ class Light(Sensor):
 
 
 class Simulate:
-    def __init__(self, gridParams=[(-30, 30, 101), (-30, 30, 101)], label="Simulation", lights=None, light_coords=None,render_mode="matplotlib"):
+    def __init__(self, gridParams=[(-30, 30, 101), (-30, 30, 101)], label="Simulation", lights=None, light_coords=None, render_mode="matplotlib"):
         self.xgrid = gridParams[0]  # x_grid
         self.ygrid = gridParams[1]  # y grid
         self.grid_divisions = gridParams[0][2]
         self.name = label
         self.angles = np.radians(np.arange(0, 181, 1))
         self.lights = lights if lights is not None else []
+        self.lights_labels=[light.label for light in self.lights]
         self.light_coords = light_coords if light_coords is not None else {}
         self.light_path_names = [
             light.photometric_map_path for light in self.lights]
         self.lightFlag = np.all(self.light_path_names ==
                                 self.light_path_names[0])
-        self.render_mode=render_mode
+        self.render_mode = render_mode
 
     def __del__(self):
         print(f"Simulation object deleted")
@@ -449,7 +449,10 @@ class Simulate:
 
     def SetYgrid(self, new_ygrid):
         self.ygrid = new_ygrid
-
+        
+    def SetGridDivisions(self,grid_divisions):
+        self.grid_divisions = grid_divisions
+    
     def getXgrid(self):
         return self.xgrid
 
@@ -464,29 +467,30 @@ class Simulate:
 
     def getLightFlag(self):
         return self.lightFlag
-    
+
     def getGridDivisions(self):
         return self.grid_divisions
 
     def getGridPace(self):
-        return (self.xgrid[1] - self.xgrid[0])/(self.getGridDivisions()-1)
-    
-    def SetRenderMode(self,new_render_mode):
-        self.render_mode=new_render_mode
-    
+        return round((self.xgrid[1] - self.xgrid[0])/(self.getGridDivisions()-1),2)
+
+    def SetRenderMode(self, new_render_mode):
+        self.render_mode = new_render_mode
+
     def getRenderMode(self):
         return self.render_mode
 
     def getProprierties(self):
-        print(f"Objects: {self.getLightsObject()}")
+        print(f"Objects: {self.lights_labels}")
         print(f"Path Names {self.getLightPathNames()}")
         print(f"Light Flag {self.getLightFlag()}")
         print(f"Grid: {self.getXgrid(),self.getYgrid()} m^2")
-        print(f"Grid Divisions {self.getGridDivisions} points")
+        print(f"Grid Divisions {self.getGridDivisions()} points")
         print(f"Grid Pace: {self.getGridPace()} m ")
         print(f"Render Mode: {self.getRenderMode()}")
 
     def RunSimulation(self):
+        start_time = time.time()
         results = []
         for light in self.lights:
             coords = self.light_coords.get(light, [0, 0, light.getHeight()])
@@ -502,23 +506,28 @@ class Simulate:
             *[1] + [result[2] for result in results])
         print("Sim multiple grids:", multiple_lights)
 
-        
-        if self.getRenderMode()=="matplotlib":
+        if self.getRenderMode() == "matplotlib":
             # Create a figure with specified dimensions
-            fig = plt.figure(figsize=(12,12))
+            fig = plt.figure(figsize=(20, 20))
             ax1 = Create2DProjection(
-            fig, x_grid, y_grid, multiple_lights, lights[0].getHeight())
+                fig, x_grid, y_grid, multiple_lights, lights[0].getHeight())
             plt.tight_layout()
             plt.show()
-            
-        #integration with openGL
-        elif self.getRenderMode()=="OpenGL":
-            projection = Projection2D()
-            projection.setup_buffers(x_grid, y_grid, multiple_lights)
-            projection.render()
+
+        # integration with openGL
+        elif self.getRenderMode() == "CUDA":
+            # Create a figure with specified dimensions
+            fig = plt.figure(figsize=(20, 20))
+            ax1 = Create2DProjectionCUDA(
+                fig, x_grid, y_grid, multiple_lights, lights[0].getHeight())
+            plt.tight_layout()
+            plt.show()
 
         else:
-            print ("Visualization disabled")
+            print("Visualization disabled")
+            
+        end_time = time.time()
+        print(f"Simulation time: {round(end_time - start_time, 2)} s")
         return results
 
 # Function to read and prepare the data
@@ -669,13 +678,13 @@ def Create2DProjection(fig, x_grid, y_grid, I_grid, h, center_x=0, center_y=0, m
     `fig` object after plotting the illuminance distribution, isolux contours, radial lines from the
     center, and distance labels on the plot.
     """
-
+    start_time = time.time()
     # Create an axis in the figure
     ax = fig.add_axes([0.3, 0.25, 0.5, 0.5])  # [left, bottom, width, height]
 
     # Plot the illuminance distribution as a colormap
     c = ax.pcolormesh(x_grid, y_grid, I_grid, cmap='binary_r',
-                       shading='auto', vmin=0, vmax=50)
+                      shading='auto', vmin=0, vmax=50)
     fig.colorbar(c, ax=ax, label='Illuminance (lux)')
 
     contour_levels = np.arange(0, 300, 5)
@@ -683,7 +692,7 @@ def Create2DProjection(fig, x_grid, y_grid, I_grid, h, center_x=0, center_y=0, m
     contours = ax.contour(
         x_grid, y_grid, I_grid, levels=contour_levels, colors='yellow', linewidths=1.0)
     ax.clabel(contours, inline=True, fontsize=8,
-               fmt='%d lux', colors='yellow')
+              fmt='%d lux', colors='yellow')
 
     # Draw radial lines from the center and add labels for distances
     if max_distance is None:
@@ -696,7 +705,7 @@ def Create2DProjection(fig, x_grid, y_grid, I_grid, h, center_x=0, center_y=0, m
     # Add distance labels next to the isolux contours
     for level in contour_levels:
         contour = ax.contour(x_grid, y_grid, I_grid, levels=[
-                              level], colors='red', linewidths=1.0)
+            level], colors='red', linewidths=1.0)
         # For each curve, find a point to label
         for collection in contour.collections:
             for path in collection.get_paths():
@@ -706,7 +715,7 @@ def Create2DProjection(fig, x_grid, y_grid, I_grid, h, center_x=0, center_y=0, m
                 distance = np.sqrt(
                     (point[0] - center_x)**2 + (point[1] - center_y)**2)
                 ax.text(point[0], point[1], f'{distance:.1f} m',
-                         color='white', fontsize=9, ha='center', va='center')
+                        color='white', fontsize=9, ha='center', va='center')
 
     # Set labels and title
     ax.set_xlabel('X (meters)')
@@ -714,10 +723,14 @@ def Create2DProjection(fig, x_grid, y_grid, I_grid, h, center_x=0, center_y=0, m
     ax.set_title(
         f"Illuminance Distribution on the Road Plane at height = {h} m from the ground")
 
+    
+    end_time = time.time()
+    print(f"Selected Plotting Mode: Matplotlib")
+    print(f"Elapsed time: {round(end_time - start_time, 2)} s")
     return ax
 
 
-#overload 2D Projection for making only 1 plot
+# overload 2D Projection for making only 1 plot
 
 def CalculateSolidAngle(df, threshold=180):
     """
@@ -971,98 +984,113 @@ if __name__ == "__main__":
     # Initialize the Light objects
     lights = [
 
-        Light(position=[45.800043, 8.952930, 6], power=9,
+        Light(position=[45.800043, 8.952930, 4], power=9,
               orientation_angle=290, diffusion_angle=60,
               photometric_map=df, solid_angles=sAng, label="Light 0"),
 
-        Light(position=[45.800043, 8.952930, 6], power=9,
+        Light(position=[45.800043, 8.952930, 4], power=9,
               orientation_angle=290, diffusion_angle=60,
               photometric_map=df, solid_angles=sAng, label="Light 1"),
 
-        Light(position=[45.800043, 8.952930, 6], power=9,
+        Light(position=[45.800043, 8.952930, 4], power=9,
               orientation_angle=290, diffusion_angle=60,
               photometric_map=df, solid_angles=sAng, label="Light 2"),
 
-        Light(position=[45.800043, 8.952930, 6], power=9,
+        Light(position=[45.800043, 8.952930, 4], power=9,
               orientation_angle=290, diffusion_angle=60,
               photometric_map=df, solid_angles=sAng, label="Light 3"),
 
-        Light(position=[45.800043, 8.952930, 6], power=9,
+        Light(position=[45.800043, 8.952930, 4], power=9,
               orientation_angle=290, diffusion_angle=60,
               photometric_map=df, solid_angles=sAng, label="Light 4"),
 
-        Light(position=[45.800043, 8.952930, 2], power=9,
+        Light(position=[45.800043, 8.952930, 4], power=9,
               orientation_angle=290, diffusion_angle=60,
               photometric_map=df, solid_angles=sAng, label="Light 5"),
 
-        Light(position=[45.800043, 8.952930, 2], power=9,
+        Light(position=[45.800043, 8.952930, 4], power=9,
               orientation_angle=290, diffusion_angle=60,
               photometric_map=df, solid_angles=sAng, label="Light 6"),
 
-        Light(position=[45.800043, 8.952930, 2], power=9,
+        Light(position=[45.800043, 8.952930, 4], power=9,
               orientation_angle=290, diffusion_angle=60,
               photometric_map=df, solid_angles=sAng, label="Light 7"),
 
-        Light(position=[45.800043, 8.952930, 2], power=9,
+        Light(position=[45.800043, 8.952930, 4], power=9,
               orientation_angle=290, diffusion_angle=60,
               photometric_map=df, solid_angles=sAng, label="Light 8"),
 
-        Light(position=[45.800043, 8.952930, 2], power=9,
+        Light(position=[45.800043, 8.952930, 4], power=9,
               orientation_angle=290, diffusion_angle=60,
               photometric_map=df, solid_angles=sAng, label="Light 9"),
 
-        Light(position=[45.800043, 8.952930, 2], power=9,
+        Light(position=[45.800043, 8.952930, 4], power=9,
               orientation_angle=290, diffusion_angle=60,
               photometric_map=df, solid_angles=sAng, label="Light 10"),
 
-        Light(position=[45.800043, 8.952930, 2], power=9,
+        Light(position=[45.800043, 8.952930, 4], power=9,
               orientation_angle=290, diffusion_angle=60,
               photometric_map=df, solid_angles=sAng, label="Light 11"),
 
-        Light(position=[45.800043, 8.952930, 2], power=9,
+        Light(position=[45.800043, 8.952930, 4], power=9,
               orientation_angle=290, diffusion_angle=60,
               photometric_map=df, solid_angles=sAng, label="Light 12"),
 
-        Light(position=[45.800043, 8.952930, 2], power=9,
+        Light(position=[45.800043, 8.952930, 4], power=9,
               orientation_angle=290, diffusion_angle=60,
               photometric_map=df, solid_angles=sAng, label="Light 13"),
 
-        Light(position=[45.800043, 8.952930, 2], power=9,
+        Light(position=[45.800043, 8.952930, 4], power=9,
               orientation_angle=290, diffusion_angle=60,
-              photometric_map=df, solid_angles=sAng, label="Light 14")
+              photometric_map=df, solid_angles=sAng, label="Light 14"),
+
+        Light(position=[45.800043, 8.952930, 4], power=9,
+              orientation_angle=290, diffusion_angle=60,
+              photometric_map=df, solid_angles=sAng, label="Light 15"),
+
+        Light(position=[45.800043, 8.952930, 4], power=9,
+              orientation_angle=290, diffusion_angle=60,
+              photometric_map=df, solid_angles=sAng, label="Light 16"),
+        Light(position=[45.800043, 8.952930, 4], power=9,
+              orientation_angle=290, diffusion_angle=60,
+              photometric_map=df, solid_angles=sAng, label="Light 17")
     ]
-    
-    #for light in lights:
-     #   light.getStatus()
+
+    # for light in lights:
+    #   light.getStatus()
 
     # Define coordinates for each light
     light_coords = {
-        lights[0] : [0, 0, lights[0].getHeight()],
-        lights[1] : [-10, -20, lights[1].getHeight()],
-        lights[2] : [-20, 20, lights[2].getHeight()],
-        lights[3] : [24, 53, lights[3].getHeight()],
-        lights[4] : [10, -10, lights[4].getHeight()],
-        lights[5] : [80, 50, lights[5].getHeight()],
-        lights[6] : [-30, -40, lights[6].getHeight()],
-        lights[7] : [-60, 45, lights[7].getHeight()],
-        lights[8] : [7, 11, lights[8].getHeight()],
-        lights[9] : [4, -30, lights[9].getHeight()],
-        lights[10] : [15, 50, lights[10].getHeight()],
-        lights[11] : [-12, -23, lights[11].getHeight()],
-        lights[12] : [-20, 25, lights[12].getHeight()],
-        lights[13] : [23, 14, lights[13].getHeight()],
-        lights[14] : [55, -70, lights[14].getHeight()]
+        lights[0]: [0, 0, lights[0].getHeight()],
+        lights[1]: [10, 0, lights[1].getHeight()],
+        lights[2]: [20, 0, lights[2].getHeight()],
+        lights[3]: [30, 0, lights[3].getHeight()],
+        lights[4]: [40, 0, lights[4].getHeight()],
+        lights[5]: [-10, 0, lights[5].getHeight()],
+        lights[6]: [-20, 0, lights[6].getHeight()],
+        lights[7]: [-30, 0, lights[7].getHeight()],
+        lights[8]: [-40, 0, lights[8].getHeight()],
+        lights[9]: [0, 20, lights[9].getHeight()],
+        lights[10]: [10, 20, lights[10].getHeight()],
+        lights[11]: [20, 20, lights[11].getHeight()],
+        lights[12]: [30, 20, lights[12].getHeight()],
+        lights[13]: [40, 20, lights[13].getHeight()],
+        lights[14]: [-10, 20, lights[14].getHeight()],
+        lights[15]: [-20, 20, lights[15].getHeight()],
+        lights[16]: [-30, 20, lights[16].getHeight()],
+        lights[17]: [-40, 20, lights[17].getHeight()]
+
     }
-    
-    
 
     # Create Simulate object with the list of Light objects and their coordinates
     simulation = Simulate(label="Lights Simulation", lights=lights,
-                          light_coords=light_coords,render_mode="matplotlib")
-    simulation.SetXgrid((-100,100,500))
-    simulation.SetYgrid((-100,100,500))
+                          light_coords=light_coords, render_mode="matplotlib")
+    simulation.SetXgrid((-60, 60, 500))
+    simulation.SetYgrid((-60, 60, 500))
+    simulation.SetGridDivisions(500)
     simulation.getProprierties()
     # Run the simulation
+    
     results = simulation.RunSimulation()
 
     # add get status based on setgrid
