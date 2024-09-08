@@ -31,8 +31,10 @@ from scipy.signal import argrelextrema
 import time
 from functools import lru_cache
 from joblib import Parallel, delayed
+import tensorflow as tf
 import sys
 import os
+from line_profiler import profile
 sys.path.append(
     os.path.abspath(os.path.join(os.path.dirname(__file__), '../')))
 
@@ -172,39 +174,45 @@ class Light(Sensor):
             return E
         else:
             return E  # Returns the illuminance in lux
+        
+        
+    #optimization of evaluateE using TensorFlow:
+    def compute_illuminance_tensor(self,x, y, z, lamp_coords, df_tensor):
+        x_lamp = lamp_coords[0]
+        y_lamp = lamp_coords[1]
+        z_lamp = lamp_coords[2]
+        horizontal_angle = 0
+        theta_lamp = self.theta
+
+        phi_angle = "C"+str(horizontal_angle)
+
+        # Convert to TensorFlow tensors
+        x_tensor = tf.convert_to_tensor(x, dtype=tf.float32)
+        y_tensor = tf.convert_to_tensor(y, dtype=tf.float32)
+        z_tensor = tf.convert_to_tensor(z, dtype=tf.float32)
+        x_lamp_tensor = tf.convert_to_tensor(x_lamp, dtype=tf.float32)
+        y_lamp_tensor = tf.convert_to_tensor(y_lamp, dtype=tf.float32)
+        z_lamp_tensor = tf.convert_to_tensor(z_lamp, dtype=tf.float32)
+
+        # Calculate distance
+        d = tf.sqrt(tf.square(x_tensor - x_lamp_tensor) + tf.square(y_tensor - y_lamp_tensor) + tf.square(z_tensor - z_lamp_tensor))
+
+        # Extract intensity value
+        I_theta = tf.gather(df_tensor[phi_angle], int(theta_lamp), axis=0)
+
+        # Calculate illuminance
+        E = I_theta / tf.square(d)
+        return E
 
     # Function to create the 2D grid and calculate the intensity for each point
+    #@profile
+    def compute_illuminance(x, y, z, lamp_coords, df, self):
+        return Light.evaluateE(self, x, y, z, lamp_coords, df)
+
     def SimGrid(self, x_range, y_range, lamp_coords, df):
         """
         The function SimGrid generates a grid of points and calculates illuminance values at each point
         based on given parameters and a specified evaluation function.
-
-        :param x_range: The `x_range` parameter likely represents the range of x values for the grid
-        :param y_range: The `y_range` parameter in the `SimGrid` function represents the range of values for
-        the y-coordinate in the grid. It is used to create a linearly spaced array of y values within the
-        specified range. The `np.linspace(*y_range)` function call generates an array of y values
-        :param x_lamp: The `x_lamp` parameter in the `SimGrid` function represents the x-coordinate of the
-        lamp position in the simulation grid. It is used in the calculation of illuminance at each point on
-        the grid by passing it to the `evaluateE` function along with other parameters like `y_l
-        :param y_lamp: The `y_lamp` parameter in the `SimGrid` function represents the y-coordinate of the
-        lamp position in the simulated grid. It is used in the calculation of illuminance at each point on
-        the grid by passing it along with other parameters to the `evaluateE` function
-        :param z_lamp: The `z_lamp` parameter represents the height of the lamp above the road plane in the
-        `SimGrid` function. It is used in the calculation of illuminance at each point on the grid relative
-        to the lamp position
-        :param theta_lamp: Theta_lamp represents the vertical angle of the lamp in degrees. It is used in
-        the evaluateE function to calculate the illuminance at a specific point on the grid based on the
-        lamp's position and orientation
-        :param horizontal_angle: The `horizontal_angle` parameter in the `SimGrid` function likely
-        represents the horizontal angle at which the light source (lamp) is positioned relative to the grid.
-        This angle can be used to calculate the illuminance at different points on the grid based on the
-        position and orientation of the lamp
-        :param df: The `df` parameter in the `SimGrid` function seems to be a variable that is used in the
-        `evaluateE` function to calculate the illuminance at a specific point on the grid. It is likely that
-        `df` contains some data or parameters necessary for the calculation of illuminance,
-        :return: The function `SimGrid` returns three arrays: `x_grid`, `y_grid`, and `I_grid`. `x_grid` and
-        `y_grid` represent the grid points in the x and y directions, respectively, while `I_grid` stores
-        the illuminance values calculated for each point on the grid.
         """
 
         x = np.linspace(*x_range)
@@ -212,19 +220,53 @@ class Light(Sensor):
         z = 0  # Road plane
 
         x_grid, y_grid = np.meshgrid(x, y)
+        
         # Create an empty matrix to store the illuminance
         I_grid = np.zeros_like(x_grid)
 
-        # Iterate manually over each point in the grid
-        for i in range(x_grid.shape[0]):
-            for j in range(y_grid.shape[1]):
-                I_grid[i, j] = Light.evaluateE(
-                    self, x_grid[i, j], y_grid[i, j], z, lamp_coords, df)
+        # Parallelize the computation
+        results = Parallel(n_jobs=-1)(
+            delayed(Light.compute_illuminance)(x_grid[i, j], y_grid[i, j], z, lamp_coords, df, self)
+            for i in range(x_grid.shape[0])
+            for j in range(y_grid.shape[1])
+        )
+        
+        # Reshape the results into the grid shape
+        I_grid = np.array(results).reshape(x_grid.shape)
+        
+        return x_grid, y_grid, I_grid
+    
+    #optimization using tensorflow
+    def SimGridTensorFlow(self, x_range, y_range, lamp_coords, df):
+        """
+        Generates a grid of points and calculates illuminance values at each point using TensorFlow.
 
-        return x_grid, y_grid, np.array(I_grid)
+        :param x_range: Range for x-coordinates
+        :param y_range: Range for y-coordinates
+        :param lamp_coords: Coordinates of the lamp
+        :param df: DataFrame containing intensity values
+        :return: x_grid, y_grid, I_grid where I_grid is the calculated illuminance
+        """
 
-    # sim multiple particles
+        x = np.linspace(*x_range)
+        y = np.linspace(*y_range)
+        z = 0  # Ground level
 
+        # Create meshgrid
+        x_grid, y_grid = np.meshgrid(x, y)
+
+        # Convert DataFrame to TensorFlow tensor
+        df_tensor = {col: tf.convert_to_tensor(df[col].values, dtype=tf.float32) for col in df.columns}
+
+        # Compute illuminance using TensorFlow
+        I_grid = Light.compute_illuminance_tensor(self,x_grid, y_grid, z, lamp_coords, df_tensor)
+
+        # Convert result back to numpy array
+        I_grid = I_grid.numpy()
+
+        return x_grid, y_grid, I_grid
+
+    # sum multiple particles
     def SumMultipleGrid(self, *args):
         if not args:
             raise ValueError("Nessuna matrice passata alla funzione")
@@ -488,13 +530,14 @@ class Simulate:
         print(f"Grid Divisions {self.getGridDivisions()} points")
         print(f"Grid Pace: {self.getGridPace()} m ")
         print(f"Render Mode: {self.getRenderMode()}")
-
+    
+    
     def RunSimulation(self):
         start_time = time.time()
         results = []
         for light in self.lights:
             coords = self.light_coords.get(light, [0, 0, light.getHeight()])
-            x_grid, y_grid, I_grid = light.SimGrid(
+            x_grid, y_grid, I_grid = light.SimGridTensorFlow(
                 self.getXgrid(), self.getYgrid(), coords, light.photometric_map)
             results.append((x_grid, y_grid, I_grid))
 

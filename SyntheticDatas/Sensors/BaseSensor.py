@@ -18,7 +18,8 @@ class Sensor:
         self.position = initial_position  # Add position attribute
 
     def __del__(self):
-        print(f"Sensor {self.type}, name: {self.name} deleted")
+        pass
+        #print(f"Sensor {self.type}, name: {self.name} deleted")
 
     def ReadValue(self):
         """Returns the current value of the sensor."""
