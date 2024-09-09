@@ -3,25 +3,23 @@ ReadMe:
 This function is not fully tested yet and can cause unexpected framework crashes or error while compiling
 """
 
-
-import cupy as cp
 import matplotlib.pyplot as plt
 import time
 
 def Create2DProjectionCUDA(fig, x_grid, y_grid, I_grid, h, center_x=0, center_y=0, max_distance=None):
     """
-    La funzione `Create2DProjection` genera una proiezione 2D della distribuzione di illuminamento su un piano stradale
-    con contorni isolux e etichette di distanza radiale.
+    The `Create2DProjection` function generates a 2D projection of the illuminance distribution on a street plane
+    with isolux contours and radial distance labels.
 
-    :param fig: Il parametro `fig` è l'oggetto figura a cui verrà aggiunto il grafico.
-    :param x_grid: Rappresenta la griglia delle coordinate x in cui vengono calcolati i valori di illuminamento.
-    :param y_grid: Rappresenta la griglia delle coordinate y nella proiezione 2D.
-    :param I_grid: Rappresenta la distribuzione dell'illuminamento sul piano stradale a una certa altezza da terra.
-    :param h: L'altezza a cui viene tracciata la distribuzione di illuminamento sul piano stradale, specificata in metri dal livello del suolo.
-    :param center_x: La coordinata x del punto centrale da cui vengono tracciate le linee radiali per calcolare le distanze.
-    :param center_y: La coordinata y del punto centrale da cui vengono tracciate le linee radiali per calcolare le distanze.
-    :param max_distance: La distanza massima dal punto centrale da considerare per tracciare le linee radiali e aggiungere etichette di distanza.
-    :return: La funzione restituisce l'asse `ax` aggiunto all'oggetto `fig`.
+    :param fig: The parameter `fig` is the figure object to which the graph will be added.
+    :param x_grid: Represents the x coordinate grid in which the illuminance values are calculated.
+    :param y_grid: Represents the grid of y coordinates in the 2D projection.
+    :param I_grid: Represents the distribution of illuminance on the street plane at a certain height above the ground.
+    :param h: The height at which the illuminance distribution on the street plane is plotted, specified in meters above ground level.
+    :param center_x: The x-coordinate of the center point from which radial lines are drawn to calculate distances.
+    :param center_y: The y-coordinate of the center point from which radial lines are drawn to calculate distances.
+    :param max_distance: The maximum distance from the center point to be considered for drawing radial lines and adding distance labels.
+    :return: The function returns the `ax` axis added to the `fig` object.
     """
     start_time = time.time()
     # Creare un asse nella figura

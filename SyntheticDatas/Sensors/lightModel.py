@@ -6,12 +6,11 @@
 * this file. If not, please write to:lorenzotettamanti5@gmail.com 
 """
 """ 
-Working on:
+Suggestions for future updates:
     1.Improvements in the max range covered --> coming soon
     2.add power consumption metrics 
     3.add functions to load datas from .LDT files 
     4.improve interaction between lights
-    5.improve scaling and plots for large grids >100
 """
 
 
@@ -21,25 +20,23 @@ Working on:
 
 
 from BaseSensor import Sensor
-from Map import LightMap
 import math
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
-from luxpy import iolidfiles as iolid
 from scipy.signal import argrelextrema
 import time
-from functools import lru_cache
 from joblib import Parallel, delayed
-import tensorflow as tf
-import sys
 import os
-from line_profiler import profile
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2' #disable all the tensorflow messages expect critical errors/crashes
+import tensorflow as tf
+import altair as alt
+import sys
+import warnings
 sys.path.append(
     os.path.abspath(os.path.join(os.path.dirname(__file__), '../')))
 
-#from GPUIntegration.CUDA import Create2DProjectionCUDA
-
+warnings.filterwarnings("ignore")
 class Light(Sensor):
     def __init__(self, position, power, diffusion_angle, orientation_angle, photometric_map, solid_angles, label="Smart Light", photometric_map_path="./Datasets"):
         super().__init__(SensorType="Light", value=[0.0, 0.0], label=label)
@@ -105,11 +102,8 @@ class Light(Sensor):
 
     def getStatus(self):
         """
-        The `getStatus` function prints the current status of a light sensor with various attributes such as
-        name, coordinates, power, lumen, height, diffusion angle, orientation angle, max range covered, and
-        light efficiency.
+        The `getStatus` function prints out various sensor status information in a formatted manner.
         """
-        """Prints the current status of the light sensor."""
         print("-----------------------------")
         print("Sensor Status:")
         print(f"Name: {self.name}")
@@ -129,27 +123,19 @@ class Light(Sensor):
     # Function to calculate the intensity in candelas at a point (x, y, z)
     def evaluateE(self, x, y, z, lamp_coords, df, debug="False"):
         """
-        The function evaluates the illuminance at a given point based on distance from a lamp and
-        intensity values from a CSV file.
-
+        This Python function calculates the illuminance at a point from a lamp based on distance and
+        intensity data.
+        
         :param x: x is the x-coordinate of the point where you want to evaluate the illuminance
-        :param y: The `y` parameter in the `evaluateE` function represents the y-coordinate of the point
-        for which you are calculating the illuminance. It is used in the calculation of the distance `d`
-        between the point and the lamp
-        :param z: The parameter `z` in the `evaluateE` function represents the z-coordinate of the point
-        for which you are calculating the illuminance. In the provided code snippet, `z` is set to 0,
-        indicating that the point is at ground level. The function calculates the distance `d`
-        :param df: The `df` parameter in the `evaluateE` method seems to be a DataFrame object that
-        likely contains intensity values for different angles. The method is checking if a specific
-        angle (`phi_angle`) exists as a column in the DataFrame and then retrieves the corresponding
-        intensity value (`I_theta`) from that column
-        :param debug: The `debug` parameter in the `evaluateE` method is used to control whether debug
-        information should be printed during the calculation. If `debug` is set to `"True"`, the method
-        will print the illuminance `E` in lux and return it. If `debug` is set to, defaults to False
-        (optional)
-        :return: the illuminance in lux, which is calculated based on the distance from the point to the
-        lamp and the corresponding intensity from a CSV file. If the debug parameter is set to "True",
-        it will also print the illuminance value before returning it.
+        :param y: y is the y-coordinate of the point where you want to evaluate the illuminance
+        :param z: the variable `z` is being set to 0, which represents the ground level.
+        :param lamp_coords: Represents the coordinates of the lamp in 3D space. 
+        It is expected to be a tuple or list containing the x, y, z coordinates of the lamp in that order.
+        :param df: DataFrame object that contains photometric map data used to determine the intensity 
+        of light at a specific angle. 
+        :param debug: The `debug` parameter in the `evaluateE` function is used to control whether debug
+        information should be printed during the execution of the function.
+        :return: The function `evaluateE` returns the illuminance value `E` in lux.
         """
         # Calculate the distance from the point to the lamp
         x_lamp = lamp_coords[0]
@@ -178,6 +164,13 @@ class Light(Sensor):
         
     #optimization of evaluateE using TensorFlow:
     def compute_illuminance_tensor(self,x, y, z, lamp_coords, df_tensor):
+        """
+        The function `compute_illuminance_tensor` calculates illuminance based on lamp coordinates,
+        distance, and intensity values using TensorFlow tensors.
+        
+        :return: The function `compute_illuminance_tensor` returns the illuminance value calculated
+        based on the input parameters `x`, `y`, `z`, `lamp_coords`, and `df_tensor`.
+        """
         x_lamp = lamp_coords[0]
         y_lamp = lamp_coords[1]
         z_lamp = lamp_coords[2]
@@ -205,7 +198,6 @@ class Light(Sensor):
         return E
 
     # Function to create the 2D grid and calculate the intensity for each point
-    #@profile
     def compute_illuminance(x, y, z, lamp_coords, df, self):
         return Light.evaluateE(self, x, y, z, lamp_coords, df)
 
@@ -268,16 +260,21 @@ class Light(Sensor):
 
     # sum multiple particles
     def SumMultipleGrid(self, *args):
+        """
+        The `SumMultipleGrid` function takes multiple matrices as input, sums them element-wise, and returns
+        the total sum matrix.
+        :return: returns the sum of all the input grids passed as arguments.
+        """
         if not args:
-            raise ValueError("Nessuna matrice passata alla funzione")
+            raise ValueError("No matrix passed to the function")
 
-        # Converte tutti gli argomenti in array numpy se non lo sono già
+        # Converts all the elements in a numpy array
         args = [np.array(grid) for grid in args]
 
-        # Inizializza I_grid_total come una matrice di zeri della stessa forma della prima matrice in args
+        # inizialize I_grid_total 
         I_grid_total = np.zeros_like(args[0])
 
-        # Somma elemento per elemento le matrici
+        # compute the sum of all the grids passed
         for grid in args:
             I_grid_total += grid
 
@@ -295,11 +292,9 @@ class Light(Sensor):
         :param solid_angles: Solid angles is a list of values representing the solid angles for each
         column in the DataFrame. These values are used to calculate the luminous flux for each column in
         the DataFrame
-        :param debug: The `evaluateLumen` function takes a DataFrame `df`, a list of solid angles, and
-        an optional `debug` parameter which is set to "False" by default. When `debug` is set to "True",
-        additional information is printed during the execution of the function to help with debugging,
-        defaults to False (optional)
-        :return: The function `evaluateLumen` returns the following values in this order:
+        :param debug: When `debug` is set to "True",additional information is printed during the 
+        execution of the function to help with debugging, defaults to False (optional)
+        :return: returns the following values in this order:
         1. `df_lumen`: DataFrame with calculated lumen values
         2. `min_lumen`: Minimum lumen value across all columns
         3. `max_lumen`: Maximum lumen value across all columns
@@ -375,27 +370,10 @@ class Light(Sensor):
 
     def evaluateLumenParallel(self, df, solid_angles, debug="False"):
         """
-        The function `evaluateLumenParallel` calculates lumen values based on solid angles, finds mean
-        and max lumen per column, determines lumen range and angular range within one standard
-        deviation, and returns relevant data.
-
-        :param df: The `evaluateLumenParallel` function takes several parameters and performs
-        calculations on a DataFrame `df` based on solid angles provided. Here's a breakdown of the
-        parameters:
-        :param solid_angles: Solid angles represent the angular extent of a light source as seen from a
-        specific point. In the context of the provided code snippet, the `solid_angles` parameter is
-        expected to be a list of values corresponding to the solid angles associated with each column in
-        the DataFrame `df`. These values are used to
-        :param debug: The `debug` parameter in the `evaluateLumenParallel` function is used to control
-        whether debug information should be printed during the execution of the function. When `debug`
-        is set to "True", additional print statements are included in the function to provide insights
-        into the calculations and intermediate results for debugging, defaults to False (optional)
-        :return: The function `evaluateLumenParallel` returns the following values in this order:
-        1. `df_lumen`: DataFrame with calculated lumen values
-        2. `min_lumen`: Minimum lumen value across all columns
-        3. `max_lumen`: Maximum lumen value across all columns
-        4. `angular_range`: Tuple representing the range of angles where lumen values fall within one
-        standard
+        The function `evaluateLumenParallel` takes a DataFrame, solid angles, and a debug flag as input,
+        calculates various lumen-related metrics, and returns the modified DataFrame along with min/max
+        lumen values, angular range within one standard deviation, and mean lumen.
+        
         """
 
         df_lumen = df.copy()
@@ -469,6 +447,29 @@ class Light(Sensor):
 
 class Simulate:
     def __init__(self, gridParams=[(-30, 30, 101), (-30, 30, 101)], label="Simulation", lights=None, light_coords=None, render_mode="matplotlib"):
+        """
+        This Python class defines a simulation object with methods for setting grid parameters, running
+        the simulation with different render modes, and displaying simulation results.
+        
+        :param gridParams: The `gridParams` parameter in the `__init__` method is a list containing two
+        tuples. Each tuple represents the parameters for defining a grid. The first tuple contains the
+        parameters for the x-grid, and the second tuple contains the parameters for the y-grid. Each tuple
+        has three elements:
+        :param label: The `label` parameter in the `__init__` method of the class is used to set the name
+        of the simulation. It is a string parameter that defaults to "Simulation" if not provided when
+        creating an instance of the class, defaults to Simulation (optional)
+        :param lights: a list of Light objects
+        :param light_coords: The `light_coords` parameter in the `__init__` method of the class is used to
+        store the coordinates of the lights in the simulation. These coordinates are used in the
+        `RunSimulation` method to simulate the light distribution on the grid.
+        :param render_mode: The `render_mode` parameter in the code snippet you provided is a parameter
+        that specifies the mode in which the simulation results will be rendered. The possible values for
+        `render_mode` in this code are:
+        1.matplotlib
+        2.CUDA
+        3.Altair
+        """
+
         self.xgrid = gridParams[0]  # x_grid
         self.ygrid = gridParams[1]  # y grid
         self.grid_divisions = gridParams[0][2]
@@ -531,7 +532,6 @@ class Simulate:
         print(f"Grid Pace: {self.getGridPace()} m ")
         print(f"Render Mode: {self.getRenderMode()}")
     
-    
     def RunSimulation(self):
         start_time = time.time()
         results = []
@@ -553,18 +553,35 @@ class Simulate:
             # Create a figure with specified dimensions
             fig = plt.figure(figsize=(20, 20))
             ax1 = Create2DProjection(
-                fig, x_grid, y_grid, multiple_lights, lights[0].getHeight())
+                fig, x_grid, y_grid, multiple_lights, self.getLightsObject()[0].getHeight())
             plt.tight_layout()
             plt.show()
 
         # integration with openGL
         elif self.getRenderMode() == "CUDA":
-            # Create a figure with specified dimensions
-            fig = plt.figure(figsize=(20, 20))
-            ax1 = Create2DProjectionCUDA(
-                fig, x_grid, y_grid, multiple_lights, lights[0].getHeight())
-            plt.tight_layout()
-            plt.show()
+            try:
+                import cupy
+                print("The library 'cupy' is installed.")
+                
+                from GPUIntegration.CUDA import Create2DProjectionCUDA
+                
+                # Create a figure with specified dimensions
+                fig = plt.figure(figsize=(20, 20))
+                ax1 = Create2DProjectionCUDA(
+                    fig, x_grid, y_grid, multiple_lights, self.getLightsObject[0].getHeight())
+                plt.tight_layout()
+                plt.show()
+                
+            except ImportError:
+                print("CUDA is not supported. Please choose a different method.")
+                exit()
+
+            
+        elif self.getRenderMode() == "Altair":
+
+            chart = Create2DProjectionAltair(
+                x_grid, y_grid, multiple_lights, self.getLightsObject[0].getHeight())
+            chart.show()
 
         else:
             print("Visualization disabled")
@@ -577,22 +594,11 @@ class Simulate:
 
 
 def loadFromCSV(file_path, delimiter=";"):
-    """
-    The function `loadFromCSV` reads a CSV file, replaces commas with periods, converts the data to
-    numeric format, and returns a pandas DataFrame.
-
-    :param file_path: The `file_path` parameter in the `loadFromCSV` function is a string that
-    represents the file path of the CSV file that you want to load and process. This parameter should be
-    the location of the CSV file on your system
-    :param delimiter: The `delimiter` parameter in the `loadFromCSV` function specifies the character
-    used to separate fields in the CSV file. By default, the delimiter is set to ";", but you can
-    specify a different delimiter if your CSV file uses a different character to separate values in each
-    row, defaults to ; (optional)
-    :return: The function `loadFromCSV` reads a CSV file located at the `file_path`, using the specified
-    `delimiter` (default is ";"). It then replaces commas with periods in the data, converts the data to
-    numeric format, and handles any conversion errors by coercing them. Finally, it returns the
-    processed DataFrame `df`.
-    """
+    
+    # The code snippet is reading a CSV file located at `file_path` using pandas, replacing commas with
+    # periods in the dataframe, converting the values in the dataframe to numeric data types, and handling
+    # any errors by coercing them to NaN values. Finally, it returns the modified dataframe.
+        
 
     df = pd.read_csv(file_path, delimiter=delimiter)
     df.replace(',', '.', regex=True, inplace=True)
@@ -606,13 +612,11 @@ def CreatePolarGraph(df, angles):
     The function `CreatePolarGraph` creates a polar graph with data from a DataFrame using specified
     angles.
 
-    :param df: The `df` parameter in the `CreatePolarGraph` function is likely a DataFrame containing
-    the data to be plotted on the polar graph. The function seems to iterate over the columns of this
-    DataFrame to plot the data on the polar graph
-    :param angles: The `angles` parameter in the `CreatePolarGraph` function represents the angles at
-    which the data points will be plotted on the polar graph. These angles are typically in radians and
-    determine the position of each data point around the circle in the polar plot
-    :return: The function `CreatePolarGraph` returns a matplotlib figure (`fig`) and an axis object
+    :param df: a DataFrame containing the data to be plotted on the polar graph.
+    :param angles: represents the angles at which the data points will be plotted on the polar graph. 
+    These angles are typically in radians and determine the position of each data point around 
+    the circle in the polar plot
+    :return: returns a matplotlib figure (`fig`) and an axis object
     (`ax1`) with a polar projection that displays a polar graph based on the input data frame (`df`) and
     angles provided. The graph represents the photometric map with multiple columns plotted on the same
     polar axis.
@@ -641,22 +645,16 @@ def CreatePolarGraph(df, angles):
 
 
 def CreateHeatmap(fig, df, angles):
+    
     """
     The function `CreateHeatmap` creates a polar heatmap using the provided DataFrame and angles on a
     given figure.
 
-    :param fig: The `fig` parameter in the `CreateHeatmap` function is a matplotlib figure object where
-    the polar heatmap will be added as a subplot. This figure object is typically created using
-    `plt.figure()` in matplotlib before calling this function
-    :param df: The `df` parameter in the `CreateHeatmap` function is a DataFrame containing the data
-    that will be used to create the heatmap. The data in the DataFrame should be structured in a way
-    that the rows represent different angles, and the columns represent different luminous intensity
-    values
-    :param angles: The `angles` parameter in the `CreateHeatmap` function represents the angles at which
-    the data points are plotted on the polar heatmap. These angles are used to create the radial lines
-    on the polar plot. The angles are typically specified in degrees and can range from 0 to 360
-    degrees,
-    :return: The function `CreateHeatmap` returns the subplot `ax2` which is a polar heatmap added to
+    :param fig: a matplotlib figure object where the polar heatmap will be added as a subplot. 
+    :param df: a DataFrame containing the data that will be used to create the heatmap
+    :param angles: represents the angles at which the data points are plotted on the polar heatmap. 
+    These angles are used to create the radial lines on the polar plot. 
+    :return: returns the subplot `ax2` which is a polar heatmap added to
     the provided figure `fig`.
     """
 
@@ -692,32 +690,25 @@ def Create2DProjection(fig, x_grid, y_grid, I_grid, h, center_x=0, center_y=0, m
     The function `Create2DProjection` generates a 2D projection of illuminance distribution on a road
     plane with isolux contours and radial distance labels.
 
-    :param fig: The `fig` parameter is the figure object that the plot will be added to. It is
-    typically created using `plt.figure()` from the matplotlib library
+    :param fig: figure object that the plot will be added to.
     :param x_grid: The `x_grid` parameter in the `Create2DProjection` function represents the grid of
-    x-coordinates where the illuminance values are calculated and plotted. It likely defines the spatial
-    positions along the x-axis where the illuminance values are sampled
+    x-coordinates where the illuminance values are calculated and plotted.
     :param y_grid: The `y_grid` parameter in the `Create2DProjection` function represents the grid of
-    y-coordinates in the 2D projection. It is used to define the y-axis positions of the points in the
-    grid where the illuminance values are calculated and plotted. This grid helps in visualizing
+    y-coordinates in the 2D projection. 
     :param I_grid: I_grid represents the illuminance distribution on the road plane at a certain height
-    from the ground. The function `Create2DProjection` takes this illuminance grid along with other
-    parameters to create a 2D projection visualization of the illuminance distribution
+    from the ground.
     :param h: The parameter `h` represents the height at which the illuminance distribution is being
     plotted on the road plane. It is specified in meters from the ground level
     :param center_x: The `center_x` parameter in the `Create2DProjection` function represents the
     x-coordinate of the center point from which radial lines are drawn to calculate distances to each
     point in the grid. This center point is used as the reference point for calculating distances and
-    displaying labels on the plot, defaults to 0 (optional)
-    :param center_y: The `center_y` parameter in the `Create2DProjection` function represents the
-    y-coordinate of the center point from which radial lines are drawn to calculate distances in the 2D
-    projection. This parameter helps determine the center point for the radial lines and distance
-    calculations in the visualization of the illuminance, defaults to 0 (optional)
+    displaying labels on the plot, defaults is 0 (optional)
+    :param center_y: represents the y-coordinate of the center point from which radial lines are 
+    drawn to calculate distances in the 2D projection. 
     :param max_distance: The `max_distance` parameter in the `Create2DProjection` function is used to
     specify the maximum distance from the center point (defined by `center_x` and `center_y`) to
-    consider when drawing radial lines and adding distance labels on the plot. If `max_distance` is not
-    provided
-    :return: The function `Create2DProjection` returns the plot `ax` that is added to the provided
+    consider when drawing radial lines and adding distance labels on the plot.
+    :return: returns the plot `ax` that is added to the provided
     `fig` object after plotting the illuminance distribution, isolux contours, radial lines from the
     center, and distance labels on the plot.
     """
@@ -772,6 +763,52 @@ def Create2DProjection(fig, x_grid, y_grid, I_grid, h, center_x=0, center_y=0, m
     print(f"Elapsed time: {round(end_time - start_time, 2)} s")
     return ax
 
+#plotting with altair:
+def Create2DProjectionAltair(x_grid, y_grid, I_grid, h, center_x=0, center_y=0, max_distance=None):
+    """
+    The `Create2DProjection` function generates a 2D projection of the lighting distribution on a street plane
+    with isolux contours and radial distance labels. It uses Altair for plotting.
+
+    :param x_grid: x coordinate grid.
+    :param y_grid: y coordinate grid.
+    :param I_grid: Illuminance grid.
+    :param h: Height at which the illuminance distribution is plotted.
+    :param center_x: x coordinate of the center (default: 0)
+    :param center_y: Y coordinate of the center (default: 0)
+    :param max_distance: Maximum distance for radial lines (default: None)
+    :return: Altair graph of illuminance distribution.
+    """
+    start_time = time.time()
+
+    # converts the datas in a pandas dataframe
+    data = pd.DataFrame({
+        'x': x_grid.ravel(),
+        'y': y_grid.ravel(),
+        'illuminance': I_grid.ravel()
+    })
+
+    # Create the heatmap using Altair
+    heatmap = alt.Chart(data).mark_rect().encode(
+        x=alt.X('x:Q', title='X (meters)'),
+        y=alt.Y('y:Q', title='Y (meters)'),
+        color=alt.Color('illuminance:Q', scale=alt.Scale(scheme='greys'), title='Illuminance (lux)')
+    ).properties(
+        width=600,
+        height=600,
+        title=f"Illuminance Distribution on the Road Plane at height = {h} m from the ground"
+    )
+
+    # saves the heatmap
+    file_name = 'illuminance_chart.html'
+    heatmap.save(file_name)
+
+    end_time = time.time()
+    print(f"Selected Plotting Mode: Altair")
+    print(f"Elapsed time: {round(end_time - start_time, 2)} s")
+    print(f"Grafico salvato come '{file_name}'")
+
+    return heatmap
+
 
 # overload 2D Projection for making only 1 plot
 
@@ -780,9 +817,9 @@ def CalculateSolidAngle(df, threshold=180):
     The function CalculateSolidAngle calculates the solid angle for local maximum angles in a DataFrame
     based on intensity values and a specified threshold.
 
-    :param df: The function `CalculateSolidAngle` takes a DataFrame `df` as input, which contains
-    intensity values and corresponding angles. The function calculates the solid angle for each unique
-    local maximum angle in the intensity values based on a specified threshold
+    :param df: a DataFrame `df` as input, which contains intensity values and corresponding angles. 
+    The function calculates the solid angle for each unique local maximum angle in the intensity values 
+    based on a specified threshold
     :param threshold: The `threshold` parameter in the `CalculateSolidAngle` function is used to
     determine the minimum angle difference between two points to consider them as separate peaks. It is
     specified in degrees and is used to calculate the `order` parameter for finding local maxima in the
@@ -832,23 +869,17 @@ def CalculateSolidAngleMonteCarlo(df, num_samples=1000000, vertical_angle=100, d
     The function CalculateSolidAngleMonteCarlo calculates the solid angle for a cone based on Monte
     Carlo sampling of intensity values within a specified vertical angle range.
 
-    :param df: The function `CalculateSolidAngleMonteCarlo` takes a DataFrame `df` as input, which
-    contains intensity values and corresponding angles. The function calculates the solid angle using a
-    Monte Carlo method based on the provided parameters
-    :param num_samples: The `num_samples` parameter in the `CalculateSolidAngleMonteCarlo` function
-    specifies the number of random points to generate on a sphere for Monte Carlo integration.
-    Increasing the number of samples generally leads to more accurate results but also increases
-    computation time. The default value is set to 100000, defaults to 1000000 (optional)
-    :param vertical_angle: The `vertical_angle` parameter represents the vertical angle in degrees
-    within which the Monte Carlo simulation will be performed. In the provided code snippet, this angle
-    is converted to radians for calculations. If you have any specific questions or need further
-    clarification on this parameter or any other part of the code, feel free, defaults to 100 (optional)
+    :param df: takes a DataFrame `df` as input, which
+    contains intensity values and corresponding angles. 
+    :param num_samples: the number of random points to generate on a sphere for Monte Carlo integration.
+    The default value is set to 1000000
+    :param vertical_angle: parameter represents the vertical angle in degrees
+    within which the Monte Carlo simulation will be performed. 
     :param debug: The `debug` parameter in the `CalculateSolidAngleMonteCarlo` function is a boolean
     flag that controls whether debug information is printed during the calculation process. If
-    `debug=True`, the function will print out information such as the column being processed, the
-    vertical angle in degrees, and the calculated, defaults to False (optional)
-    :return: The function `CalculateSolidAngleMonteCarlo` is returning the calculated solid angle for a
-    cone based on the given vertical angle in radians.
+    `debug=True`, the function will print out information such as the column being processed.
+    :return: The function `CalculateSolidAngleMonteCarlo` is returning the calculated solid angle based 
+    on the given vertical angle in radians.
     """
 
     # Initialize a list to store solid angles
@@ -904,27 +935,16 @@ def CalculateSolidAngleForColum(col, df, num_samples, vertical_angle_rad, debug=
     """
     The function calculates the solid angle for a given column in a DataFrame using Monte Carlo sampling
     on a sphere.
-
-    :param col: The `col` parameter in the `CalculateSolidAngleForColumn` function represents the column
-    name in the DataFrame `df` from which intensities and angles are extracted for calculation. It is
-    used to specify which column contains the intensity values to be used in the calculation
-    :param df: The function `CalculateSolidAngleForColumn` takes in a DataFrame `df`, a column name
-    `col`, the number of samples `num_samples`, the vertical angle in radians `vertical_angle_rad`, and
-    an optional `debug` flag for printing debug information
-    :param num_samples: The `num_samples` parameter in the `CalculateSolidAngleForColum` function
-    represents the number of random points that will be generated on the sphere for calculating the
-    solid angle. Increasing the number of samples can lead to a more accurate estimation of the solid
-    angle but may also increase computation time. It
-    :param vertical_angle_rad: The `vertical_angle_rad` parameter in the `CalculateSolidAngleForColum`
-    function represents the vertical angle in radians within which the random points are generated on
-    the sphere. It is used to determine the range of polar angles for the random points. The function
-    generates random points on the sphere within this
-    :param debug: The `debug` parameter in the `CalculateSolidAngleForColum` function is a boolean flag
-    that controls whether debug information should be printed during the execution of the function. If
-    `debug=True`, the function will print out the column name (`col`), the vertical angle in degrees
-    (`vertical_angle, defaults to False (optional)
-    :return: The function `CalculateSolidAngleForColum` returns the calculated solid angle based on the
-    provided inputs and formula.
+    :param df: takes a DataFrame `df` as input, which contains intensity values and corresponding angles. 
+    :param num_samples: the number of random points to generate on a sphere for Monte Carlo integration.
+    The default value is set to 1000000
+    :param vertical_angle: parameter represents the vertical angle in degrees
+    within which the Monte Carlo simulation will be performed. 
+    :param debug: The `debug` parameter in the `CalculateSolidAngleMonteCarlo` function is a boolean
+    flag that controls whether debug information is printed during the calculation process. If
+    `debug=True`, the function will print out information such as the column being processed.
+    :return: The function `CalculateSolidAngleMonteCarlo` is returning the calculated solid angle based 
+    on the given vertical angle in radians.
     """
 
     # Generate random points on the sphere (spherical coordinates)
@@ -959,31 +979,21 @@ def CalculateSolidAngleForColum(col, df, num_samples, vertical_angle_rad, debug=
 
 def CalculateSolidAngleMonteCarloParallel(df, num_samples=1000000, vertical_angle=100, debug=False, n_jobs=-1):
     """
-    The function CalculateSolidAngleMonteCarloParallel calculates solid angles using Monte Carlo method
-    in parallel for multiple intensity columns in a DataFrame.
-
-    :param df: The function `CalculateSolidAngleMonteCarloParallel` takes a DataFrame `df` as input
-    along with optional parameters `num_samples`, `vertical_angle`, `debug`, and `n_jobs`
-    :param num_samples: The `num_samples` parameter specifies the number of samples to use in the Monte
-    Carlo simulation for calculating the solid angle. Increasing the number of samples generally leads
-    to more accurate results but also increases computation time, defaults to 1000000 (optional)
-    :param vertical_angle: The `vertical_angle` parameter in the `CalculateSolidAngleMonteCarloParallel`
-    function represents the vertical angle in degrees that you want to convert to radians for further
-    calculations. It is used to calculate the solid angle for each column in the DataFrame `df`,
-    defaults to 100 (optional)
-    :param debug: The `debug` parameter in the `CalculateSolidAngleMonteCarloParallel` function is a
-    boolean flag that controls whether additional debugging information should be printed during the
-    calculation process. When `debug=True`, the function may print out intermediate results, messages,
-    or other information that can help in understanding the, defaults to False (optional)
+    The function CalculateSolidAngleMonteCarloParallel calculates solid angles for each column in a
+    DataFrame using Monte Carlo simulation in parallel.
+    
+    :param df: takes a DataFrame `df` as input, which contains intensity values and corresponding angles. 
+    :param num_samples: the number of random points to generate on a sphere for Monte Carlo integration.
+    The default value is set to 1000000
+    :param vertical_angle: parameter represents the vertical angle in degrees
+    :param debug: If `debug=True`, you may see more detailed output or logging to help with
+    troubleshooting or understanding the calculation steps.
     :param n_jobs: The `n_jobs` parameter in the `CalculateSolidAngleMonteCarloParallel` function
     specifies the number of parallel jobs to run. Setting `n_jobs=-1` will use all available CPU cores
     for parallel processing. This can help speed up the calculation process by distributing the workload
     across multiple cores
     :return: The function `CalculateSolidAngleMonteCarloParallel` returns a list of solid angles
-    calculated for each column (excluding the 'val' column) in the input DataFrame `df`. The solid
-    angles are calculated using Monte Carlo simulation with the specified number of samples, vertical
-    angle in radians, and optionally in debug mode. The calculation is parallelized using joblib with
-    the number of jobs specified by the
+    calculated for each column in the input DataFrame `df`, based on the specified parameters
     """
 
     # Convert the fixed vertical angle to radians
@@ -1020,7 +1030,7 @@ if __name__ == "__main__":
     start_time = time.time()
     solid_angle = CalculateSolidAngleMonteCarloParallel(df)
     sAng.append(solid_angle)
-    print(sAng)
+    #print(sAng)
     end_time = time.time()
     print(f"Elapsed time: {round(end_time - start_time, 2)} s")
 
@@ -1135,12 +1145,3 @@ if __name__ == "__main__":
     # Run the simulation
     
     results = simulation.RunSimulation()
-
-    # add get status based on setgrid
-
-    """     
-    # Create a LightMap object and add the light sensor
-    light_map = LightMap()
-    light_map.addSensor(light)
-    light_map.CreateMap() 
-    """
