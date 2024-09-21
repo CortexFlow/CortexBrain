@@ -588,7 +588,7 @@ class Simulate:
             
         end_time = time.time()
         print(f"Simulation time: {round(end_time - start_time, 2)} s")
-        return results
+        return multiple_lights
 
 # Function to read and prepare the data
 
