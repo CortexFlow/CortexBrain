@@ -10,9 +10,9 @@
 """  
     MIGLIORAMENTI:
     -Eliminare il codice inutile
-    -Sistemare codice per fare la linea
     -Sistemare il codice per disegnare una linea
     -Aggiungere muri agli ostacoli
+    -convertire in OpenGL per fare 
 """
 
 from GPSModel import GPS_Sensor
@@ -39,7 +39,7 @@ class Environment:
         self.sensors = sensors if sensors is not None else []
         self.grid = np.zeros((grid_size[0], grid_size[1]))  # Inizializza la griglia senza ostacoli
         self.cell_size = 1
-        self.planimetry = self.loadPlanimetry(img_path='planimetria2.jpg')
+        #self.planimetry = self.loadPlanimetry(img_path='planimetria2.jpg')
         self.scaling_factor = 1 / self.cell_size
         self.obstacles=[]
 
@@ -91,60 +91,3 @@ class Environment:
             sensor_rect = pygame.Rect(sensor.getPosition(), (10, 10))  # Imposta la dimensione dell'agente
             pygame.draw.rect(display, blue, sensor_rect)
             
-
-    def loadPlanimetry(self, img_path, debug=False):
-
-        # 1. load the image
-        img = cv2.imread(img_path)
-
-        # resize the image
-        resized = cv2.resize(img, (100, 100))
-        if debug == True:
-            self.planimetry = resized
-            cv2.imshow('Resized Image', resized)
-            return self.planimetry
-        else:
-            self.planimetry = resized
-            return self.planimetry
-
-    def ProcessPlanimetry(self, debug=False):
-        immagine_hsv = cv2.cvtColor(self.planimetry, cv2.COLOR_BGR2HSV)
-        # 3. Define color min and color max to detect
-        colore_min = np.array([0, 0, 0])     # black
-        colore_max = np.array([0, 0, 0])
-
-        # create a mask for the filter the black color
-        maschera = cv2.inRange(immagine_hsv, colore_min, colore_max)
-
-        # invert the mask
-        maschera_invertita = cv2.bitwise_not(maschera)
-
-        # apply the mask
-        immagine_filtrata = cv2.bitwise_and(
-            self.planimetry, self.planimetry, mask=maschera_invertita)
-
-        # 4. convert in grey scale
-        grigia = cv2.cvtColor(immagine_filtrata, cv2.COLOR_BGR2GRAY)
-
-        # 5. detect the edges using the canny algorithm
-        bordi = cv2.Canny(grigia, 100, 100)
-
-        # 6. invert the color of the edges
-        bordi_invertiti = cv2.bitwise_not(bordi)
-
-        if debug == True:
-            # cv2.imshow('Inverted edges \lanimetria', bordi_invertiti)
-            # print(np.unique(bordi_invertiti))
-            zeros = np.where(bordi_invertiti == 0)
-            # only store the 0 pixels corresponding to the edges---->returns a list
-            zero_positions = list(zip(zeros[0], zeros[1]))
-            # print(type(zero_positions))
-            # print(zero_positions)
-            # plt.imshow(bordi_invertiti, cmap='gray', vmin=0, vmax=255)  # Usa 'gray' per visualizzare in scala di grigi
-            # plt.colorbar()  # Aggiunge una barra dei colori
-            # plt.show()
-            return bordi_invertiti, zero_positions
-        else:
-            return bordi_invertiti
-
-    
