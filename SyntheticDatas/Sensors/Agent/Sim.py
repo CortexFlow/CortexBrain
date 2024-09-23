@@ -4,27 +4,9 @@ from BaseAgent import Agent
 from Environment import Environment
 import Graphics as Graphics
 from GPSModel import GPS_Sensor
+import pygame_chart as pyc
 import sys
 
-# Funzione per disegnare una tabella
-def draw_table(display, gps1_data, gps2_data):
-    font = pygame.font.Font(None, 15)
-    # Intestazione della tabella
-    header = font.render("GPS Sensor Data", True, (0, 0, 0))
-    display.blit(header, (850, 20))
-    
-    # Disegna intestazioni delle colonne
-    col1 = font.render("GPS 1", True, (0, 0, 0))
-    col2 = font.render("GPS 2", True, (0, 0, 0))
-    display.blit(col1, (850, 60))
-    display.blit(col2, (950, 60))
-    
-    # Disegna i dati della tabella
-    for i, (val1, val2) in enumerate(zip(gps1_data, gps2_data)):
-        row = font.render(f"{val1:.2f}", True, (0, 0, 0))
-        display.blit(row, (850, 100 + i * 30))
-        row = font.render(f"{val2:.2f}", True, (0, 0, 0))
-        display.blit(row, (950, 100 + i * 30))
 
 if __name__ == "__main__":
     # Inizializza Pygame
@@ -37,9 +19,9 @@ if __name__ == "__main__":
 
     # Finestra di visualizzazione: 1000x800 per includere spazio per i grafici
     pygame.display.set_caption("Light Render")
-    display = pygame.display.set_mode((1500, 800), pygame.DOUBLEBUF)
+    display = pygame.display.set_mode((1500, 800), pygame.DOUBLEBUF )
 
-    clock, fps = pygame.time.Clock(), 240
+    clock, fps = pygame.time.Clock(), 60
 
     # Definizione delle luci
     light1 = Graphics.LIGHT(200, Graphics.pixel_shader(200, (yellow_light), 1, False))
@@ -65,12 +47,11 @@ if __name__ == "__main__":
     environment.addAgent(agent)
     environment.addSensor(gps1)
     environment.addSensor(gps2)
+    # Setup per i grafici
+    figure = pyc.Figure(display, 800, 0, 700, 800)  # Posizione e dimensioni della figura
 
     gps1_data = []
     gps2_data = []
-    
-    last_position1 = None
-    last_position2 = None
 
     # Variabile per il conteggio dei frame
     frame_count = 0
@@ -101,20 +82,29 @@ if __name__ == "__main__":
         position1 = gps1.getPosition()
         position2 = gps2.getPosition()
 
-        # Assicurati che i dati siano di tipo numerico e diversi dagli ultimi valori
-        if isinstance(position1, list) and position1 and (last_position1 is None or position1[0] != last_position1):
-            gps1_data.append(position1[0])
-            last_position1 = position1[0]
-        
-        if isinstance(position2, list) and position2 and (last_position2 is None or position2[0] != last_position2):
-            gps2_data.append(position2[0])
-            last_position2 = position2[0]
+        # Assicurati che i dati siano di tipo numerico
+        if isinstance(position1, list) and position1:  # Controlla che sia una lista non vuota
+            gps1_data.append(position1[0])  # Aggiungi il primo valore della lista
+            #print(gps1_data)
+        if isinstance(position2, list) and position2:  # Controlla che sia una lista non vuota
+            gps2_data.append(position2[0])  # Aggiungi il primo valore della lista
+            #print(gps2_data)
+
+        # Esegui calcoli su GPU solo ogni 15 frame
+        if frame_count % 15 == 0:
+            # Aggiungi grafici solo se ci sono dati
+            if len(gps1_data) > 1 and len(gps2_data) > 1:  # Controlla che ci siano abbastanza dati
+                figure.line('GPS Sensor 1', list(range(len(gps1_data))), gps1_data)
+                figure.line('GPS Sensor 2', list(range(len(gps2_data))), gps2_data)
 
         frame_count += 1
 
-        # Disegna la tabella
-        if len(gps1_data) > 0 and len(gps2_data) > 0:  # Controlla che ci siano dati
-            draw_table(display, gps1_data, gps2_data)
+        # Disegna la figura solo se ci sono dati sufficienti
+        if len(gps1_data) > 1 and len(gps2_data) > 1:  # Assicurati di avere più di un dato
+            try:
+                figure.draw()
+            except ValueError as e:
+                pass
 
         # Show FPS
         pygame.display.set_caption(f"FPS: {round(clock.get_fps(), 0)}")
