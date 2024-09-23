@@ -44,14 +44,14 @@ def classify_hotels(json_file):
 # FUNCTIONS FOR CALCULATING METRICS
 
 # Calculates and returns the average of a selected key for each hotel in a JSON file
-def add_mean(json_file, key):
+def get_mean(json_file, key):
     # Convert JSON to a Python dictionary
     data = json.loads(json_file)
 
     # Check if the hotel list is empty
-    if not data.get("Hotel List"):
-        print("Hotel List is empty")
-        return json_file
+    if not data["Hotel List"]:
+       print("Hotel List is empty")
+       return json_file
 
     # Check if the key exists in at least one hotel
     if not any(key in hotel for hotel in data["Hotel List"]):
@@ -84,9 +84,8 @@ def add_mean(json_file, key):
     # Return the result as JSON
     return json.dumps(result_data)
     
-# Calculates and adds the mean of a selected key in a JSON file for the last quarter
-# still needs optimization
-def add_mean_trimester(json_file, key):
+# Calculates the average of a selected key for each hotel in a JSON file for the last quarter
+def get_mean_trimester(json_file, key):
     # Convert JSON to Python dictionary
     data = json.loads(json_file)
 
@@ -95,37 +94,45 @@ def add_mean_trimester(json_file, key):
        print("Hotel List is empty")
        return json_file 
     
+    # Check if the key exists in at least one hotel
+    if not any(key in hotel for hotel in data["Hotel List"]):
+        print(f"key {key} does not exist")
+        return json_file
+    
+    # Dictionary to accumulate the key values for each hotel
+    hotel_values = {}
+    
     # Current date
     today = date.today()
 
-    # Check if the key exists
-    if key in data["Hotel List"][0].keys(): # data type must contain the "Hotel List" key, loses generality
+    # Collect the specified key values for each hotel
+    for hotel in data["Hotel List"]:
+        hotel_name = hotel["HotelName"]
+        if key in hotel:
+            mm_yyyy = hotel["date"].split("-") # Can be changed to handle DD-MM-YYYY dates
+            month = float(mm_yyyy[0])
+            if hotel_name not in hotel_values:
+                hotel_values[hotel_name] = []
+            if month > today.month-3: # Chooses the last three consecutive months
+                hotel_values[hotel_name].append(hotel[key])
 
-      all_key_data = [] # Collects all key data in a list
+    # Calculate the mean for each hotel
+    hotel_means = {hotel: round(np.mean(values),2) if values else 0 for hotel, values in hotel_values.items()}
 
-      for key_info in data["Hotel List"]:
-          mm_yyyy = key_info["date"].split("-") # Can be changed to handle DD-MM-YYYY dates
-          month = float(mm_yyyy[0])
-       
-          if month > today.month-3: # Chooses the last three consecutive months
-             key_data = key_info[key]
-             all_key_data.append(key_data)
+    # Create the structure of the new JSON with the "Mean" key inside "Hotel List"
+    result_data = {
+        "Hotel List": {
+            "Mean_Last_Trimester": {
+              f"{key}" :hotel_means
+            }
+        }
+    }
 
-      if not all_key_data:
-          all_key_data = 0  # In case there are no values
-
-      key_mean = np.mean(all_key_data)
-      data.update({key + "_mean_last_trimester" : key_mean})
-
-      # Convert to JSON
-      return json.dumps(data)
+    # Return the result as JSON
+    return json.dumps(result_data)
     
-    else:
-       print("key does not exist")
-       return json_file
-    
-# Calculates and adds the standard deviation of a selected key in a JSON file
-def add_std(json_file, key):
+# Calculates the standard deviation of a selected key in a JSON file
+def get_std(json_file, key):
     # Convert JSON to a Python dictionary
     data = json.loads(json_file)
 
@@ -165,7 +172,7 @@ def add_std(json_file, key):
     # Return the result as JSON
     return json.dumps(result_data)
       
-def add_sum(json_file, key):
+def get_sum(json_file, key):
     # Convert JSON to a Python dictionary
     data = json.loads(json_file)
 
@@ -209,8 +216,8 @@ if __name__ == "__main__":
          {
             "HotelName": "Hotel Freddo",
             "numero stanze": 300,
-            "date": "05-2024",
-            "category": "B",
+            "date": "09-2024",
+            "category": "L",
             "shift": 6,
             "arrivals(n.ordini)": 5,
             "revenue_single(€)": 2844.07,
@@ -253,7 +260,7 @@ if __name__ == "__main__":
          {
             "HotelName": "Hotel Caldo",
             "numero stanze": 300,
-            "date": "08-2024",
+            "date": "06-2024",
             "category": "L",
             "shift": 3,
             "arrivals(n.ordini)": 25,
@@ -290,13 +297,15 @@ if __name__ == "__main__":
    print("Hotel Category: B", B_hotel_json)
    print("\n")
    
-   L_hotel_json = add_mean(L_hotel_json, "revenue_single(€)")
-   L_hotel_json = add_std(L_hotel_json, "revenue_single(€)")
-   #L_hotel_json = add_mean_trimester(L_hotel_json, "num_families") # still needs optimization
-   L_hotel_json = add_mean(L_hotel_json, "num_families")
-   L_hotel_json = add_sum(L_hotel_json, "num_families")
+   L_hotel_rev_mean = get_mean(L_hotel_json, "revenue_single(€)")
+   
+   L_hotel_rev_std = get_std(L_hotel_json, "revenue_single(€)")
+   
+   L_hotel_rev_mean_tri = get_mean_trimester(L_hotel_json, "revenue_single(€)") # still needs optimization
    
    # Note: An aggregator of parameters is needed
    
    print("Debug for L Category:")
-   print(L_hotel_json)
+   print(L_hotel_rev_mean)
+   print(L_hotel_rev_std)
+   print(L_hotel_rev_mean_tri)
