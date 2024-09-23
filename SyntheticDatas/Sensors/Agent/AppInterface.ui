@@ -891,6 +891,19 @@ margin-left: 5px;</string>
                  <string>Dati</string>
                 </property>
                </widget>
+               <widget class="QPushButton" name="go_progetta_btn">
+                <property name="geometry">
+                 <rect>
+                  <x>910</x>
+                  <y>0</y>
+                  <width>291</width>
+                  <height>28</height>
+                 </rect>
+                </property>
+                <property name="text">
+                 <string>Progetta</string>
+                </property>
+               </widget>
               </widget>
              </item>
             </layout>
@@ -1268,7 +1281,7 @@ QPushButton:pressed {
                  <set>Qt::AlignCenter</set>
                 </property>
                </widget>
-               <widget class="QPushButton" name="custome_support">
+               <widget class="QPushButton" name="customer_support">
                 <property name="geometry">
                  <rect>
                   <x>0</x>
@@ -1446,16 +1459,63 @@ QPushButton:pressed {
                    <enum>QFrame::Plain</enum>
                   </property>
                   <property name="currentIndex">
-                   <number>1</number>
+                   <number>2</number>
                   </property>
                   <widget class="QWidget" name="page_home">
-                   <widget class="QLabel" name="label_6">
+                   <widget class="QLabel" name="label">
                     <property name="geometry">
                      <rect>
-                      <x>10</x>
-                      <y>-10</y>
-                      <width>1181</width>
-                      <height>91</height>
+                      <x>18</x>
+                      <y>10</y>
+                      <width>301</width>
+                      <height>71</height>
+                     </rect>
+                    </property>
+                    <property name="font">
+                     <font>
+                      <pointsize>28</pointsize>
+                     </font>
+                    </property>
+                    <property name="text">
+                     <string>PROJECTS</string>
+                    </property>
+                   </widget>
+                   <widget class="QPushButton" name="pushButton">
+                    <property name="geometry">
+                     <rect>
+                      <x>300</x>
+                      <y>32</y>
+                      <width>91</width>
+                      <height>31</height>
+                     </rect>
+                    </property>
+                    <property name="styleSheet">
+                     <string notr="true">QPushButton {
+	background-image: url(:/24x24/icons/24x24/cil-menu.png);
+	background-position: center;
+	background-repeat: no-reperat;
+	border: none;
+	background-color: rgb(27, 29, 35);
+	border-color:white;
+}
+QPushButton:hover {
+	background-color: rgb(33, 37, 43);
+}
+QPushButton:pressed {	
+	background-color: rgb(85, 170, 255);
+}</string>
+                    </property>
+                    <property name="text">
+                     <string>Manage..</string>
+                    </property>
+                   </widget>
+                   <widget class="QLabel" name="Compiler_2">
+                    <property name="geometry">
+                     <rect>
+                      <x>620</x>
+                      <y>420</y>
+                      <width>571</width>
+                      <height>311</height>
                      </rect>
                     </property>
                     <property name="font">
@@ -1464,41 +1524,50 @@ QPushButton:pressed {
                       <pointsize>40</pointsize>
                      </font>
                     </property>
+                    <property name="frameShape">
+                     <enum>QFrame::Box</enum>
+                    </property>
                     <property name="text">
-                     <string>HOME</string>
+                     <string>Getting started..</string>
                     </property>
                     <property name="alignment">
                      <set>Qt::AlignCenter</set>
                     </property>
                    </widget>
-                   <widget class="QLabel" name="label">
+                   <widget class="QLabel" name="Compiler_3">
                     <property name="geometry">
                      <rect>
-                      <x>0</x>
-                      <y>85</y>
-                      <width>1211</width>
-                      <height>681</height>
+                      <x>10</x>
+                      <y>100</y>
+                      <width>571</width>
+                      <height>621</height>
                      </rect>
                     </property>
+                    <property name="font">
+                     <font>
+                      <family>Segoe UI</family>
+                      <pointsize>16</pointsize>
+                     </font>
+                    </property>
+                    <property name="frameShape">
+                     <enum>QFrame::Box</enum>
+                    </property>
                     <property name="text">
-                     <string/>
+                     <string>finestra backend per mostrare progetti</string>
                     </property>
-                    <property name="pixmap">
-                     <pixmap>../../../Gui/App/assets/Home screen.jpg</pixmap>
-                    </property>
-                    <property name="scaledContents">
-                     <bool>true</bool>
+                    <property name="alignment">
+                     <set>Qt::AlignCenter</set>
                     </property>
                    </widget>
                   </widget>
-                  <widget class="QWidget" name="page_settings">
+                  <widget class="QWidget" name="page_sim">
                    <property name="enabled">
                     <bool>false</bool>
                    </property>
                    <widget class="QLabel" name="Simulation">
                     <property name="geometry">
                      <rect>
-                      <x>580</x>
+                      <x>600</x>
                       <y>12</y>
                       <width>591</width>
                       <height>441</height>
@@ -1548,7 +1617,7 @@ QPushButton:pressed {
                    <widget class="QLabel" name="Compiler">
                     <property name="geometry">
                      <rect>
-                      <x>0</x>
+                      <x>10</x>
                       <y>470</y>
                       <width>1181</width>
                       <height>261</height>
@@ -1571,9 +1640,12 @@ QPushButton:pressed {
                     </property>
                    </widget>
                    <widget class="QPlainTextEdit" name="plainTextEdit">
+                    <property name="enabled">
+                     <bool>false</bool>
+                    </property>
                     <property name="geometry">
                      <rect>
-                      <x>0</x>
+                      <x>20</x>
                       <y>11</y>
                       <width>561</width>
                       <height>441</height>
@@ -1587,6 +1659,180 @@ CortexBrain Editor
 This is a temporary script file. 
 &quot;&quot;&quot;
 </string>
+                    </property>
+                   </widget>
+                  </widget>
+                  <widget class="QWidget" name="page_settings">
+                   <widget class="QLabel" name="label_2">
+                    <property name="geometry">
+                     <rect>
+                      <x>10</x>
+                      <y>10</y>
+                      <width>301</width>
+                      <height>71</height>
+                     </rect>
+                    </property>
+                    <property name="font">
+                     <font>
+                      <pointsize>28</pointsize>
+                     </font>
+                    </property>
+                    <property name="text">
+                     <string>SETTINGS</string>
+                    </property>
+                   </widget>
+                  </widget>
+                  <widget class="QWidget" name="page_datas">
+                   <widget class="QLabel" name="CodeEditor_2">
+                    <property name="geometry">
+                     <rect>
+                      <x>10</x>
+                      <y>10</y>
+                      <width>591</width>
+                      <height>441</height>
+                     </rect>
+                    </property>
+                    <property name="font">
+                     <font>
+                      <family>Segoe UI</family>
+                      <pointsize>40</pointsize>
+                     </font>
+                    </property>
+                    <property name="frameShape">
+                     <enum>QFrame::NoFrame</enum>
+                    </property>
+                    <property name="text">
+                     <string/>
+                    </property>
+                    <property name="alignment">
+                     <set>Qt::AlignCenter</set>
+                    </property>
+                   </widget>
+                   <widget class="QLabel" name="Simulation_3">
+                    <property name="geometry">
+                     <rect>
+                      <x>10</x>
+                      <y>10</y>
+                      <width>591</width>
+                      <height>721</height>
+                     </rect>
+                    </property>
+                    <property name="font">
+                     <font>
+                      <family>Segoe UI</family>
+                      <pointsize>40</pointsize>
+                     </font>
+                    </property>
+                    <property name="frameShape">
+                     <enum>QFrame::Box</enum>
+                    </property>
+                    <property name="text">
+                     <string>Dati</string>
+                    </property>
+                    <property name="alignment">
+                     <set>Qt::AlignCenter</set>
+                    </property>
+                   </widget>
+                   <widget class="QLabel" name="Simulation_4">
+                    <property name="geometry">
+                     <rect>
+                      <x>610</x>
+                      <y>10</y>
+                      <width>581</width>
+                      <height>351</height>
+                     </rect>
+                    </property>
+                    <property name="font">
+                     <font>
+                      <family>Segoe UI</family>
+                      <pointsize>40</pointsize>
+                     </font>
+                    </property>
+                    <property name="frameShape">
+                     <enum>QFrame::Box</enum>
+                    </property>
+                    <property name="text">
+                     <string>Grafici</string>
+                    </property>
+                    <property name="alignment">
+                     <set>Qt::AlignCenter</set>
+                    </property>
+                   </widget>
+                   <widget class="QLabel" name="Simulation_5">
+                    <property name="geometry">
+                     <rect>
+                      <x>610</x>
+                      <y>380</y>
+                      <width>581</width>
+                      <height>351</height>
+                     </rect>
+                    </property>
+                    <property name="font">
+                     <font>
+                      <family>Segoe UI</family>
+                      <pointsize>40</pointsize>
+                     </font>
+                    </property>
+                    <property name="frameShape">
+                     <enum>QFrame::Box</enum>
+                    </property>
+                    <property name="text">
+                     <string>Grafici</string>
+                    </property>
+                    <property name="alignment">
+                     <set>Qt::AlignCenter</set>
+                    </property>
+                   </widget>
+                  </widget>
+                  <widget class="QWidget" name="page_progetta">
+                   <widget class="QLabel" name="Simulation_8">
+                    <property name="geometry">
+                     <rect>
+                      <x>0</x>
+                      <y>0</y>
+                      <width>1191</width>
+                      <height>721</height>
+                     </rect>
+                    </property>
+                    <property name="font">
+                     <font>
+                      <family>Segoe UI</family>
+                      <pointsize>40</pointsize>
+                     </font>
+                    </property>
+                    <property name="frameShape">
+                     <enum>QFrame::Box</enum>
+                    </property>
+                    <property name="text">
+                     <string>Progettazione</string>
+                    </property>
+                    <property name="alignment">
+                     <set>Qt::AlignCenter</set>
+                    </property>
+                   </widget>
+                   <widget class="QLabel" name="CodeEditor_3">
+                    <property name="geometry">
+                     <rect>
+                      <x>0</x>
+                      <y>0</y>
+                      <width>591</width>
+                      <height>441</height>
+                     </rect>
+                    </property>
+                    <property name="font">
+                     <font>
+                      <family>Segoe UI</family>
+                      <pointsize>40</pointsize>
+                     </font>
+                    </property>
+                    <property name="frameShape">
+                     <enum>QFrame::NoFrame</enum>
+                    </property>
+                    <property name="text">
+                     <string/>
+                    </property>
+                    <property name="alignment">
+                     <set>Qt::AlignCenter</set>
                     </property>
                    </widget>
                   </widget>
