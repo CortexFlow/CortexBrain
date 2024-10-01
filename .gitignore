@@ -181,6 +181,9 @@ notes.txt
 notes2.txt
 test_topics.txt
 fonts/
+generazione.xlsx
+hotel_data.json.gz
+icon.png
 # PyCharm
 #  JetBrains specific template is maintained in a separate JetBrains.gitignore that can
 #  be found at https://github.com/github/gitignore/blob/main/Global/JetBrains.gitignore
