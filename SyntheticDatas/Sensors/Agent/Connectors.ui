@@ -129,7 +129,7 @@ QPushButton:pressed {
      <string>client id</string>
     </property>
    </widget>
-   <widget class="QPushButton" name="btn_connectors">
+   <widget class="QPushButton" name="btn_connect">
     <property name="geometry">
      <rect>
       <x>160</x>

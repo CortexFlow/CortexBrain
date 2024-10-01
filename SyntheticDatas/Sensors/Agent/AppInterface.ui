@@ -1443,7 +1443,7 @@ QPushButton:pressed {
                      <string notr="true">background-color: transparent;</string>
                     </property>
                     <property name="text">
-                     <string>PROJECTS</string>
+                     <string>Projects</string>
                     </property>
                    </widget>
                    <widget class="QPushButton" name="pushButton">
@@ -1462,6 +1462,7 @@ QPushButton:pressed {
 	border: none;
 	background-color: rgb(27, 29, 35);
 	border-color:white;
+	border-radius: 10px;
 }
 QPushButton:hover {
 	background-color: rgb(33, 37, 43);
@@ -1479,7 +1480,7 @@ QPushButton:pressed {
                      <rect>
                       <x>960</x>
                       <y>530</y>
-                      <width>811</width>
+                      <width>821</width>
                       <height>311</height>
                      </rect>
                     </property>
@@ -1541,20 +1542,16 @@ QPushButton:pressed {
                       <height>611</height>
                      </rect>
                     </property>
+                    <property name="font">
+                     <font>
+                      <pointsize>14</pointsize>
+                     </font>
+                    </property>
                     <property name="verticalScrollBarPolicy">
                      <enum>Qt::ScrollBarAsNeeded</enum>
                     </property>
                     <property name="sizeAdjustPolicy">
                      <enum>QAbstractScrollArea::AdjustIgnored</enum>
-                    </property>
-                    <property name="overwriteMode">
-                     <bool>true</bool>
-                    </property>
-                    <property name="textInteractionFlags">
-                     <set>Qt::LinksAccessibleByKeyboard|Qt::LinksAccessibleByMouse|Qt::TextBrowserInteraction|Qt::TextEditable|Qt::TextEditorInteraction|Qt::TextSelectableByKeyboard|Qt::TextSelectableByMouse</set>
-                    </property>
-                    <property name="placeholderText">
-                     <string>benvenuto nel text editor!</string>
                     </property>
                    </widget>
                    <widget class="QTextEdit" name="compiler_">
@@ -1661,7 +1658,7 @@ p, li { white-space: pre-wrap; }
                     <property name="geometry">
                      <rect>
                       <x>10</x>
-                      <y>0</y>
+                      <y>2</y>
                       <width>93</width>
                       <height>28</height>
                      </rect>
@@ -1672,6 +1669,7 @@ p, li { white-space: pre-wrap; }
 	background-repeat: no-reperat;
 	border: none;
 	background-color: rgb(27, 29, 35);
+	border-radius: 10px
 }
 QPushButton:hover {
 	background-color: rgb(33, 37, 43);
@@ -1697,7 +1695,50 @@ QPushButton:pressed {
                      <bool>false</bool>
                     </property>
                     <property name="styleSheet">
-                     <string notr="true">color:white;</string>
+                     <string notr="true">/* Imposta lo stile generale delle celle */
+QTableWidget::item {
+    background-color: rgba(255, 255, 255, 0.1); /* Colore trasparente con opacità 10% */
+    color: white;           /* Colore del testo bianco */
+    border: 1px solid rgba(255, 255, 255, 0.2); /* Bordo sottile semi-trasparente */
+    padding: 8px;           /* Spaziatura interna per un layout più arioso */
+}
+
+/* Colore per le celle selezionate */
+QTableWidget::item:selected {
+    background-color: qlineargradient(
+        x1: 0, y1: 0, x2: 0, y2: 1, 
+        stop: 0 #292929, stop: 1 #111111); /* Gradiente scuro per effetto selezione */
+    color: yellow; /* Testo giallo per il contrasto */
+    border: 1px solid yellow; /* Bordo giallo acceso per evidenziare la selezione */
+}
+
+/* Stile per l'intestazione delle colonne */
+QHeaderView::section {
+    background-color: rgba(255, 255, 255, 0.05); /* Colore leggermente opaco */
+    color: white; /* Testo bianco per le intestazioni */
+    font-weight: bold; /* Testo in grassetto per l'intestazione */
+    padding: 10px; /* Più spaziatura per migliorare la leggibilità */
+    border-bottom: 2px solid rgba(255, 255, 255, 0.3); /* Bordo inferiore più definito */
+}
+
+/* Stile per l'intestazione delle righe */
+QTableCornerButton::section {
+    background-color: rgba(255, 255, 255, 0.05); /* Sfondo leggermente opaco */
+    color: white; /* Testo bianco per l'intestazione delle righe */
+    border: 2px solid rgba(255, 255, 255, 0.3); /* Bordi per l'intestazione delle righe */
+}
+
+/* Rimuovi le linee del grigliato della tabella per un aspetto più pulito */
+QTableWidget {
+    gridline-color: transparent; /* Elimina le linee tra le celle */
+}
+
+/* Aggiungi un effetto hover sulle celle */
+QTableWidget::item:hover {
+    background-color: rgba(255, 255, 255, 0.2); /* Colore leggermente più chiaro al passaggio del mouse */
+    border: 1px solid rgba(255, 255, 255, 0.5); /* Bordo più evidente in hover */
+}
+</string>
                     </property>
                     <property name="showGrid">
                      <bool>true</bool>
@@ -1739,6 +1780,83 @@ QPushButton:pressed {
                      <string notr="true">mio</string>
                     </property>
                     <layout class="QVBoxLayout" name="verticalLayout_8"/>
+                   </widget>
+                   <widget class="QPushButton" name="btn_stopconn">
+                    <property name="geometry">
+                     <rect>
+                      <x>110</x>
+                      <y>3</y>
+                      <width>93</width>
+                      <height>28</height>
+                     </rect>
+                    </property>
+                    <property name="styleSheet">
+                     <string notr="true">QPushButton {
+	background-position: center;
+	background-repeat: no-reperat;
+	border: none;
+	background-color: rgb(27, 29, 35);
+	border-radius: 10px
+}
+QPushButton:hover {
+	background-color: rgb(33, 37, 43);
+}
+QPushButton:pressed {	
+	background-color: rgb(85, 170, 255);
+}</string>
+                    </property>
+                    <property name="text">
+                     <string>Stop Server</string>
+                    </property>
+                   </widget>
+                   <widget class="QLabel" name="server_status">
+                    <property name="geometry">
+                     <rect>
+                      <x>808</x>
+                      <y>4</y>
+                      <width>161</width>
+                      <height>28</height>
+                     </rect>
+                    </property>
+                    <property name="styleSheet">
+                     <string notr="true">QLabel{
+	background-position: center;
+	background-repeat: no-reperat;
+	border: none;
+	background-color: rgb(27, 29, 35);
+	border-radius: 10px;
+	text-align:center;
+}</string>
+                    </property>
+                    <property name="text">
+                     <string>     Server Status</string>
+                    </property>
+                   </widget>
+                   <widget class="QLabel" name="server_status_icon">
+                    <property name="geometry">
+                     <rect>
+                      <x>927</x>
+                      <y>8</y>
+                      <width>20</width>
+                      <height>20</height>
+                     </rect>
+                    </property>
+                    <property name="styleSheet">
+                     <string notr="true">QLabel{
+	background-position: center;
+	background-repeat: no-reperat;
+	border: none;
+	background-color: rgb(27, 29, 35);
+	border-radius: 10px;
+	text-align:center;
+}</string>
+                    </property>
+                    <property name="text">
+                     <string/>
+                    </property>
+                    <property name="scaledContents">
+                     <bool>true</bool>
+                    </property>
                    </widget>
                   </widget>
                   <widget class="QWidget" name="page_progetta">

@@ -13,13 +13,19 @@ from PyQt5.QtWidgets import QComboBox
 from PyQt5.QtWebChannel import QWebChannel
 from PyQt5.QtWebEngineWidgets import QWebEngineView
 from PyQt5.QtCore import QTimer, Qt, QUrl, pyqtSlot, QObject
-from PyQt5.QtGui import QIcon
+from PyQt5.QtGui import QIcon,QColor
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-                             QPushButton, QLabel, QFrame, QLineEdit, QTableWidgetItem,QFileDialog, QMessageBox,  QPlainTextEdit)
+                             QPushButton, QLabel, QFrame, QLineEdit, QTableWidgetItem,QFileDialog, QMessageBox,  QPlainTextEdit,QTextEdit)
 from PyQt5 import QtWidgets, uic
 from PyQt5.QtCore import QTimer
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
+from PyQt5.QtWidgets import QFileDialog
+from PyQt5.QtGui import QIcon, QSyntaxHighlighter, QTextCharFormat, QTextCursor,QPixmap
+from PyQt5.QtCore import Qt, QRegularExpression
+from PyQt5.QtGui import QPainter, QColor, QTextFormat, QIcon
+from PyQt5.QtCore import QRect, QSize, Qt
+
 
 
 # SplashScreen Class
@@ -91,7 +97,11 @@ class Connectors(QMainWindow):
         # Salva un riferimento alla finestra principale
         self.main_window = main_window
 
-        self.btn_connectors.clicked.connect(self.connectMqtt)
+        self.btn_connect.clicked.connect(self.connectMqtt)
+
+        
+        
+        self.main_window.btn_stopconn.clicked.connect(self.stopServerConnection)
         self.show()
 
         # Inizializza i dati per il grafico
@@ -105,6 +115,17 @@ class Connectors(QMainWindow):
         # Inizializza il timer per l'aggiornamento del grafico
         self.timer = QTimer()
         self.timer.timeout.connect(self.update_plot)
+        
+    def handle_server_status(self):
+        if self.mqtt_client.conn_status is False:
+            self.pixmap = QPixmap('./play-blue.png')
+        elif self.mqtt_client.conn_status is True:
+            self.pixmap = QPixmap('./stop-red.png')
+        else:
+            self.pixmap = QPixmap('./stop-red.png')
+        
+        self.main_window.server_status_icon.setPixmap(self.pixmap)
+        
 
     def connectMqtt(self):
         client_id = f'python-mqtt-{random.randint(0, 1000)}'
@@ -117,6 +138,16 @@ class Connectors(QMainWindow):
         self.mqtt_client.connect_mqtt()
         self.mqtt_client.subscribe(self.topic_text.toPlainText())
         self.connection_established = ConnectionEstablished()
+        #regola per l'icona di stato del server:
+        self.handle_server_status()
+        
+        # adds a timer to close the window
+        self.loading_timer = QTimer(self)
+        self.loading_timer.start(2000)
+        self.loading_timer.timeout.connect(self.on_timeout)  # Collega il segnale timeout
+
+    def on_timeout(self):
+        self.connection_established.close()
 
     def updateStatus(self, status):
         print("Response: ", status)
@@ -201,9 +232,59 @@ class Connectors(QMainWindow):
             return True
         except ValueError:
             return False
+        
+    
+    def stopServerConnection(self):
+        self.main_window.compiler_.append("Stopping server connetion..")
+        # close the server connection
+        self.mqtt_client.stop_mqtt()
+        #regola per l'icona di stato del server:
+        self.handle_server_status() #bug: non viene aggiornata l'icona: SOL-->COLLEGARE A SEGNALE
+        
 
+
+
+
+class SyntaxHighlighter(QSyntaxHighlighter):
+    def __init__(self, parent=None):
+        super(SyntaxHighlighter, self).__init__(parent)
+
+        # Definisci il formato per le parole chiave
+        self.highlightingRules = []
+
+
+        # Colore blue
+        blue_format = QTextCharFormat()
+        blue_format.setForeground(QColor(116,151,178))
+        # Colore blue
+        yellow_format = QTextCharFormat()
+        yellow_format.setForeground(QColor(255,255,51))
+
+        # Aggiungi parole chiave da evidenziare
+        blue_keywords = ["def", "class", "import", "from", "as", "if", "else", "elif", "return", "while", "for", "in", "break", "continue", "try", "except", "with", "lambda"]
+        yellow_keywords = ["\[", "\]", "\(", "\)", "\[\]", "\(\)"]
+        
+        for keyword in blue_keywords:
+            pattern = QRegularExpression(r'\b' + keyword + r'\b')
+            self.highlightingRules.append((pattern, blue_format))
             
-            
+        for keyword in yellow_keywords:
+            pattern_y = QRegularExpression(keyword)
+            self.highlightingRules.append((pattern_y, yellow_format))
+                
+                
+    def highlightBlock(self, text):
+        # Applica tutte le regole di evidenziazione
+        for pattern, format in self.highlightingRules:
+            match_iterator = pattern.globalMatch(text)
+            while match_iterator.hasNext():
+                match = match_iterator.next()
+                self.setFormat(match.capturedStart(), match.capturedLength(), format)
+
+
+
+
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super(MainWindow, self).__init__()
@@ -215,15 +296,18 @@ class MainWindow(QMainWindow):
         self.btn_settings.clicked.connect(self.open_settings)
         self.customer_support.clicked.connect(self.custom_support)
         self.donate_btn.clicked.connect(self.donate)
-        self.go_home_btn.clicked.connect(self.GoHome)  # Pulsante per la home
-        # Pulsante per la simulazione
+        self.go_home_btn.clicked.connect(self.GoHome)
         self.go_sim_btn.clicked.connect(self.GoSim)
         self.go_datas_btn.clicked.connect(self.GoDatas)
         self.go_progetta_btn.clicked.connect(self.GoProgetta)
 
         # ------------------------------------------------------------
-        # TEXT EDITOR
+
+        # Inizializza l'editor di testo
         self.text_editor.setText("Benvenuto nel text editor!")
+
+        # Inizializza il syntax highlighter
+        self.highlighter = SyntaxHighlighter(self.text_editor.document())
 
         self.btn_new.clicked.connect(self.newFile)
         self.btn_save.clicked.connect(self.saveFile)
@@ -239,12 +323,25 @@ class MainWindow(QMainWindow):
         # --------------------------------------------------
         # CONNECTORS
         self.btn_connectors.clicked.connect(self.open_connectors_window)
-        # Attributo per mantenere la finestra Connectors aperta
         self.connectors_window = None
-        # Imposta il widget di partenza nello stackedWidget
-        self.stackedWidget.setCurrentWidget(
-            self.page_home)  # Imposta la pagina iniziale
+        self.stackedWidget.setCurrentWidget(self.page_home)
 
+        
+    
+    def highlightCurrentLine(self):
+        extraSelections = []
+
+        if not self.text_editor.isReadOnly():
+            selection = QTextEdit.ExtraSelection()
+            lineColor = QColor(Qt.yellow).lighter(160)
+            selection.format.setBackground(lineColor)
+            selection.format.setProperty(QTextFormat.FullWidthSelection, True)
+            selection.cursor = self.text_editor.textCursor()
+            selection.cursor.clearSelection()
+            extraSelections.append(selection)
+
+        self.text_editor.setExtraSelections(extraSelections)
+        
     def open_settings(self):
         # Cambia alla pagina delle impostazioni
         self.stackedWidget.setCurrentWidget(self.page_settings)
@@ -362,9 +459,18 @@ class MainWindow(QMainWindow):
             buffer.close()  # Chiudi il buffer
 
     def open_connectors_window(self):
-        if self.connectors_window is None:
-            self.connectors_window = Connectors(self)
-        print("Connection established")
+            # Se la finestra Connectors è già aperta, portala in primo piano
+            if self.connectors_window is None or not self.connectors_window.isVisible():
+                self.connectors_window = Connectors(self)  # Crea una nuova finestra Connectors
+            else:
+                self.connectors_window.raise_()  # Porta la finestra già aperta in primo piano
+                self.connectors_window.activateWindow()  # Attiva la finestra
+
+            print("Connection established")
+    
+    def on_close(self, event):
+        self.connectors_window = None  # Imposta a None quando la finestra viene chiusa
+        event.accept()  # Accetta l'evento di chiusura
 
 
 def main():
