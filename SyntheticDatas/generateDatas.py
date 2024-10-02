@@ -1,3 +1,6 @@
+""" THIS FUNCTION IS DEPRECATED AND WILL BE DELETED IN THE NEXT VERSIONS """
+
+
 import pandas as pd
 import random
 import sys
