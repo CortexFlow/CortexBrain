@@ -1,3 +1,9 @@
+""" THIS FUNCTION IS DEPRECATED AND WILL BE DELETED IN THE NEXT VERSIONS """
+
+
+
+
+
 """ Obiettivo: simulazione turistica in una piccola città con 30 Hotel generati a partire dal file params.json 
 
     N.B: Da aggiungere classificazione dei turisti in singoli,coppie e famiglie e successiva suddivisione nelle stanze degli hotel

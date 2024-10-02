@@ -1,3 +1,6 @@
+""" THIS FUNCTION IS DEPRECATED AND WILL BE DELETED IN THE NEXT VERSIONS """
+
+
 """ Obiettivo: classe turista, genera un agent con gli attributi da turista
 
 """

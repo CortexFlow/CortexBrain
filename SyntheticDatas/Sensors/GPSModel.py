@@ -28,6 +28,9 @@ class GPS_Sensor(Sensor):
         self.lat = float(position[0])
         self.lon = float(position[1])
         return self.value
+    
+    def getPosition(self):
+        return [self.lat,self.lon]
 
     def GetSpeed(self):
         """Returns the speed of the GPS sensor."""

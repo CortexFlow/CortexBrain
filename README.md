@@ -64,7 +64,7 @@ To get started with CortexBrain, follow these steps:
 3. **Test Library**:
 
    ```bash
-   python .\testLib.py
+   python .\checkLibs.py
 
 4. **Create a simple program**:
 
