@@ -94,28 +94,30 @@ class Connectors(QMainWindow):
         self.setWindowIcon(QIcon("icon.png"))
         uic.loadUi("./Connectors.ui", self)
 
-        # Salva un riferimento alla finestra principale
+        # main_window--> reference the main window application
         self.main_window = main_window
 
-        self.btn_connect.clicked.connect(self.connectMqtt)
+        self.btn_connect.clicked.connect(self.connectMqtt) #click--->connect to mqtt  
 
         
         
-        self.main_window.btn_stopconn.clicked.connect(self.stopServerConnection)
+        self.main_window.btn_stopconn.clicked.connect(self.stopServerConnection) #stop server connection
         self.show()
 
-        # Inizializza i dati per il grafico
+        # plotting logic-->inizialize xdata range and an array of 0 elements for the y axis
         self.x_data = np.arange(0, 10, 0.1)
-        self.y_data = np.zeros_like(self.x_data)  # Inizializza i dati y con zeri
+        self.y_data = np.zeros_like(self.x_data) 
         self.figure = None
         self.canvas = None
         self.ax = None
-        self.line = None  # Inizializza 'line' qui
+        self.line = None  #inizialize the dynamic line
 
-        # Inizializza il timer per l'aggiornamento del grafico
+        # inizialize the timer. the timer is connect to the auto chart update
         self.timer = QTimer()
         self.timer.timeout.connect(self.update_plot)
         
+        
+        #handles server status and display the status icon 
     def handle_server_status(self):
         if self.mqtt_client.conn_status is False:
             self.pixmap = QPixmap('./play-blue.png')
@@ -124,7 +126,7 @@ class Connectors(QMainWindow):
         else:
             self.pixmap = QPixmap('./stop-red.png')
         
-        self.main_window.server_status_icon.setPixmap(self.pixmap)
+        self.main_window.server_status_icon.setPixmap(self.pixmap) #assign status icon
         
 
     def connectMqtt(self):
@@ -136,97 +138,100 @@ class Connectors(QMainWindow):
         self.mqtt_client.status_changed.connect(self.updateStatus)
 
         self.mqtt_client.connect_mqtt()
-        self.mqtt_client.subscribe(self.topic_text.toPlainText())
-        self.connection_established = ConnectionEstablished()
-        #regola per l'icona di stato del server:
+        self.mqtt_client.subscribe(self.topic_text.toPlainText()) #subscribes to the topic
+        self.connection_established = ConnectionEstablished() #inizialize the connectionEstablished window
+        #call the handle server status icon 
         self.handle_server_status()
         
         # adds a timer to close the window
         self.loading_timer = QTimer(self)
         self.loading_timer.start(2000)
-        self.loading_timer.timeout.connect(self.on_timeout)  # Collega il segnale timeout
-
+        self.loading_timer.timeout.connect(self.on_timeout)  # connect the timeout signal to the on_timout function 
+        
+    #on_timeout function--->automatically close the connectionEstablished window after 2 seconds
     def on_timeout(self):
         self.connection_established.close()
 
     def updateStatus(self, status):
+        #status stores the upcoming data 
         print("Response: ", status)
-        self.main_window.compiler_.append(status)
+        self.main_window.compiler_.append(status) #insert the status
 
-        # Aggiungi il dato nella tabella
+        # Add the data in the table 
         self.add_to_table(status)
 
-        # Aggiorna y_data con il nuovo stato
-        if self.figure is None:  # Se il grafico non è ancora stato creato
-            self.create_plot()  # Crea il grafico
-        self.y_data = np.append(self.y_data[1:], status)  # Aggiorna i dati y (inserendo il nuovo stato)
-        self.update_plot()  # Chiama il metodo per aggiornare il grafico
+        # update the y axis with the new status data
+        if self.figure is None:  
+            self.create_plot()  
+        self.y_data = np.append(self.y_data[1:], status)  # append the upcoming status 
+        self.update_plot()  # update the plot 
 
     def create_plot(self):
-        # Crea una figura Matplotlib e un canvas
+        # inizialize a new matplotlib figure and a canvas
         self.figure = Figure()
         self.canvas = FigureCanvas(self.figure)
 
-        # Ottieni il layout del QWidget
-        self.plot_widget_layout = self.main_window.sim_1_widget.layout()
+        
+        self.plot_widget_layout = self.main_window.sim_1_widget.layout() #store the plot widget in the plot_widget_layout variable
 
-        # Se non esiste, crea un QVBoxLayout e impostalo nel QWidget
+        #handles some exceptions
+        #if the widget doesn't exist create a new QVBoxLayout
         if self.plot_widget_layout is None:
             print("Layout non impostato, creazione di un QVBoxLayout...")
             self.plot_widget_layout = QVBoxLayout(self.main_window.sim_1_widget)
             self.main_window.sim_1_widget.setLayout(self.plot_widget_layout)
 
-        # Rimuovi eventuali widget esistenti dal layout
+        # removes widgets unecessary elements in the plot layout (rare event)
         for i in reversed(range(self.plot_widget_layout.count())): 
             widget = self.plot_widget_layout.itemAt(i).widget()
             if widget is not None:
-                widget.deleteLater()  # Rimuovi il widget esistente
+                widget.deleteLater()  
 
-        # Aggiungi il nuovo canvas al layout
+        # add the new canvas to the layout
         self.plot_widget_layout.addWidget(self.canvas)
 
-        # Disegna il grafico iniziale
+        # draw the plot
         self.ax = self.figure.add_subplot(111)
         self.line, = self.ax.plot(self.x_data, self.y_data)
         self.ax.set_ylim(0, 1000)
-        self.ax.set_title('Status over Time')  # Aggiungi un titolo al grafico
-        self.ax.set_xlabel('Time')  # Etichetta asse x
-        self.ax.set_ylabel('Status')  # Etichetta asse y
+        self.ax.set_title('Status over Time')  #title
+        self.ax.set_xlabel('Time')  # x axis title
+        self.ax.set_ylabel('Status')  # y axis title
 
-        # Avvia il timer per aggiornare il grafico
+        # this timer controls the auto update of the plot
         self.timer.start(1000)
         
-        
+    #add datas to the table in the simulation environment
     def add_to_table(self, status):
         print(f"Aggiungendo status alla tabella: {status}")
-        self.main_window.data_table.setColumnCount(1)  # Imposta almeno 1 colonna
+        self.main_window.data_table.setColumnCount(1)  #set at least 1 colum
 
-        # Ottieni il numero di righe attuali
+        # return the current row count
         row_count = self.main_window.data_table.rowCount()
         
-        # Aggiungi una nuova riga
+        # insert a new row
         self.main_window.data_table.insertRow(row_count)
         
-        # Inserisci i dati di status nella prima colonna della nuova riga
+        # Insert the status data in the current row, line 0
         self.main_window.data_table.setItem(row_count, 0, QTableWidgetItem(str(status))) 
 
 
 
     def update_plot(self):
-        # Filtro dei dati numerici
+        
         try:
-            # Converte i dati in float e ignora eventuali stringhe
+            # convert the data in float and ignores the string values
             numeric_y_data = [float(val) for val in self.y_data if self.is_float(val)]
         except ValueError:
             print("Errore nella conversione dei dati in float")
 
-        # Aggiorna i dati del grafico solo se esistono valori numerici
+        # update the data values only if there are numeric values
         if numeric_y_data:
             self.line.set_ydata(numeric_y_data)
-            self.canvas.draw()  # Ridisegna il canvas
+            self.canvas.draw()  # draw the updated canvas
 
     def is_float(self, value):
-        # Funzione di utilità per verificare se un valore può essere convertito in float
+        # check if the is a float type
         try:
             float(value)
             return True
@@ -238,44 +243,45 @@ class Connectors(QMainWindow):
         self.main_window.compiler_.append("Stopping server connetion..")
         # close the server connection
         self.mqtt_client.stop_mqtt()
-        #regola per l'icona di stato del server:
-        self.handle_server_status() #bug: non viene aggiornata l'icona: SOL-->COLLEGARE A SEGNALE
+        #handle server status--->display the connection status icon
+        self.handle_server_status()
         
 
 
 
-
+#highlights the words
 class SyntaxHighlighter(QSyntaxHighlighter):
     def __init__(self, parent=None):
         super(SyntaxHighlighter, self).__init__(parent)
 
-        # Definisci il formato per le parole chiave
-        self.highlightingRules = []
+        
+        self.highlightingWords = [] #list for the highlithed words
 
 
         # Colore blue
         blue_format = QTextCharFormat()
         blue_format.setForeground(QColor(116,151,178))
-        # Colore blue
+        # Colore yellow
         yellow_format = QTextCharFormat()
         yellow_format.setForeground(QColor(255,255,51))
 
-        # Aggiungi parole chiave da evidenziare
+        #blue keywords
         blue_keywords = ["def", "class", "import", "from", "as", "if", "else", "elif", "return", "while", "for", "in", "break", "continue", "try", "except", "with", "lambda"]
+        #yellow keywords
         yellow_keywords = ["\[", "\]", "\(", "\)", "\[\]", "\(\)"]
         
         for keyword in blue_keywords:
             pattern = QRegularExpression(r'\b' + keyword + r'\b')
-            self.highlightingRules.append((pattern, blue_format))
+            self.highlightingWords.append((pattern, blue_format))
             
         for keyword in yellow_keywords:
             pattern_y = QRegularExpression(keyword)
-            self.highlightingRules.append((pattern_y, yellow_format))
+            self.highlightingWords.append((pattern_y, yellow_format))
                 
                 
     def highlightBlock(self, text):
-        # Applica tutte le regole di evidenziazione
-        for pattern, format in self.highlightingRules:
+        # apply the rules for coloring yellow and blue words
+        for pattern, format in self.highlightingWords:
             match_iterator = pattern.globalMatch(text)
             while match_iterator.hasNext():
                 match = match_iterator.next()
@@ -284,7 +290,7 @@ class SyntaxHighlighter(QSyntaxHighlighter):
 
 
 
-
+#main window
 class MainWindow(QMainWindow):
     def __init__(self):
         super(MainWindow, self).__init__()
@@ -292,7 +298,7 @@ class MainWindow(QMainWindow):
         self.setWindowTitle('CortexBrain')
         self.setWindowIcon(QIcon("icon.png"))
 
-        # Collega i pulsanti agli eventi
+        # insert the buttons
         self.btn_settings.clicked.connect(self.open_settings)
         self.customer_support.clicked.connect(self.custom_support)
         self.donate_btn.clicked.connect(self.donate)
@@ -303,10 +309,10 @@ class MainWindow(QMainWindow):
 
         # ------------------------------------------------------------
 
-        # Inizializza l'editor di testo
+        # Initialize the text editor
         self.text_editor.setText("Benvenuto nel text editor!")
 
-        # Inizializza il syntax highlighter
+        # inizialize the syntax highlighter
         self.highlighter = SyntaxHighlighter(self.text_editor.document())
 
         self.btn_new.clicked.connect(self.newFile)
@@ -321,7 +327,7 @@ class MainWindow(QMainWindow):
         self.btn_run_code.clicked.connect(self.run_code)
 
         # --------------------------------------------------
-        # CONNECTORS
+        # inizialize CONNECTORS
         self.btn_connectors.clicked.connect(self.open_connectors_window)
         self.connectors_window = None
         self.stackedWidget.setCurrentWidget(self.page_home)
@@ -343,35 +349,37 @@ class MainWindow(QMainWindow):
         self.text_editor.setExtraSelections(extraSelections)
         
     def open_settings(self):
-        # Cambia alla pagina delle impostazioni
+        # change page to the settings page
         self.stackedWidget.setCurrentWidget(self.page_settings)
 
-    def custom_support(self):
-        return None
-
-    def donate(self):
-        return None
-
+    
     def GoHome(self):
-        print("Home button clicked")
+        #print("Home button clicked")
         self.stackedWidget.setCurrentWidget(
-            self.page_home)  # Cambia alla pagina home
+            self.page_home)  # go to home page
 
     def GoSim(self):
         self.stackedWidget.setCurrentWidget(
-            self.page_sim)  # Cambia alla pagina simulazione
+            self.page_sim)  # go to the sim page
 
     def GoDatas(self):
         self.stackedWidget.setCurrentWidget(
-            self.page_datas)  # Cambia alla pagina dati
+            self.page_datas)  # go to the data page
 
     def GoProgetta(self):
-        # Cambia alla pagina progettazione
+        # go to the project design page
         self.stackedWidget.setCurrentWidget(self.page_progetta)
 
     def newFile(self):
         pass
+    
+    def custom_support(self):
+        pass
 
+    def donate(self):
+        pass
+
+    #"save"  file function (TEXT EDITOR FEATURE)
     def saveFile(self):
         if self.current_path is not None:
             filetext = self.text_editor.toPlainText()
@@ -380,6 +388,7 @@ class MainWindow(QMainWindow):
         else:
             self.saveFileAs()
 
+    #"save as" file function (TEXT EDITOR FEATURE)
     def saveFileAs(self):
         pathname = QFileDialog.getSaveFileName(
             self, 'Save file', 'D:\codefirst.io\PyQt5 Text Editor', 'Text files(*.txt)')
@@ -389,6 +398,7 @@ class MainWindow(QMainWindow):
         self.current_path = pathname[0]
         self.setWindowTitle(pathname[0])
 
+    #"open" file function (TEXT EDITOR FEATURE)
     def openFile(self):
         fname = QFileDialog.getOpenFileName(
             self, 'Open file', 'D:\codefirst.io\PyQt5 Text Editor', 'Text files (*.txt)')
@@ -397,22 +407,28 @@ class MainWindow(QMainWindow):
             filetext = f.read()
             self.text_editor.setText(filetext)
         self.current_path = fname[0]
-
+        
+        
+    #"undo" file function (TEXT EDITOR FEATURE)
     def undo(self):
         self.text_editor.undo()
-
+    
+    #"redo" file function (TEXT EDITOR FEATURE)
     def redo(self):
         self.text_editor.redo()
-
+    
+    #"copy" file function (TEXT EDITOR FEATURE)
     def copy(self):
         self.text_editor.copy()
-
+   
+    #"paste" file function (TEXT EDITOR FEATURE)
     def paste(self):
         self.text_editor.paste()
 
+    #"compile" code function (TEXT EDITOR FEATURE)
     def compile_code(self):
         code = self.text_editor.toPlainText()
-        self.compiler_.clear()  # Pulisci l'output precedente
+        self.compiler_.clear()  # clear previous output
 
         output, error = self.compile_code_internal(code)
         if error:
@@ -420,65 +436,83 @@ class MainWindow(QMainWindow):
         else:
             self.compiler_.append("Compiled with no errors")
 
+    #compile code internal--->return no output only for the "compile function" associated with the compile button
     def compile_code_internal(self, code):
         try:
             compiled_code = compile(code, '<string>', 'exec')
             exec_output = {}
             exec(compiled_code, exec_output)
-            return None, None  # Restituisce nessun output e nessun errore
+            return None, None  # Return no output and no errors
         except SyntaxError as e:
-            return None, f"Errore di sintassi: {e}"
+            return None, f"Errore di sintassi: {e}" #error handler
         except Exception as e:
             error_message = traceback.format_exc()
-            return None, f"Errore di esecuzione:\n{error_message}"
+            return None, f"Errore di esecuzione:\n{error_message}" #error message
 
+    # Run the code from the text editor and display the result in the output window and the compilation result in the compiler window
     def run_code(self):
+        # Retrieve the code entered in the text editor
         code = self.text_editor.toPlainText()
-        self.compiler_.clear()  # Pulisci l'output precedente
+        
+        # Clear the compiler window to reset previous messages
+        self.compiler_.clear()  
 
-        # Compila il codice e mostra il risultato
+        # Compile the code (assuming self.compile_code handles any compilation or syntax checking)
         self.compile_code()
 
-        # Cattura l'output in un buffer
-        buffer = io.StringIO()
-        original_stdout = sys.stdout  # Salva l'originale stdout
-        sys.stdout = buffer  # Reindirizza stdout
+        # Redirect output to a buffer
+        buffer = io.StringIO()  # Create a buffer to capture printed output
+        original_stdout = sys.stdout  # Store the current stdout (console output)
+        sys.stdout = buffer  # Redirect stdout to the buffer
 
         try:
+            # Dictionary for local variables in the exec environment
             local_vars = {}
+            
+            # Execute the code within a controlled environment
             exec(code, {}, local_vars)
+
+            # Get the output from the buffer
             output = buffer.getvalue()
+            
+            # If there's output, append it to the compiler side window
             if output:
-                # Mostra l'output nel QTextEdit
                 self.compiler_side_window.append(output)
+        
+        # Catch any exception that occurs during code execution
         except Exception as e:
+            # Get the full error traceback and display it in the compiler window
             error_message = traceback.format_exc()
             self.compiler_.append(f"Errore:\n{error_message}")
+        
+        # Ensure stdout is always restored, even if an error occurs
         finally:
-            sys.stdout = original_stdout  # Ripristina l'originale stdout
-            buffer.close()  # Chiudi il buffer
+            sys.stdout = original_stdout  # Restore the original stdout
+            buffer.close()  # Close the buffer to free up memory
 
+    #open the connector window
     def open_connectors_window(self):
-            # Se la finestra Connectors è già aperta, portala in primo piano
+            # If the Connectors window is already open, bring it to the foreground
             if self.connectors_window is None or not self.connectors_window.isVisible():
-                self.connectors_window = Connectors(self)  # Crea una nuova finestra Connectors
+                self.connectors_window = Connectors(self)  # Create a new Connectors window
             else:
-                self.connectors_window.raise_()  # Porta la finestra già aperta in primo piano
-                self.connectors_window.activateWindow()  # Attiva la finestra
+                self.connectors_window.raise_()  # Bring the already open window to the foreground
+                self.connectors_window.activateWindow()  # Activates the window
 
             print("Connection established")
     
     def on_close(self, event):
-        self.connectors_window = None  # Imposta a None quando la finestra viene chiusa
-        event.accept()  # Accetta l'evento di chiusura
+        self.connectors_window = None  # set the connect window to none when the connectionEstablished window is closed
+        event.accept()  # Accept the closing event
 
 
 def main():
     app = QtWidgets.QApplication(sys.argv)
-    # Inizia con lo splash screen
+    # load the splash screen when the program starts
     splash = SplashScreen()
 
-    # Esegui il loop dell'applicazione
+    # starts the event loop of the application, which is necessary for handling user input, 
+    # updating the interface, and processing events (ie. button clicks, window updates, etc)
     sys.exit(app.exec_())
 
 
