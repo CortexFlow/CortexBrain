@@ -2,7 +2,10 @@ def CheckLib(libraries):
     not_installed = []
 
     special_imports = {
-        'PyQtWebEngine': 'PyQt5.QtWebEngineWidgets',  # Nome del modulo effettivo per importare PyQtWebEngine
+        # Nome del modulo effettivo per importare PyQtWebEngine
+        'PyQtWebEngine': 'PyQt5.QtWebEngineWidgets',
+        'paho-mqtt':'paho.mqtt.client',
+        'qtwidgets':'PyQt5.QtWidgets'
     }
 
     for library in libraries:
@@ -27,14 +30,13 @@ if __name__ == "__main__":
     # Example usage:
     libraries_to_check = ['numpy', 'pandas', 'matplotlib', 'prophet', 'requests', 'asyncio',
                           'aiohttp', 'networkx', 'folium', 'pydot',
-                          'geopy', 'simpy', 'pymongo', 'snowflake', 'PyQt5', 'PyQtWebEngine', 'osmnx', 'mesa','openpyxl']
+                          'geopy', 'simpy', 'pymongo', 'snowflake', 'PyQt5', 'PyQtWebEngine', 'osmnx', 'mesa', 'openpyxl', 'paho-mqtt', 'qtwidgets', 'tensorflow']
     CheckLib(libraries_to_check)
 
 
-
-if __name__=="__main__":
+if __name__ == "__main__":
     # Example usage:
     libraries_to_check = ['numpy', 'pandas', 'matplotlib', 'prophet', 'requests', 'asyncio',
-                        'aiohttp', 'networkx', 'folium', 'pydot',
-                        'geopy', 'simpy','pymongo','snowflake','PyQt5','PyQtWebEngine','osmnx','mesa']
+                          'aiohttp', 'networkx', 'folium', 'pydot',
+                          'geopy', 'simpy', 'pymongo', 'snowflake', 'PyQt5', 'PyQtWebEngine', 'osmnx', 'mesa', 'openpyxl', 'paho-mqtt', 'qtwidgets', 'tensorflow']
     CheckLib(libraries_to_check)
