@@ -9,8 +9,6 @@ from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QH
 from PyQt5.QtCore import pyqtSignal, QObject
 from PyQt5 import QtWidgets, uic
 
-import asyncio
-from aiocoap import *
 
 class ConnectionEstablished(QMainWindow):
     def __init__(self):
@@ -74,55 +72,49 @@ class MQTTClient(QObject):
         self.conn_status_changed.emit(self.conn_status)
         self.client.loop_stop()
 
-class CoAP():
-    # Signal to emit when the connection status changes
-    #status_changed = pyqtSignal(str)
-
-    def __init__(self, coap_url):
-        super(CoAP, self).__init__()  # Properly call the super class __init__
-        self.url = coap_url
-        self.coap_status = None
     
-    async def connect_coap(self):
-        protocol= await Context.create_client_context()
-        req = Message(code=GET,uri=self.url)
-        try:
-            res=await protocol.request(req).response
-            print(f"Response code : {res.code}")
-            print(f"Response payload : {res.payload.decode('utf-8')}")
-            self.coap_status = str(res.code)
-        except Exception as e:
-            print(f"Error: {e}")
-            self.coap_status = 'Error'
-            
-        #self.status_changed.emit(self.coap_status) #connect to the signal
 
+
+# Test del connettore MQTT senza mocking
+import unittest
+import time
+class TestMQTTClient(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        # Setup a mqtt connection
+        cls.broker = 'test.mosquitto.org'
+        cls.port = 1883
+        cls.client_id = f'python-mqtt-{random.randint(0, 1000)}'
+        # Usa un topic casuale per evitare di ricevere messaggi precedenti
+        cls.topic = f"test/topic/{random.randint(0, 1000)}"
+        cls.mqtt_client = MQTTClient(cls.broker, cls.port, cls.client_id)
+        cls.mqtt_client.connect_mqtt()
+        time.sleep(2)
+
+    def test_mqtt_connect(self):
+        # test whether the connection was successful
+        self.assertEqual(self.mqtt_client.getStatus(), "0")
+
+    def test_mqtt_publish_and_subscribe(self):
+        # test subscribe
+        test_message = "Hello MQTT"
+        self.mqtt_client.subscribe(self.topic)
+
+        time.sleep(1)
+
+        # test publish
+        self.mqtt_client.publish(self.topic, test_message)
+
+        time.sleep(1)
+
+        # check if the test message is received
+        self.assertEqual(self.mqtt_client.mqtt_status, test_message)
+
+    @classmethod
+    def tearDownClass(cls):
+        # stop mqtt client
+        cls.mqtt_client.stop_mqtt()
         
-    def getStatus(self):
-        return self.coap_status
-    
-
-
-# Esempio principale
 if __name__ == "__main__":
-    """     
-    broker = 'test.mosquitto.org'
-    port = 1883
-    topic = "python/mqtt"
-    client_id = f'python-mqtt-{random.randint(0, 1000)}'
-
-    mqtt_client = MQTTClient(broker, port, client_id)
-    client = mqtt_client.connect_mqtt()
-
-    client.loop_start()
-    mqtt_client.subscribe(topic)
-    mqtt_client.publish(topic, "Messaggio con MQTT 2.1.0")
-    """
-    
-    coapp_client = CoAP(coap_url="coap://coap.me/test")
-    
-    asyncio.run(coapp_client.connect_coap())
-    #import time
-    #time.sleep(15)
-
-    #client.loop_stop()
+    unittest.main()
