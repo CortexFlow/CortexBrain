@@ -6,6 +6,7 @@ sys.path.append(os.path.abspath(
     os.path.join(os.path.dirname(__file__), '../')))
 import time
 from mqttConnector import MQTTClient, ConnectionEstablished
+from httpConnector import HTTPClient
 import io
 import random
 import traceback
@@ -97,13 +98,16 @@ class Connectors(QMainWindow):
         # main_window--> reference the main window application
         self.main_window = main_window
 
-        self.btn_connect.clicked.connect(self.connectMqtt) #click--->connect to mqtt  
-
+        #self.btn_connect.clicked.connect(self.connectMqtt) #click--->connect to mqtt  
+        self.btn_connect.clicked.connect(self.connectHttp)
         
         
         self.main_window.btn_stopconn.clicked.connect(self.stopServerConnection) #stop server connection
         self.show()
 
+        """         
+        NEED FIX: UPGRADE THIS PART TO HANDLE MORE COMPLEX CASES
+        
         # plotting logic-->inizialize xdata range and an array of 0 elements for the y axis
         self.x_data = np.arange(0, 10, 0.1)
         self.y_data = np.zeros_like(self.x_data) 
@@ -114,7 +118,8 @@ class Connectors(QMainWindow):
 
         # inizialize the timer. the timer is connect to the auto chart update
         self.timer = QTimer()
-        self.timer.timeout.connect(self.update_plot)
+        self.timer.timeout.connect(self.update_plot) 
+        """
         
         
         #handles server status and display the status icon 
@@ -122,6 +127,23 @@ class Connectors(QMainWindow):
         if self.mqtt_client.conn_status is False:
             self.pixmap = QPixmap('./play-blue.png')
         elif self.mqtt_client.conn_status is True:
+            self.pixmap = QPixmap('./stop-red.png')
+        else:
+            self.pixmap = QPixmap('./stop-red.png')
+        
+        self.main_window.server_status_icon.setPixmap(self.pixmap) #assign status icon
+        
+        
+        
+    def handle_http_server_status(self):
+        """ 
+        WORKING ON THIS INTEGRATON
+        FEATURE: HTTP CLIENT STATUS CHECKER
+        USAGE: CHECK THE HTTP CONNECTION STATUS AND CHANGE THE SERVER STATUS ICON
+        """
+        if self.http_client.conn_status is False:
+            self.pixmap = QPixmap('./play-blue.png')
+        elif self.http_client.conn_status is True:
             self.pixmap = QPixmap('./stop-red.png')
         else:
             self.pixmap = QPixmap('./stop-red.png')
@@ -147,7 +169,32 @@ class Connectors(QMainWindow):
         self.loading_timer = QTimer(self)
         self.loading_timer.start(2000)
         self.loading_timer.timeout.connect(self.on_timeout)  # connect the timeout signal to the on_timout function 
+
+    def connectHttp(self):
+        """ WORKING ON THIS INTEGRATION 
+            FEATURE: HTTP CONNECTOR
+            USAGE: CONNECTS TO A HTTP SERVER
+        """
+        self.http_client = HTTPClient(url=self.broker_text.toPlainText(),port=int(
+            self.port_text.toPlainText()))
         
+        self.http_client.status_changed.connect(self.updateStatus)
+        self.http_client.connect_http()
+        #self.http_client.get_received_messages()
+        self.http_client.getStatus()
+        self.connection_established = ConnectionEstablished() #inizialize the connectionEstablished window
+        
+        #call the handle server status icon 
+        self.handle_http_server_status()
+        
+        # adds a timer to close the window
+        self.loading_timer = QTimer(self)
+        self.loading_timer.start(2000)
+        self.loading_timer.timeout.connect(self.on_timeout)  # connect the timeout signal to the on_timout function 
+
+        
+    
+            
     #on_timeout function--->automatically close the connectionEstablished window after 2 seconds
     def on_timeout(self):
         self.connection_established.close()
@@ -157,6 +204,11 @@ class Connectors(QMainWindow):
         print("Response: ", status)
         self.main_window.compiler_.append(status) #insert the status
 
+        """ 
+        WORKING ON THIS INTEGRATION
+        
+        NEED FIX: UPGRADE THIS PART TO HANDLE MORE COMPLEX CASES
+        
         # Add the data in the table 
         self.add_to_table(status)
 
@@ -165,7 +217,7 @@ class Connectors(QMainWindow):
             self.create_plot()  
         self.y_data = np.append(self.y_data[1:], status)  # append the upcoming status 
         self.update_plot()  # update the plot 
-
+        """
     def create_plot(self):
         # inizialize a new matplotlib figure and a canvas
         self.figure = Figure()
