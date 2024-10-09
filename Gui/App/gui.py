@@ -6,7 +6,7 @@ sys.path.append(os.path.abspath(
     os.path.join(os.path.dirname(__file__), '../')))
 import time
 from mqttConnector import MQTTClient, ConnectionEstablished
-from httpConnector import HTTPClient
+from Connectors.httpConnector import HTTPClient
 import io
 import random
 import traceback
@@ -18,7 +18,7 @@ from PyQt5.QtGui import QIcon,QColor
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                              QPushButton, QLabel, QFrame, QLineEdit, QTableWidgetItem,QFileDialog, QMessageBox,  QPlainTextEdit,QTextEdit)
 from PyQt5 import QtWidgets, uic
-from PyQt5.QtCore import QTimer
+from PyQt5.QtCore import QTimer,QThreadPool
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 from PyQt5.QtWidgets import QFileDialog
@@ -33,9 +33,9 @@ from PyQt5.QtCore import QRect, QSize, Qt
 class SplashScreen(QMainWindow):
     def __init__(self):
         super(SplashScreen, self).__init__()
-        uic.loadUi("./SplashScreen.ui", self)
+        uic.loadUi("./assets/UI Components/SplashScreen.ui", self)
         self.setWindowTitle('CortexBrain')
-        self.setWindowIcon(QIcon("icon.png"))
+        self.setWindowIcon(QIcon("./public/icon.png"))
         self.quit = self.findChild(QPushButton, 'Quit')
         self.status = self.findChild(QLabel, 'status')
         self.setWindowFlag(Qt.FramelessWindowHint)
@@ -61,14 +61,12 @@ class SplashScreen(QMainWindow):
 
 
 # Login Class
-
-
 class Login(QMainWindow):
     def __init__(self):
         super(Login, self).__init__()
         self.setWindowTitle('CortexBrain')
         self.setWindowIcon(QIcon("icon.png"))
-        uic.loadUi("./loginWindow2.ui", self)
+        uic.loadUi("./assets/UI Components/loginWindow2.ui", self)
 
         # Find the login button and connect it to the login function
         self.loginButton = self.findChild(QPushButton, "login")
@@ -93,10 +91,11 @@ class Connectors(QMainWindow):
         super(Connectors, self).__init__()
         self.setWindowTitle('Connectors')
         self.setWindowIcon(QIcon("icon.png"))
-        uic.loadUi("./Connectors.ui", self)
+        uic.loadUi("./assets/UI Components/Connectors.ui", self)
 
         # main_window--> reference the main window application
         self.main_window = main_window
+        self.connection_established = None 
 
         #self.btn_connect.clicked.connect(self.connectMqtt) #click--->connect to mqtt  
         self.btn_connect.clicked.connect(self.connectHttp)
@@ -175,29 +174,62 @@ class Connectors(QMainWindow):
             FEATURE: HTTP CONNECTOR
             USAGE: CONNECTS TO A HTTP SERVER
         """
-        self.http_client = HTTPClient(url=self.broker_text.toPlainText(),port=int(
-            self.port_text.toPlainText()))
+        # Inizializza l'oggetto HTTPClient con l'URL e la porta specificati
+        self.http_client = HTTPClient(url=self.broker_text.toPlainText(), port=int(self.port_text.toPlainText()))
         
+        # Connetti il segnale per lo stato della connessione
         self.http_client.status_changed.connect(self.updateStatus)
+        
+        # Esegui la connessione HTTP
         self.http_client.connect_http()
-        #self.http_client.get_received_messages()
-        self.http_client.getStatus()
-        self.connection_established = ConnectionEstablished() #inizialize the connectionEstablished window
-        
-        #call the handle server status icon 
-        self.handle_http_server_status()
-        
-        # adds a timer to close the window
-        self.loading_timer = QTimer(self)
-        self.loading_timer.start(2000)
-        self.loading_timer.timeout.connect(self.on_timeout)  # connect the timeout signal to the on_timout function 
 
+        # Gestisci lo stato della connessione direttamente qui
+        print(f"HTTP CONNECTION STATUS: {self.http_client.conn_status}")
         
+        if self.http_client.conn_status:  # Se la connessione è stata stabilita
+            # Inizializza la finestra della connessione stabilita
+            self.connection_established = ConnectionEstablished()  
+            
+            # Mostra esplicitamente la finestra
+            self.connection_established.show()
+
+            # Forza l'aggiornamento della UI per evitare che rimanga bloccata
+            QApplication.processEvents()
+
+            # Inizia a ricevere i messaggi in un thread separato
+            self.loading_timer = QTimer(self)
+            self.loading_timer.setSingleShot(True)  # Assicurati che il timer scatti una sola volta
+            self.loading_timer.timeout.connect(self.on_timeout)  # Collega il timeout alla funzione on_timeout
+            
+            # Inizia a ricevere i messaggi in background
+            QThreadPool.globalInstance().start(self.receive_messages)  # Utilizza QThreadPool per gestire le operazioni in background
+
+            # Avvia il timer per chiudere la finestra dopo 2 secondi
+            self.loading_timer.start(2000)  # Imposta il timer per 2 secondi
+
+        else:
+            print("HTTP connection failed.")
+
+    def receive_messages(self):
+        """ Funzione per ricevere messaggi in background. """
+        try:
+            self.http_client.get_received_messages(endpoint=self.topic_text.toPlainText())
+        except Exception as e:
+            print(f"Error receiving messages: {e}")
+
+
+
     
             
     #on_timeout function--->automatically close the connectionEstablished window after 2 seconds
     def on_timeout(self):
-        self.connection_established.close()
+        """Chiamata quando il timer scade."""
+        # Verifica se 'connection_established' è stato creato
+        if hasattr(self, 'connection_established'):
+            print("Closing connection window.")
+            self.connection_established.close()
+        else:
+            print("Connection window not initialized.")
 
     def updateStatus(self, status):
         #status stores the upcoming data 
@@ -292,12 +324,18 @@ class Connectors(QMainWindow):
         
     
     def stopServerConnection(self):
+        """ 
+        WORKING ON THIS INTEGRATION:
+        FEATURE: STOP SERVER CONNECTION. 
+        
+        """
         self.main_window.compiler_.append("Stopping server connetion..")
         # close the server connection
-        self.mqtt_client.stop_mqtt()
+        #self.mqtt_client.stop_mqtt()
+        self.http_client.stop_http()
         #handle server status--->display the connection status icon
-        self.handle_server_status()
-        
+        #self.handle_server_status()
+        self.handle_http_server_status()
 
 
 
@@ -346,7 +384,7 @@ class SyntaxHighlighter(QSyntaxHighlighter):
 class MainWindow(QMainWindow):
     def __init__(self):
         super(MainWindow, self).__init__()
-        uic.loadUi('./AppInterface.ui', self)
+        uic.loadUi('./assets/UI Components/AppInterface.ui', self)
         self.setWindowTitle('CortexBrain')
         self.setWindowIcon(QIcon("icon.png"))
 

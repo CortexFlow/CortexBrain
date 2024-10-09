@@ -13,7 +13,7 @@ from PyQt5 import QtWidgets, uic
 class ConnectionEstablished(QMainWindow):
     def __init__(self):
         super(ConnectionEstablished, self).__init__()
-        uic.loadUi("./ConnectionEstablished.ui", self)
+        uic.loadUi("./assets/UI Components/ConnectionEstablished.ui", self)
         
         self.show()
 
