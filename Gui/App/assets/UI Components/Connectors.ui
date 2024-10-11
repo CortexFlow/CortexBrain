@@ -17,17 +17,67 @@
    <string notr="true">background-color: rgb(44, 49, 60);</string>
   </property>
   <widget class="QWidget" name="centralwidget">
-   <widget class="QPushButton" name="pushButton_2">
+   <widget class="QComboBox" name="protocol_selector">
+    <property name="geometry">
+     <rect>
+      <x>22</x>
+      <y>30</y>
+      <width>181</width>
+      <height>22</height>
+     </rect>
+    </property>
+    <property name="styleSheet">
+     <string notr="true">QComboBox{
+	color:white;
+	background-color: rgb(27, 29, 35);
+}</string>
+    </property>
+    <property name="editable">
+     <bool>false</bool>
+    </property>
+    <property name="currentText">
+     <string>MQTT</string>
+    </property>
+    <item>
+     <property name="text">
+      <string>MQTT</string>
+     </property>
+    </item>
+    <item>
+     <property name="text">
+      <string>HTTP</string>
+     </property>
+    </item>
+    <item>
+     <property name="text">
+      <string>COAP</string>
+     </property>
+    </item>
+   </widget>
+   <widget class="QStackedWidget" name="stackedWidget">
     <property name="geometry">
      <rect>
       <x>20</x>
-      <y>80</y>
-      <width>93</width>
-      <height>28</height>
+      <y>60</y>
+      <width>391</width>
+      <height>231</height>
      </rect>
     </property>
-    <property name="styleSheet">
-     <string notr="true">QPushButton {
+    <property name="currentIndex">
+     <number>2</number>
+    </property>
+    <widget class="QWidget" name="page_mqtt">
+     <widget class="QPushButton" name="pushButton">
+      <property name="geometry">
+       <rect>
+        <x>0</x>
+        <y>34</y>
+        <width>93</width>
+        <height>28</height>
+       </rect>
+      </property>
+      <property name="styleSheet">
+       <string notr="true">QPushButton {
 	background-position: center;
 	background-repeat: no-reperat;
 	border: none;
@@ -40,22 +90,22 @@ QPushButton:hover {
 QPushButton:pressed {	
 	background-color: rgb(85, 170, 255);
 }</string>
-    </property>
-    <property name="text">
-     <string>broker</string>
-    </property>
-   </widget>
-   <widget class="QPushButton" name="pushButton_3">
-    <property name="geometry">
-     <rect>
-      <x>20</x>
-      <y>120</y>
-      <width>93</width>
-      <height>28</height>
-     </rect>
-    </property>
-    <property name="styleSheet">
-     <string notr="true">QPushButton {
+      </property>
+      <property name="text">
+       <string>broker</string>
+      </property>
+     </widget>
+     <widget class="QPushButton" name="pushButton_2">
+      <property name="geometry">
+       <rect>
+        <x>0</x>
+        <y>72</y>
+        <width>93</width>
+        <height>28</height>
+       </rect>
+      </property>
+      <property name="styleSheet">
+       <string notr="true">QPushButton {
 	background-position: center;
 	background-repeat: no-reperat;
 	border: none;
@@ -68,22 +118,22 @@ QPushButton:hover {
 QPushButton:pressed {	
 	background-color: rgb(85, 170, 255);
 }</string>
-    </property>
-    <property name="text">
-     <string>port</string>
-    </property>
-   </widget>
-   <widget class="QPushButton" name="pushButton_4">
-    <property name="geometry">
-     <rect>
-      <x>20</x>
-      <y>200</y>
-      <width>93</width>
-      <height>28</height>
-     </rect>
-    </property>
-    <property name="styleSheet">
-     <string notr="true">QPushButton {
+      </property>
+      <property name="text">
+       <string>port</string>
+      </property>
+     </widget>
+     <widget class="QPushButton" name="pushButton_3">
+      <property name="geometry">
+       <rect>
+        <x>0</x>
+        <y>112</y>
+        <width>93</width>
+        <height>28</height>
+       </rect>
+      </property>
+      <property name="styleSheet">
+       <string notr="true">QPushButton {
 	background-position: center;
 	background-repeat: no-reperat;
 	border: none;
@@ -96,22 +146,22 @@ QPushButton:hover {
 QPushButton:pressed {	
 	background-color: rgb(85, 170, 255);
 }</string>
-    </property>
-    <property name="text">
-     <string>topic</string>
-    </property>
-   </widget>
-   <widget class="QPushButton" name="pushButton_5">
-    <property name="geometry">
-     <rect>
-      <x>20</x>
-      <y>160</y>
-      <width>93</width>
-      <height>28</height>
-     </rect>
-    </property>
-    <property name="styleSheet">
-     <string notr="true">QPushButton {
+      </property>
+      <property name="text">
+       <string>client id</string>
+      </property>
+     </widget>
+     <widget class="QPushButton" name="pushButton_4">
+      <property name="geometry">
+       <rect>
+        <x>0</x>
+        <y>152</y>
+        <width>93</width>
+        <height>28</height>
+       </rect>
+      </property>
+      <property name="styleSheet">
+       <string notr="true">QPushButton {
 	background-position: center;
 	background-repeat: no-reperat;
 	border: none;
@@ -124,22 +174,22 @@ QPushButton:hover {
 QPushButton:pressed {	
 	background-color: rgb(85, 170, 255);
 }</string>
-    </property>
-    <property name="text">
-     <string>client id</string>
-    </property>
-   </widget>
-   <widget class="QPushButton" name="btn_connect">
-    <property name="geometry">
-     <rect>
-      <x>160</x>
-      <y>260</y>
-      <width>93</width>
-      <height>28</height>
-     </rect>
-    </property>
-    <property name="styleSheet">
-     <string notr="true">QPushButton {
+      </property>
+      <property name="text">
+       <string>topic</string>
+      </property>
+     </widget>
+     <widget class="QPushButton" name="btn_connect_mqtt">
+      <property name="geometry">
+       <rect>
+        <x>140</x>
+        <y>200</y>
+        <width>93</width>
+        <height>30</height>
+       </rect>
+      </property>
+      <property name="styleSheet">
+       <string notr="true">QPushButton {
 	background-position: center;
 	background-repeat: no-reperat;
 	border: none;
@@ -152,103 +202,291 @@ QPushButton:hover {
 QPushButton:pressed {	
 	background-color: rgb(85, 170, 255);
 }</string>
-    </property>
-    <property name="text">
-     <string>Connect</string>
-    </property>
-   </widget>
-   <widget class="QTextEdit" name="broker_text">
-    <property name="geometry">
-     <rect>
-      <x>120</x>
-      <y>76</y>
-      <width>281</width>
-      <height>31</height>
-     </rect>
-    </property>
-    <property name="styleSheet">
-     <string notr="true">QTextEdit{
+      </property>
+      <property name="text">
+       <string>Connect</string>
+      </property>
+     </widget>
+     <widget class="QTextEdit" name="broker_text_mqtt">
+      <property name="geometry">
+       <rect>
+        <x>100</x>
+        <y>30</y>
+        <width>281</width>
+        <height>31</height>
+       </rect>
+      </property>
+      <property name="styleSheet">
+       <string notr="true">QTextEdit{
 	color:white;
 }</string>
-    </property>
-    <property name="verticalScrollBarPolicy">
-     <enum>Qt::ScrollBarAlwaysOff</enum>
-    </property>
-    <property name="horizontalScrollBarPolicy">
-     <enum>Qt::ScrollBarAlwaysOff</enum>
-    </property>
-    <property name="placeholderText">
-     <string>test.mosquitto.org</string>
-    </property>
-   </widget>
-   <widget class="QTextEdit" name="port_text">
-    <property name="geometry">
-     <rect>
-      <x>120</x>
-      <y>120</y>
-      <width>281</width>
-      <height>31</height>
-     </rect>
-    </property>
-    <property name="styleSheet">
-     <string notr="true">QTextEdit{
+      </property>
+      <property name="placeholderText">
+       <string>test.mosquitto.org</string>
+      </property>
+     </widget>
+     <widget class="QTextEdit" name="port_text_mqtt">
+      <property name="geometry">
+       <rect>
+        <x>100</x>
+        <y>70</y>
+        <width>281</width>
+        <height>31</height>
+       </rect>
+      </property>
+      <property name="styleSheet">
+       <string notr="true">QTextEdit{
 	color:white;
 }</string>
-    </property>
-    <property name="verticalScrollBarPolicy">
-     <enum>Qt::ScrollBarAlwaysOff</enum>
-    </property>
-    <property name="horizontalScrollBarPolicy">
-     <enum>Qt::ScrollBarAlwaysOff</enum>
-    </property>
-    <property name="placeholderText">
-     <string>1883</string>
-    </property>
-   </widget>
-   <widget class="QTextEdit" name="client_id_text">
-    <property name="geometry">
-     <rect>
-      <x>120</x>
-      <y>160</y>
-      <width>281</width>
-      <height>31</height>
-     </rect>
-    </property>
-    <property name="styleSheet">
-     <string notr="true">QTextEdit{
+      </property>
+      <property name="placeholderText">
+       <string>1883</string>
+      </property>
+     </widget>
+     <widget class="QTextEdit" name="client_id_text_mqtt">
+      <property name="geometry">
+       <rect>
+        <x>100</x>
+        <y>110</y>
+        <width>281</width>
+        <height>31</height>
+       </rect>
+      </property>
+     </widget>
+     <widget class="QTextEdit" name="topic_text_mqtt">
+      <property name="geometry">
+       <rect>
+        <x>100</x>
+        <y>150</y>
+        <width>281</width>
+        <height>31</height>
+       </rect>
+      </property>
+      <property name="styleSheet">
+       <string notr="true">QTextEdit{
 	color:white;
 }</string>
-    </property>
-    <property name="verticalScrollBarPolicy">
-     <enum>Qt::ScrollBarAlwaysOff</enum>
-    </property>
-    <property name="horizontalScrollBarPolicy">
-     <enum>Qt::ScrollBarAlwaysOff</enum>
-    </property>
-   </widget>
-   <widget class="QTextEdit" name="topic_text">
-    <property name="geometry">
-     <rect>
-      <x>120</x>
-      <y>200</y>
-      <width>281</width>
-      <height>31</height>
-     </rect>
-    </property>
-    <property name="styleSheet">
-     <string notr="true">QTextEdit{
+      </property>
+      <property name="placeholderText">
+       <string>python/mqtt</string>
+      </property>
+     </widget>
+    </widget>
+    <widget class="QWidget" name="page_http">
+     <widget class="QPushButton" name="pushButton_6">
+      <property name="geometry">
+       <rect>
+        <x>0</x>
+        <y>34</y>
+        <width>93</width>
+        <height>28</height>
+       </rect>
+      </property>
+      <property name="styleSheet">
+       <string notr="true">QPushButton {
+	background-position: center;
+	background-repeat: no-reperat;
+	border: none;
+	background-color: rgb(27, 29, 35);
+	color:white;
+}
+QPushButton:hover {
+	background-color: rgb(33, 37, 43);
+}
+QPushButton:pressed {	
+	background-color: rgb(85, 170, 255);
+}</string>
+      </property>
+      <property name="text">
+       <string>broker</string>
+      </property>
+     </widget>
+     <widget class="QPushButton" name="pushButton_7">
+      <property name="geometry">
+       <rect>
+        <x>0</x>
+        <y>72</y>
+        <width>93</width>
+        <height>28</height>
+       </rect>
+      </property>
+      <property name="styleSheet">
+       <string notr="true">QPushButton {
+	background-position: center;
+	background-repeat: no-reperat;
+	border: none;
+	background-color: rgb(27, 29, 35);
+	color:white;
+}
+QPushButton:hover {
+	background-color: rgb(33, 37, 43);
+}
+QPushButton:pressed {	
+	background-color: rgb(85, 170, 255);
+}</string>
+      </property>
+      <property name="text">
+       <string>port</string>
+      </property>
+     </widget>
+     <widget class="QPushButton" name="pushButton_8">
+      <property name="geometry">
+       <rect>
+        <x>0</x>
+        <y>112</y>
+        <width>93</width>
+        <height>28</height>
+       </rect>
+      </property>
+      <property name="styleSheet">
+       <string notr="true">QPushButton {
+	background-position: center;
+	background-repeat: no-reperat;
+	border: none;
+	background-color: rgb(27, 29, 35);
+	color:white;
+}
+QPushButton:hover {
+	background-color: rgb(33, 37, 43);
+}
+QPushButton:pressed {	
+	background-color: rgb(85, 170, 255);
+}</string>
+      </property>
+      <property name="text">
+       <string>client id</string>
+      </property>
+     </widget>
+     <widget class="QPushButton" name="pushButton_9">
+      <property name="geometry">
+       <rect>
+        <x>0</x>
+        <y>152</y>
+        <width>93</width>
+        <height>28</height>
+       </rect>
+      </property>
+      <property name="styleSheet">
+       <string notr="true">QPushButton {
+	background-position: center;
+	background-repeat: no-reperat;
+	border: none;
+	background-color: rgb(27, 29, 35);
+	color:white;
+}
+QPushButton:hover {
+	background-color: rgb(33, 37, 43);
+}
+QPushButton:pressed {	
+	background-color: rgb(85, 170, 255);
+}</string>
+      </property>
+      <property name="text">
+       <string>topic</string>
+      </property>
+     </widget>
+     <widget class="QPushButton" name="btn_connect_http">
+      <property name="geometry">
+       <rect>
+        <x>140</x>
+        <y>200</y>
+        <width>93</width>
+        <height>28</height>
+       </rect>
+      </property>
+      <property name="styleSheet">
+       <string notr="true">QPushButton {
+	background-position: center;
+	background-repeat: no-reperat;
+	border: none;
+	background-color: rgb(27, 29, 35);
+	color:white;
+}
+QPushButton:hover {
+	background-color: rgb(33, 37, 43);
+}
+QPushButton:pressed {	
+	background-color: rgb(85, 170, 255);
+}</string>
+      </property>
+      <property name="text">
+       <string>Connect</string>
+      </property>
+     </widget>
+     <widget class="QTextEdit" name="broker_text_http">
+      <property name="geometry">
+       <rect>
+        <x>100</x>
+        <y>30</y>
+        <width>281</width>
+        <height>31</height>
+       </rect>
+      </property>
+      <property name="styleSheet">
+       <string notr="true">QTextEdit{
 	color:white;
 }</string>
-    </property>
-    <property name="verticalScrollBarPolicy">
-     <enum>Qt::ScrollBarAlwaysOff</enum>
-    </property>
-    <property name="horizontalScrollBarPolicy">
-     <enum>Qt::ScrollBarAlwaysOff</enum>
-    </property>
-    <property name="placeholderText">
-     <string>python/mqtt</string>
-    </property>
+      </property>
+      <property name="placeholderText">
+       <string>http://127.0.0.1</string>
+      </property>
+     </widget>
+     <widget class="QTextEdit" name="port_text_http">
+      <property name="geometry">
+       <rect>
+        <x>100</x>
+        <y>70</y>
+        <width>281</width>
+        <height>31</height>
+       </rect>
+      </property>
+      <property name="styleSheet">
+       <string notr="true">QTextEdit{
+	color:white;
+}</string>
+      </property>
+      <property name="placeholderText">
+       <string>5000</string>
+      </property>
+     </widget>
+     <widget class="QTextEdit" name="client_id_text_http">
+      <property name="geometry">
+       <rect>
+        <x>100</x>
+        <y>110</y>
+        <width>281</width>
+        <height>31</height>
+       </rect>
+      </property>
+      <property name="styleSheet">
+       <string notr="true">QTextEdit{
+	color:white;
+}</string>
+      </property>
+      <property name="placeholderText">
+       <string/>
+      </property>
+     </widget>
+     <widget class="QTextEdit" name="topic_text_http">
+      <property name="geometry">
+       <rect>
+        <x>100</x>
+        <y>150</y>
+        <width>281</width>
+        <height>31</height>
+       </rect>
+      </property>
+      <property name="styleSheet">
+       <string notr="true">QTextEdit{
+	color:white;
+}</string>
+      </property>
+      <property name="placeholderText">
+       <string>/</string>
+      </property>
+     </widget>
+    </widget>
+    <widget class="QWidget" name="page_coap"/>
    </widget>
   </widget>
  </widget>
