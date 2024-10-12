@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MainWindow</class>
+ <widget class="QMainWindow" name="MainWindow">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>422</width>
+    <height>307</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>MainWindow</string>
+  </property>
+  <property name="styleSheet">
+   <string notr="true">background-color: rgb(44, 49, 60);</string>
+  </property>
+  <widget class="QWidget" name="centralwidget">
+   <widget class="QCheckBox" name="stop_mqtt_checkbox">
+    <property name="geometry">
+     <rect>
+      <x>60</x>
+      <y>130</y>
+      <width>81</width>
+      <height>20</height>
+     </rect>
+    </property>
+    <property name="styleSheet">
+     <string notr="true">QCheckBox{
+	color:white;
+}</string>
+    </property>
+    <property name="text">
+     <string>MQTT</string>
+    </property>
+   </widget>
+   <widget class="QCheckBox" name="stop_http_checkbox">
+    <property name="geometry">
+     <rect>
+      <x>60</x>
+      <y>160</y>
+      <width>81</width>
+      <height>20</height>
+     </rect>
+    </property>
+    <property name="styleSheet">
+     <string notr="true">QCheckBox{
+	color:white;
+}</string>
+    </property>
+    <property name="text">
+     <string>HTTP</string>
+    </property>
+   </widget>
+   <widget class="QLabel" name="label">
+    <property name="geometry">
+     <rect>
+      <x>30</x>
+      <y>30</y>
+      <width>401</width>
+      <height>71</height>
+     </rect>
+    </property>
+    <property name="styleSheet">
+     <string notr="true">QLabel{
+	color:white;
+	font-size:15px;
+	margin-right:auto;
+	margin-left:auto;
+}</string>
+    </property>
+    <property name="text">
+     <string>Which service do you want to shutdown?</string>
+    </property>
+   </widget>
+  </widget>
+  <widget class="QStatusBar" name="statusbar"/>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

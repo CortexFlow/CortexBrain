@@ -98,48 +98,38 @@ class Connectors(QMainWindow):
         self.setWindowIcon(QIcon("icon.png"))
         uic.loadUi("./assets/UI Components/Connectors.ui", self)
 
-        # main_window--> reference the main window application
         self.main_window = main_window
+        self.mqtt_client = None
+        self.http_client = None
         self.connection_established = None
-        #handle protocol selection 
+        self.stop_connection = None
         self.protocol_selector.currentIndexChanged.connect(self.on_protocol_selected)
-        
 
-        self.btn_connect_mqtt.clicked.connect(
-            self.connectMqtt)  # click--->connect to mqtt
+        self.btn_connect_mqtt.clicked.connect(self.connectMqtt)
         self.btn_connect_http.clicked.connect(self.connectHttp)
 
-        self.main_window.btn_stopconn.clicked.connect(
-            self.stopServerConnection)  # stop server connection
+        self.main_window.btn_stopconn.clicked.connect(self.stopServerConnection)
         self.show()
 
-        """         
-        NEED FIX: UPGRADE THIS PART TO HANDLE MORE COMPLEX CASES
-        
-        # plotting logic-->inizialize xdata range and an array of 0 elements for the y axis
         self.x_data = np.arange(0, 10, 0.1)
-        self.y_data = np.zeros_like(self.x_data) 
+        self.y_data = np.zeros_like(self.x_data)
         self.figure = None
         self.canvas = None
         self.ax = None
-        self.line = None  #inizialize the dynamic line
+        self.line = None
 
-        # inizialize the timer. the timer is connect to the auto chart update
         self.timer = QTimer()
-        self.timer.timeout.connect(self.update_plot) 
-        """
-        
-    
-        
+        self.timer.timeout.connect(self.update_plot)
+
     def goMQTT_protocol(self):
-        self.stackedWidget.setCurrentWidget(self.page_mqtt)  # go to home page
-    
+        self.stackedWidget.setCurrentWidget(self.page_mqtt)
+
     def goHTTP_protocol(self):
         self.stackedWidget.setCurrentWidget(self.page_http)
-    
+
     def goCoAP_protocol(self):
         self.stackedWidget.setCurrentWidget(self.page_coap)
-    
+
     def on_protocol_selected(self):
         sel_opt = self.protocol_selector.currentText()
         if sel_opt == "MQTT":
@@ -147,78 +137,43 @@ class Connectors(QMainWindow):
         elif sel_opt == "HTTP":
             self.goHTTP_protocol()
         elif sel_opt == "COAP":
-            self.goCoAP_protocol()    
-            
-            
-    
+            self.goCoAP_protocol()
+
     def connectMqtt(self):
         client_id = f'python-mqtt-{random.randint(0, 1000)}'
         self.mqtt_client = MQTTClient(self.broker_text_mqtt.toPlainText(), int(
             self.port_text_mqtt.toPlainText()), client_id)
 
-        # Connetti il segnale status_changed al metodo updateStatus
         self.mqtt_client.status_changed.connect(self.updateStatus)
-
         self.mqtt_client.connect_mqtt()
-        # subscribes to the topic
         self.mqtt_client.subscribe(self.topic_text_mqtt.toPlainText())
-        # inizialize the connectionEstablished window
         self.connection_established = ConnectionEstablished()
-        # call the handle server status icon
         self.handle_server_status()
 
-        # adds a timer to close the window
         self.loading_timer = QTimer(self)
         self.loading_timer.start(2000)
-        # connect the timeout signal to the on_timout function
         self.loading_timer.timeout.connect(self.on_timeout_mqtt)
 
     def connectHttp(self):
-        """ WORKING ON THIS INTEGRATION 
-            FEATURE: HTTP CONNECTOR
-            USAGE: CONNECTS TO A HTTP SERVER
-        """
-        # Inizializza l'oggetto HTTPClient con l'URL e la porta specificati
         self.http_client = HTTPClient(url=self.broker_text_http.toPlainText(
         ), port=int(self.port_text_http.toPlainText()))
 
-        # Connetti il segnale per lo stato della connessione
         self.http_client.status_changed.connect(self.updateStatus)
-
-        # Esegui la connessione HTTP
         self.http_client.connect_http()
 
-        # Gestisci lo stato della connessione direttamente qui
-        print(f"HTTP CONNECTION STATUS: {self.http_client.conn_status}")
-
-        if self.http_client.conn_status:  # Se la connessione è stata stabilita
-            # Inizializza la finestra della connessione stabilita
+        if self.http_client.conn_status:
             self.connection_established = ConnectionEstablished()
-
-            # Mostra esplicitamente la finestra
             self.connection_established.show()
-
-            # Forza l'aggiornamento della UI per evitare che rimanga bloccata
             QApplication.processEvents()
 
-            # Inizia a ricevere i messaggi in un thread separato
             self.loading_timer = QTimer(self)
-            # Assicurati che il timer scatti una sola volta
             self.loading_timer.setSingleShot(True)
-            # Collega il timeout alla funzione on_timeout
             self.loading_timer.timeout.connect(self.on_timeout)
-
-            # Inizia a ricevere i messaggi in background
-            # Utilizza QThreadPool per gestire le operazioni in background
             QThreadPool.globalInstance().start(self.receive_messages)
-
-            # Avvia il timer per chiudere la finestra dopo 2 secondi
-            self.loading_timer.start(2000)  # Imposta il timer per 2 secondi
-
+            self.loading_timer.start(2000)
         else:
             print("HTTP connection failed.")
-            
-    # handles server status and display the status icon
+
     def handle_server_status(self):
         if self.mqtt_client.conn_status is False:
             self.pixmap = QPixmap('./play-blue.png')
@@ -227,15 +182,9 @@ class Connectors(QMainWindow):
         else:
             self.pixmap = QPixmap('./stop-red.png')
 
-        self.main_window.server_status_icon.setPixmap(
-            self.pixmap)  # assign status icon
+        self.main_window.server_status_icon.setPixmap(self.pixmap)
 
     def handle_http_server_status(self):
-        """ 
-        WORKING ON THIS INTEGRATON
-        FEATURE: HTTP CLIENT STATUS CHECKER
-        USAGE: CHECK THE HTTP CONNECTION STATUS AND CHANGE THE SERVER STATUS ICON
-        """
         if self.http_client.conn_status is False:
             self.pixmap = QPixmap('./play-blue.png')
         elif self.http_client.conn_status is True:
@@ -243,120 +192,75 @@ class Connectors(QMainWindow):
         else:
             self.pixmap = QPixmap('./stop-red.png')
 
-        self.main_window.server_status_icon.setPixmap(
-            self.pixmap)  # assign status icon
-
+        self.main_window.server_status_icon.setPixmap(self.pixmap)
 
     def receive_messages(self):
-        """ Funzione per ricevere messaggi in background. """
         try:
             self.http_client.get_received_messages(
-                endpoint=self.topic_text.toPlainText())
+                endpoint=self.topic_text_http.toPlainText())
         except Exception as e:
             print(f"Error receiving messages: {e}")
 
-    # on_timeout function--->automatically close the connectionEstablished window after 2 seconds
-    
     def on_timeout_mqtt(self):
         self.connection_established.close()
-    
-     
+
     def on_timeout(self):
-        """Chiamata quando il timer scade."""
-        # Verifica se 'connection_established' è stato creato
         if hasattr(self, 'connection_established'):
-            print("Closing connection window.")
             self.connection_established.close()
         else:
             print("Connection window not initialized.")
 
     def updateStatus(self, status):
-        # status stores the upcoming data
         print("Response: ", status)
-        self.main_window.compiler_.append(status)  # insert the status
-
-        """ 
-        WORKING ON THIS INTEGRATION
-        
-        NEED FIX: UPGRADE THIS PART TO HANDLE MORE COMPLEX CASES
-        
-        # Add the data in the table 
+        self.main_window.compiler_.append(status)
         self.add_to_table(status)
 
-        # update the y axis with the new status data
-        if self.figure is None:  
-            self.create_plot()  
-        self.y_data = np.append(self.y_data[1:], status)  # append the upcoming status 
-        self.update_plot()  # update the plot 
-        """
+        if self.figure is None:
+            self.create_plot()
+        self.y_data = np.append(self.y_data[1:], status)
+        self.update_plot()
 
     def create_plot(self):
-        # inizialize a new matplotlib figure and a canvas
         self.figure = Figure()
         self.canvas = FigureCanvas(self.figure)
-
-        # store the plot widget in the plot_widget_layout variable
         self.plot_widget_layout = self.main_window.sim_1_widget.layout()
 
-        # handles some exceptions
-        # if the widget doesn't exist create a new QVBoxLayout
         if self.plot_widget_layout is None:
-            print("Layout non impostato, creazione di un QVBoxLayout...")
-            self.plot_widget_layout = QVBoxLayout(
-                self.main_window.sim_1_widget)
+            self.plot_widget_layout = QVBoxLayout(self.main_window.sim_1_widget)
             self.main_window.sim_1_widget.setLayout(self.plot_widget_layout)
 
-        # removes widgets unecessary elements in the plot layout (rare event)
         for i in reversed(range(self.plot_widget_layout.count())):
             widget = self.plot_widget_layout.itemAt(i).widget()
             if widget is not None:
                 widget.deleteLater()
 
-        # add the new canvas to the layout
         self.plot_widget_layout.addWidget(self.canvas)
-
-        # draw the plot
         self.ax = self.figure.add_subplot(111)
         self.line, = self.ax.plot(self.x_data, self.y_data)
         self.ax.set_ylim(0, 1000)
-        self.ax.set_title('Status over Time')  # title
-        self.ax.set_xlabel('Time')  # x axis title
-        self.ax.set_ylabel('Status')  # y axis title
-
-        # this timer controls the auto update of the plot
+        self.ax.set_title('Status over Time')
+        self.ax.set_xlabel('Time')
+        self.ax.set_ylabel('Status')
         self.timer.start(1000)
 
-    # add datas to the table in the simulation environment
     def add_to_table(self, status):
-        print(f"Aggiungendo status alla tabella: {status}")
-        self.main_window.data_table.setColumnCount(1)  # set at least 1 colum
-
-        # return the current row count
+        self.main_window.data_table.setColumnCount(1)
         row_count = self.main_window.data_table.rowCount()
-
-        # insert a new row
         self.main_window.data_table.insertRow(row_count)
-
-        # Insert the status data in the current row, line 0
         self.main_window.data_table.setItem(
             row_count, 0, QTableWidgetItem(str(status)))
 
     def update_plot(self):
-
         try:
-            # convert the data in float and ignores the string values
-            numeric_y_data = [float(val)
-                              for val in self.y_data if self.is_float(val)]
+            numeric_y_data = [float(val) for val in self.y_data if self.is_float(val)]
         except ValueError:
             print("Errore nella conversione dei dati in float")
 
-        # update the data values only if there are numeric values
         if numeric_y_data:
             self.line.set_ydata(numeric_y_data)
-            self.canvas.draw()  # draw the updated canvas
+            self.canvas.draw()
 
     def is_float(self, value):
-        # check if the is a float type
         try:
             float(value)
             return True
@@ -364,20 +268,38 @@ class Connectors(QMainWindow):
             return False
 
     def stopServerConnection(self):
-        """ 
-        WORKING ON THIS INTEGRATION:
-        FEATURE: STOP SERVER CONNECTION. 
-        UPDATE: Implement a way to select which protocol you want to stop
-        the connection
+        self.stop_connection = StopConnections(self)
+        self.loading_timer = QTimer(self)
+        self.loading_timer.start(2000)
+        self.loading_timer.timeout.connect(self.on_timeout_stop_connection)
 
-        """
-        self.main_window.compiler_.append("Stopping server connetion..")
-        # close the server connection
-        self.mqtt_client.stop_mqtt()
-        #self.http_client.stop_http()
-        # handle server status--->display the connection status icon
-        # self.handle_server_status()
-        self.handle_server_status()
+    def on_timeout_stop_connection(self):
+        self.stop_connection.close()
+class StopConnections(QMainWindow):
+    def __init__(self, main_window):
+        super(StopConnections, self).__init__()
+        self.setWindowTitle('Stop Connection')
+        self.setWindowIcon(QIcon("../App/public/icon.png"))
+        uic.loadUi("./assets/UI Components/StopConnectionPanel.ui", self)
+        self.main_window = main_window
+
+        # Recupero degli attributi mqtt_client e http_client dal main_window
+        self.mqtt_client = main_window.mqtt_client
+        self.http_client = main_window.http_client
+
+        self.stop_mqtt_checkbox.stateChanged.connect(self.StopMqttConnHandler)
+        self.stop_http_checkbox.stateChanged.connect(self.StopHttpConnHandler)
+
+        self.show()
+
+    def StopMqttConnHandler(self, state):
+        if state == 2 and self.mqtt_client is not None:
+            self.mqtt_client.stop_mqtt()
+
+    def StopHttpConnHandler(self, state):
+        if state == 2 and self.http_client is not None:
+            self.http_client.stop_http()
+
 
 
 # highlights the words
