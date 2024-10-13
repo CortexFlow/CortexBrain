@@ -1,12 +1,6 @@
-import sys
-import os
-sys.path.append(os.path.abspath(
-    os.path.join(os.path.dirname(__file__), '../')))
 from Globals.imports import *
-import numpy as np
 from Connectors.mqttConnector import MQTTClient, ConnectionEstablished
 from Connectors.httpConnector import HTTPClient
-import random
 from Globals.constants import GLOBAL_VAR
 
 

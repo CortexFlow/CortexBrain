@@ -1,8 +1,3 @@
-import sys
-import os
-sys.path.append(os.path.abspath(
-    os.path.join(os.path.dirname(__file__), '../')))
-
 from Globals.imports import *
 from MainWindow.main_window import MainWindow
 from Globals.constants import GLOBAL_VAR

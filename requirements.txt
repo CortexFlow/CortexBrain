@@ -22,3 +22,4 @@ glfw==2.7.0
 paho-mqtt==2.1.0
 qtwidgets==1.1
 tensorflow==2.17.0
+colorama==0.4.6

@@ -2,7 +2,6 @@ import os
 import sys
 import unittest
 
-# Aggiungi il percorso per l'importazione di GLOBAL_VAR
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../')))
 from constants import GLOBAL_VAR
 
