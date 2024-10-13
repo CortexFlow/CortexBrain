@@ -4,7 +4,7 @@ sys.path.append(os.path.abspath(
     os.path.join(os.path.dirname(__file__), '../')))
 from Globals.imports import *
 import numpy as np
-from mqttConnector import MQTTClient, ConnectionEstablished
+from Connectors.mqttConnector import MQTTClient, ConnectionEstablished
 from Connectors.httpConnector import HTTPClient
 import random
 from Globals.constants import GLOBAL_VAR
@@ -15,7 +15,7 @@ class Connectors(QMainWindow):
     def __init__(self, main_window):
         super(Connectors, self).__init__()
         self.setWindowTitle(GLOBAL_VAR.CONNECTORS_SCREEN_TITLE)
-        self.setWindowIcon(QIcon(GLOBAL_VAR.TITLE))
+        self.setWindowIcon(QIcon(GLOBAL_VAR.ICON))
         uic.loadUi(GLOBAL_VAR.CONNECTORS_SCREEN_UI, self)
 
         self.main_window = main_window
@@ -41,7 +41,7 @@ class Connectors(QMainWindow):
         self.line = None
 
         self.timer = QTimer()
-        self.timer.timeout.connect(self.update_plot)
+        #self.timer.timeout.connect(self.update_plot)
 
     def goMQTT_protocol(self):
         self.stackedWidget.setCurrentWidget(self.page_mqtt)
@@ -80,7 +80,7 @@ class Connectors(QMainWindow):
         self.http_client = HTTPClient(url=self.broker_text_http.toPlainText(
         ), port=int(self.port_text_http.toPlainText()))
 
-        self.http_client.status_changed.connect(self.updateStatus)
+        #self.http_client.status_changed.connect(self.updateStatus)
         self.http_client.connect_http()
 
         if self.http_client.conn_status:
