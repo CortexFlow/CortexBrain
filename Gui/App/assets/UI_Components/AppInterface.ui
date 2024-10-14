@@ -674,7 +674,7 @@ QPushButton:pressed {
                </property>
                <property name="icon">
                 <iconset>
-                 <normaloff>assets/home-blue.png</normaloff>assets/home-blue.png</iconset>
+                 <normaloff>../home-blue.png</normaloff>../home-blue.png</iconset>
                </property>
               </widget>
              </item>
@@ -1019,7 +1019,7 @@ QPushButton:pressed {
                   </property>
                   <property name="icon">
                    <iconset>
-                    <normaloff>assets/open-blue.png</normaloff>assets/open-blue.png</iconset>
+                    <normaloff>../open-blue.png</normaloff>../open-blue.png</iconset>
                   </property>
                  </widget>
                 </item>
@@ -1064,7 +1064,7 @@ QPushButton:pressed {
                   </property>
                   <property name="icon">
                    <iconset>
-                    <normaloff>assets/save-blue.png</normaloff>assets/save-blue.png</iconset>
+                    <normaloff>../save-blue.png</normaloff>../save-blue.png</iconset>
                   </property>
                  </widget>
                 </item>
@@ -1107,7 +1107,7 @@ QPushButton:pressed {
                   </property>
                   <property name="icon">
                    <iconset>
-                    <normaloff>assets/add.png</normaloff>assets/add.png</iconset>
+                    <normaloff>../add.png</normaloff>../add.png</iconset>
                   </property>
                  </widget>
                 </item>
@@ -1179,7 +1179,7 @@ QPushButton:pressed {
                 </property>
                 <property name="icon">
                  <iconset>
-                  <normaloff>assets/settings.png</normaloff>assets/settings.png</iconset>
+                  <normaloff>../settings.png</normaloff>../settings.png</iconset>
                 </property>
                </widget>
                <widget class="QLabel" name="label_user_icon">
@@ -1283,7 +1283,7 @@ QPushButton:pressed {
                 </property>
                 <property name="icon">
                  <iconset>
-                  <normaloff>assets/support.png</normaloff>assets/support.png</iconset>
+                  <normaloff>../support.png</normaloff>../support.png</iconset>
                 </property>
                </widget>
                <widget class="QPushButton" name="donate_btn">
@@ -1334,7 +1334,7 @@ QPushButton:pressed {
                 </property>
                 <property name="icon">
                  <iconset>
-                  <normaloff>assets/donate.png</normaloff>assets/donate.png</iconset>
+                  <normaloff>../donate.png</normaloff>../donate.png</iconset>
                 </property>
                </widget>
               </widget>
