@@ -1,3 +1,5 @@
+""" THIS FUNCTION IS OUTDATED AND WILL BE UPDATED IN THE NEXT VERSION """
+
 import matplotlib.pyplot as plt
 from matplotlib import style 
 import json

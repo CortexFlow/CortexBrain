@@ -1,3 +1,5 @@
+""" THIS FUNCTION IS OUTDATED AND WILL BE UPDATED IN THE NEXT VERSION """
+
 from utils.jsonEncoder import DataEncoder
 from Analyze.analyze import add_mean, add_std, add_sum, classify_hotels
 import json

@@ -1,3 +1,6 @@
+""" THIS FUNCTION IS OUTDATED AND WILL BE UPDATED IN THE NEXT VERSION """
+
+
 """ Contains code for classifying hotels and calculating simple metrics """
 import os
 import sys

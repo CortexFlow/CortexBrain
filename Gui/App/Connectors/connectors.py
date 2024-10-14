@@ -1,3 +1,12 @@
+""" Updates needed:
+        -UpdateStatus function 
+        
+        -create_plot function: 
+        need to format the data coming from different protocols 
+        in a structured layer (coming in the next update)
+"""
+
+
 from Globals.imports import *
 from Connectors.mqttConnector import MQTTClient, ConnectionEstablished
 from Connectors.httpConnector import HTTPClient

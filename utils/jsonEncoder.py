@@ -1,3 +1,7 @@
+""" THIS FUNCTION IS OUTDATED AND WILL BE UPDATED IN THE NEXT VERSION """
+
+
+
 import json
 import gzip
 import time

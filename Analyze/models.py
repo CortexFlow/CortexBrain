@@ -1,3 +1,6 @@
+""" THIS FUNCTION IS OUTDATED AND WILL BE UPDATED IN THE NEXT VERSION """
+
+
 """ Contains models for analyzing time series data """
 import numpy as np
 import pandas as pd

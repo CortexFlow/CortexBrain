@@ -9,7 +9,7 @@ from PyQt5.QtWidgets import (QApplication, QMainWindow, QVBoxLayout,
 from PyQt5 import uic
 from PyQt5.QtGui import QIcon, QPixmap, QColor, QSyntaxHighlighter, QTextCharFormat
 from PyQt5.QtCore import QTimer, QThreadPool, Qt, QRegularExpression
-from PyQt5.QtCore import pyqtSignal, QObject
+from PyQt5.QtCore import pyqtSignal, QObject,QTextFormat
 
 """ DATA VISUALIZATION IMPORT """
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
