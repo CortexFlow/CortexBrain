@@ -1,5 +1,8 @@
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from utils.jsonEncoder import DataEncoder
-from Analyze.analyze import add_mean, add_std, add_sum, classify_hotels
+from Analyze.analyze import get_mean, get_std, get_sum, classify_hotels
 import json
 from utils.DataProcessor import DataProcessor
 from SyntheticDatas.generateDatas import GenerateHotelDatas
@@ -59,7 +62,7 @@ def AggregateJson(*jsons):
 
 if __name__ == "__main__":
     # Carica i parametri dal file JSON
-    with open('./SyntheticDatas/params.json', 'r') as file:
+    with open(os.path.join(os.path.dirname(__file__), '..', 'SyntheticDatas', 'params.json'), 'r') as file:
         params = json.load(file)
 
     # Genera i dataset e le metriche e viene misurato il tempo
@@ -78,17 +81,17 @@ if __name__ == "__main__":
     jsonData=json.dumps(dict_data)
     LHotel, SHotel, BHotel = classify_hotels(jsonData)
 
-    JsonDataMean = add_mean(LHotel, "total_revenue")
-    JsonDataDevStd = add_std(LHotel, "total_revenue")
-    JsonDataDevSum = add_sum(LHotel, "total_revenue")
+    JsonDataMean = get_mean(LHotel, "total_revenue")
+    JsonDataDevStd = get_std(LHotel, "total_revenue")
+    JsonDataDevSum = get_sum(LHotel, "total_revenue")
 
-    JsonDataMean2 = add_mean(BHotel, "total_revenue")
-    JsonDataDevStd2 = add_std(BHotel, "total_revenue")
-    JsonDataDevSum2 = add_sum(BHotel, "total_revenue")
+    JsonDataMean2 = get_mean(BHotel, "total_revenue")
+    JsonDataDevStd2 = get_std(BHotel, "total_revenue")
+    JsonDataDevSum2 = get_sum(BHotel, "total_revenue")
 
-    JsonDataMean3 = add_mean(SHotel, "total_revenue")
-    JsonDataDevStd3 = add_std(SHotel, "total_revenue")
-    JsonDataDevSum3 = add_sum(SHotel, "total_revenue")
+    JsonDataMean3 = get_mean(SHotel, "total_revenue")
+    JsonDataDevStd3 = get_std(SHotel, "total_revenue")
+    JsonDataDevSum3 = get_sum(SHotel, "total_revenue")
 
     print("Test")
     print("Category L")
