@@ -187,6 +187,12 @@ Config/
 image.jpg
 image2.jpg
 amqConnector.py
+data_processor.py
+data_semantic.py
+nlp.py
+tabular.py
+data_scientist_agent.py
+generate_sensor_data.py
 # PyCharm
 #  JetBrains specific template is maintained in a separate JetBrains.gitignore that can
 #  be found at https://github.com/github/gitignore/blob/main/Global/JetBrains.gitignore
