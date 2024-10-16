@@ -1,0 +1,17 @@
+{
+  "name": "cortexflow",
+  "version": "1.0.0",
+  "description": "Cortexflow frontend ",
+  "main": "main.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "cortexflow-frontend"
+  ],
+  "author": "cortexflow",
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "electron": "^33.0.1"
+  }
+}
