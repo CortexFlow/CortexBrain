@@ -193,6 +193,8 @@ nlp.py
 tabular.py
 data_scientist_agent.py
 generate_sensor_data.py
+data_preparation/
+SyntaxBrain/
 # PyCharm
 #  JetBrains specific template is maintained in a separate JetBrains.gitignore that can
 #  be found at https://github.com/github/gitignore/blob/main/Global/JetBrains.gitignore
