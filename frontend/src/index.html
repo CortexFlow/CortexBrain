@@ -1,12 +1,16 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <title>Hello World!</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Hello React + Electron!</title>
     <link rel="stylesheet" href="index.css" />
   </head>
   <body>
-    <h1>💖 Hello World!</h1>
-    <p>Welcome to your Electron application.</p>
+    <!-- Questo div sarà il punto in cui React monterà la sua applicazione -->
+    <div id="root"></div>
+
+    <!-- Bundle JS generato da Webpack che contiene React -->
+    <script src="bundle.js"></script>
   </body>
 </html>
