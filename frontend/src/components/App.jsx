@@ -1,6 +1,6 @@
 import react from "react";
 
-import Home from "./Pages/Home";
+import Home from "./Pages/Dashboard";
 
 const App = () => {
   return (
