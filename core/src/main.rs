@@ -1,36 +1,36 @@
-//module import s
+// module imports
 mod client;  
 mod edgecni;
 
 use client::client::Client; 
-use cni::cni::{EdgeCni,EdgeCniConfig,MeshAdapter};
+use edgecni::edgecni::{EdgeCni, EdgeCniConfig}; // Removed MeshAdapter since it's unused
 use std::error::Error;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    //config files
-    //client config
+    // Configuration files
     let client_config = "config_string".to_string(); 
-    let edge_cni_config = EdgeCniConfig{
-        enable:true
+    let edge_cni_config = EdgeCniConfig {
+        enable: true,
     };
-    
-    //Service configurations
-    // Creiamo il nostro client
-    let client = Client::new_client(&config).await?;
-    let edge_cni=EdgeCni::new(config,client);
-    
-    //start dei servizi
+
+    // Create your client instance using the custom Client struct
+    let client = Client::new_client(&client_config).await?; // Fixed to use your custom client
+
+    // Create EdgeCni instance with the new client
+    let edge_cni = EdgeCni::new(edge_cni_config, client.kube_client.clone()); // Pass the kube_client from your custom Client
+
+    // Start the services
     edge_cni.start().await;
-    
-    //Actions
-    // Recuperiamo e stampiamo la lista dei pod nel namespace "default"
-    let pods = client.list_pods("default").await?;
+
+    // Actions
+    // Retrieve and print the list of pods in the "default" namespace
+    let pods = client.list_pods("default").await?; // This now uses your custom list_pods method
     for pod in pods {
         println!("Found pod: {:?}", pod.metadata.name);
     }
 
-    //shutting down
+    // Shutdown
     edge_cni.shutdown().await;
     Ok(())
 }
