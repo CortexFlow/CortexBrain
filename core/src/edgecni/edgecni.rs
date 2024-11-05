@@ -6,7 +6,7 @@ use tracing::{error, info};
 pub struct EdgeCni {
     config: EdgeCniConfig,
     client: Arc<Kubeclient>,
-    mesh_adapter: MeshAdapter,
+    pub mesh_adapter: MeshAdapter,
 }
 
 pub struct EdgeCniConfig {
@@ -26,7 +26,6 @@ pub struct MeshAdapter {
 impl EdgeCni {
     // Acts as a constructor. Accepts a config file and a Kubernetes client
     pub fn new(config: EdgeCniConfig, client: Kubeclient) -> Self {
-        // Use `new_mesh_adapter` instead of non-existent `new`
         let mesh_adapter = MeshAdapter::new_mesh_adapter(&config, &client).unwrap();
         EdgeCni {
             config,
@@ -68,13 +67,12 @@ impl EdgeCni {
 }
 
 impl MeshAdapter {
-    pub fn new_mesh_adapter(config: &EdgeCniConfig, client: &Kubeclient) -> Result<Self, String> {
-        // Initialize IPTables with the command and boolean flags as needed
+    pub fn new_mesh_adapter(_config: &EdgeCniConfig, client: &Kubeclient) -> Result<Self, String> {
         let ipt_interface = iptables::IPTables {
-            cmd: "iptables",   // or "ip6tables" if you're working with IPv6
-            has_check: true,   // Set according to the functionality you need
-            has_wait: true,    // Set according to the functionality you need
-            is_numeric: false, // Change based on whether you want numeric output
+            cmd: "iptables",
+            has_check: true,
+            has_wait: true,
+            is_numeric: false,
         };
 
         Ok(MeshAdapter {
@@ -93,7 +91,42 @@ impl MeshAdapter {
 
     pub async fn close_route(&self) -> Result<(), String> {
         info!("Closing route...");
-        // Implement the logic for closing routes
         Ok(())
     }
+
+    /// Function to read CIDR configuration and validate cloud and edge CIDRs
+    pub fn get_cidr(&self, cfg: &MeshCIDRConfig) -> Result<(Vec<String>, Vec<String>), String> {
+        let cloud = cfg.cloud_cidr.clone();
+        let edge = cfg.edge_cidr.clone();
+
+        // Validate the cloud CIDRs
+        if let Err(e) = Self::validate_cidrs(&cloud) {
+            return Err(format!("Cloud CIDRs are invalid, error: {:?}", e));
+        }
+
+        // Validate the edge CIDRs
+        if let Err(e) = Self::validate_cidrs(&edge) {
+            return Err(format!("Edge CIDRs are invalid, error: {:?}", e));
+        }
+
+        Ok((cloud, edge))
+    }
+
+    /// Helper function to validate CIDR list
+    fn validate_cidrs(cidrs: &[String]) -> Result<(), String> {
+        for cidr in cidrs {
+            if !cidr.parse::<std::net::IpAddr>().is_ok() {
+                return Err(format!("Invalid CIDR format: {}", cidr));
+            }
+        }
+        Ok(())
+    }
+    //aggiungere:
+    //findLocalCIDR
+    //CheckTunCIDR
+}
+
+pub struct MeshCIDRConfig {
+    pub cloud_cidr: Vec<String>,
+    pub edge_cidr: Vec<String>,
 }
