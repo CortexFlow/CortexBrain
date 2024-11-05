@@ -55,10 +55,10 @@ def mi_to_km(x):
     return x/0.62137  # miles to kilometres
 
 def m_to_yd(x):
-    return x*1.0936133 # metre to yard
+    return x*1.0936133 # metres to yards
 
 def yd_to_m(x):
-    return x/1.0936133 # yard to metre
+    return x/1.0936133 # yards to metres
     
 # CLASSIFICATION FUNCTION
 
