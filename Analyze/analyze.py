@@ -15,6 +15,55 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 #from SyntheticDatas.generateDatas import generateDataset
 
 
+# CONVERSION FUNCTIONS
+
+# Dimensionless conversions
+
+def u_to_d(x):      
+    return x*.1  # unit to decimal
+
+def u_to_c(x):
+    return x*.01  # unit to centesimal and so on...
+
+def u_to_m(x):
+    return x*.001
+
+def u_to_mu(x): 
+    return x*1e-6  # micro
+
+def u_to_n(x):
+    return x*1e-9  # nano
+
+def u_to_da(x):
+    return x*10  # deca
+
+def u_to_h(x):
+    return x*100  # hecto
+
+def u_to_k(x):
+    return x*1000  # kilo
+
+def u_to_M(x):
+    return x*1e6  # mega
+
+def u_to_G(x):
+    return x*1e9  # giga 
+
+# Dimensional conversions
+
+def km_to_mi(x):
+    return x*0.62137  # kilometres to miles
+
+def mi_to_km(x):
+    return x/0.62137  # miles to kilometres
+
+def m_to_yd(x):
+    return x*1.0936133 # metres to yards
+
+def yd_to_m(x):
+    return x/1.0936133 # yards to metres
+    
+# CLASSIFICATION FUNCTION
 
 # Function to classify hotels into categories
 def classify_hotels(json_file):
