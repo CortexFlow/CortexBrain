@@ -4,7 +4,7 @@ use k8s_openapi::api::core::v1::Pod;
 use std::error::Error;
 pub struct Client {
     config: String,  
-    kube_client: KubeClient, 
+    pub kube_client: KubeClient, 
 }
 
 impl Client {
