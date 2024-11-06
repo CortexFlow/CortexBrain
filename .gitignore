@@ -201,7 +201,8 @@ notes.md
 cidr.md
 MeshAdapter.md
 default_config.rs
-
+generazione.xlsx
+hotel_data.json.gz
 # PyCharm
 #  JetBrains specific template is maintained in a separate JetBrains.gitignore that can
 #  be found at https://github.com/github/gitignore/blob/main/Global/JetBrains.gitignore
