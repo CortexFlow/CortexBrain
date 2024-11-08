@@ -1,5 +1,3 @@
-import react from "react";
-
 import Home from "./Pages/Dashboard";
 
 const App = () => {
