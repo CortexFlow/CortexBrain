@@ -1,5 +1,6 @@
 import React from "react";
 import SidebarMenu from "../components/sidebar";
+import Navbar from "../components/Navbar";
 import Box from "../components/box";
 import SensorMap from "../components/SensorMap";
 import AnalyticsPanel from "../components/AnalyticsPanel";
@@ -23,35 +24,36 @@ const ClusterStatus = () => {
 
 const Dashboard = () => {
   return (
-    <div className="flex flex-row bg-gray-100 min-h-screen">
-      {/* Sidebar */}
-      <SidebarMenu />
+    <>
 
-      {/* Main Content */}
-      <div className="flex flex-col gap-4 p-6 flex-1">
-        <ClusterStatus />
+      <div className="flex flex-row bg-gray-100 min-h-screen">
+        {/* Sidebar */}
+        <SidebarMenu />
 
-        {/* Grid layout: SensorMap and Devices side by side, AnalyticsPanel below */}
-        <div className="grid grid-cols-2 md:grid-cols-1 gap-8">
-          {/* First Row: SensorMap and Devices side by side with increased gap */}
-          <div className="flex flex-col gap-4">
-            <SensorMap />
-          </div>
-          <div className="flex flex-col gap-4">
-            <Devices />
-          </div>
+        {/* Main Content */}
+        <div className="flex flex-col gap-4 p-6 flex-1">
+        <Navbar />
+          <ClusterStatus />
 
-          {/* Second Row: AnalyticsPanel */}
-          <div className="flex flex-col gap-4 col-span-2">
-            <AnalyticsPanel />
+          {/* Grid layout: SensorMap and Devices side by side, AnalyticsPanel below */}
+          <div className="grid grid-cols-2 md:grid-cols-1 gap-8">
+            {/* First Row: SensorMap and Devices side by side with increased gap */}
+            <div className="flex flex-col gap-4">
+              <SensorMap />
+            </div>
+            <div className="flex flex-col gap-4">
+              <Devices />
+            </div>
+
+            {/* Second Row: AnalyticsPanel */}
+            <div className="flex flex-col gap-4 col-span-2">
+              <AnalyticsPanel />
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    </>
   );
 };
-
-
-
 
 export default Dashboard;
