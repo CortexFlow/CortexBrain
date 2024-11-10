@@ -203,7 +203,11 @@ ai/
 Integrations/
 data_cleaning/
 data_pipeline.py
-core/
+notes.md
+cidr.md
+MeshAdapter.md
+default_config.rs
+
 # PyCharm
 #  JetBrains specific template is maintained in a separate JetBrains.gitignore that can
 #  be found at https://github.com/github/gitignore/blob/main/Global/JetBrains.gitignore
