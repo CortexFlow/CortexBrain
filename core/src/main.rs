@@ -3,11 +3,8 @@ mod client;
 mod edgecni;
 
 use client::client::Client; 
-use edgecni::edgecni::{EdgeCni, EdgeCniConfig,MeshCIDRConfig}; // Removed MeshAdapter since it's unused
+use edgecni::edgecni::{EdgeCni, EdgeCniConfig, MeshAdapter, MeshCIDRConfig}; // Removed MeshAdapter since it's unused
 use std::error::Error;
-
-
-// Dummy struct for MeshCIDRConfig to match the Rust code
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -16,10 +13,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let edge_cni_config = EdgeCniConfig {
         enable: true,
     };
-    //set the cloud and edge cidrs
+
+    // Set the cloud and edge cidrs
     let cidr_config = MeshCIDRConfig {
-        cloud_cidr: vec!["10.1.0.0/16".to_string()],
-        edge_cidr: vec!["192.168.1.0/24".to_string()],
+        cloud_cidr: vec!["10.244.0.0/24".to_string()],
+        edge_cidr: vec!["10.244.0.0/24".to_string()],
     };
 
     // Create your client instance using the custom Client struct
@@ -28,7 +26,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // Create EdgeCni instance with the new client
     let edge_cni = EdgeCni::new(edge_cni_config, client.kube_client.clone()); // Pass the kube_client from your custom Client
     
-    // Usa il mesh_adapter per chiamare get_cidr
+    // Use the mesh_adapter to call get_cidr
     match edge_cni.mesh_adapter.get_cidr(&cidr_config) {
         Ok((cloud, edge)) => {
             println!("Cloud CIDRs: {:?}", cloud);
@@ -40,10 +38,18 @@ async fn main() -> Result<(), Box<dyn Error>> {
         }
     }
 
-
-
     // Start the services
     edge_cni.start().await;
+
+    // Retrieve and print the local CIDR for the node
+    match MeshAdapter::find_local_cidr(&client.kube_client).await {
+        Ok(local_cidr) => {
+            println!("Local CIDR for the node: {}", local_cidr);
+        }
+        Err(e) => {
+            println!("Error retrieving local CIDR: {}", e);
+        }
+    }
 
     // Actions
     // Retrieve and print the list of pods in the "default" namespace

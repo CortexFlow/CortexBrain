@@ -1,7 +1,11 @@
+use actix_web::http::Error;
 use iptables;
 use kube::Client as Kubeclient;
+use kube::Api;
+use k8s_openapi::api::core::v1::Node;
 use std::sync::Arc;
 use tracing::{error, info};
+use std::env;
 
 pub struct EdgeCni {
     config: EdgeCniConfig,
@@ -78,7 +82,7 @@ impl MeshAdapter {
         Ok(MeshAdapter {
             client: client.clone(),
             ipt_interface,
-            host_cidr: "192.168.0.0/16".to_string(),
+            host_cidr: "10.244.0.18/32".to_string(),
             edge: vec!["edge-node-1".to_string(), "edge-node-2".to_string()],
             // ... other fields
         })
@@ -121,8 +125,29 @@ impl MeshAdapter {
         }
         Ok(())
     }
+
+    pub async fn find_local_cidr(client: &Kubeclient) -> Result<String, String> {
+        // Ottieni il nome del nodo dall'ambiente
+        let node_name = env::var("NODE_NAME").map_err(|_| {
+            "The env NODE_NAME is not set".to_string()
+        })?;
+    
+        // Ottieni l'API per i nodi
+        let nodes: Api<Node> = Api::all(client.clone());
+    
+        // Recupera il nodo specifico
+        let node = nodes.get(&node_name).await.map_err(|e| {
+            format!("Failed to get Node {}: {}", node_name, e)
+        })?;
+    
+        // Restituisci il PodCIDR del nodo, se presente
+        if let Some(pod_cidr) = node.spec.as_ref().and_then(|spec| spec.pod_cidr.clone()) {
+            Ok(pod_cidr)
+        } else {
+            Err(format!("Node {} does not have a PodCIDR", node_name))
+        }
+    }
     //aggiungere:
-    //findLocalCIDR
     //CheckTunCIDR
 }
 
