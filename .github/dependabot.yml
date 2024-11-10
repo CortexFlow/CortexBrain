@@ -9,7 +9,16 @@ updates:
     directory: "/frontend" # Location of package manifests
     schedule:
       interval: "weekly"
+    groups:
+      all-updates:
+        patterns:
+          - "*"
+          
   - package-ecosystem: "cargo"
     directory: "/core" # Location of package manifests
     schedule:
       interval: "weekly"
+    groups:
+      all-updates:
+        patterns:
+          - "*"
