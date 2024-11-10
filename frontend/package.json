@@ -18,7 +18,7 @@
     "web-vitals": "^4.2.4"
   },
   "devDependencies": {
-    "concurrently": "^7.6.0",
+    "concurrently": "^9.1.0",
     "cross-env": "^7.0.3",
     "electron": "^25.2.0",
     "electron-builder": "^25.1.8",
