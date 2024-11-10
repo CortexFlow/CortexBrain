@@ -2,7 +2,7 @@ from Globals.imports import *
 
 app = Flask(__name__)
 
-# Variabile globale per memorizzare i messaggi ricevuti
+# Global variable to store received messages.
 received_messages = []
 
 @app.route('/send', methods=['POST'])
