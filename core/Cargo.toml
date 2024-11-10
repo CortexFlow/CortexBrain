@@ -21,7 +21,7 @@ wasmtime = "26.0.0"  # Dipendenza per WebAssembly
 tokio = { version = "1", features = ["full"] }  # Dipendenza per il runtime async
 tracing = "0.1.40"
 futures = "0.3.31"
-anyhow = "1.0.92"
+anyhow = "1.0.93"
 schemas = "0.4.0"
 yaml-rust2 = "0.9.0"
 kube = { version = "0.96.0", features = ["runtime", "derive", "ws"] }
