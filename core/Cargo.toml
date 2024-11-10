@@ -17,7 +17,7 @@ actix-web = "4.9.0"  # Dipendenza per il framework web Actix
 clap = "4.5.20"  # Dipendenza per il parsing dei comandi
 containerd-shim-wasm = "0.7.0"  # Dipendenza per l'integrazione con containerd
 reqwest = { version = "0.12.9", features = ["json"] }  # Dipendenza per HTTP client
-wasmtime = "26.0.0"  # Dipendenza per WebAssembly
+wasmtime = "26.0.1"  # Dipendenza per WebAssembly
 tokio = { version = "1", features = ["full"] }  # Dipendenza per il runtime async
 tracing = "0.1.40"
 futures = "0.3.31"
