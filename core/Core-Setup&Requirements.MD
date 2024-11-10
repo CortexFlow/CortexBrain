@@ -3,7 +3,7 @@ This folder contains all the functions of the core.
 Requirements:
 
 - Unix system (or alternatively WSL).
-- Docker
+- Docker or HyperV enabled
 - A kubernetes cluster :  
     Free versions: 
         -Minikube [Link](https://minikube.sigs.k8s.io/docs/)  

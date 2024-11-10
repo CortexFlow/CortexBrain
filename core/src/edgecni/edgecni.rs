@@ -1,4 +1,3 @@
-use actix_web::http::Error;
 use iptables;
 use kube::Client as Kubeclient;
 use kube::Api;
@@ -148,7 +147,7 @@ impl MeshAdapter {
         }
     }
     //aggiungere:
-    //CheckTunCIDR
+    //CheckTunCIDR--->check whether the mesh CIDR and the given parameter CIDR are in the same network or not.
 }
 
 pub struct MeshCIDRConfig {
