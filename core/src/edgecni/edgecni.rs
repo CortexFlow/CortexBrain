@@ -1,10 +1,11 @@
+use ipnet::IpNet;
 use iptables;
-use kube::Client as Kubeclient;
-use kube::Api;
 use k8s_openapi::api::core::v1::Node;
+use kube::Api;
+use kube::Client as Kubeclient;
+use std::env;
 use std::sync::Arc;
 use tracing::{error, info};
-use std::env;
 
 pub struct EdgeCni {
     config: EdgeCniConfig,
@@ -127,18 +128,18 @@ impl MeshAdapter {
 
     pub async fn find_local_cidr(client: &Kubeclient) -> Result<String, String> {
         // Ottieni il nome del nodo dall'ambiente
-        let node_name = env::var("NODE_NAME").map_err(|_| {
-            "The env NODE_NAME is not set".to_string()
-        })?;
-    
+        let node_name =
+            env::var("NODE_NAME").map_err(|_| "The env NODE_NAME is not set".to_string())?;
+
         // Ottieni l'API per i nodi
         let nodes: Api<Node> = Api::all(client.clone());
-    
+
         // Recupera il nodo specifico
-        let node = nodes.get(&node_name).await.map_err(|e| {
-            format!("Failed to get Node {}: {}", node_name, e)
-        })?;
-    
+        let node = nodes
+            .get(&node_name)
+            .await
+            .map_err(|e| format!("Failed to get Node {}: {}", node_name, e))?;
+
         // Restituisci il PodCIDR del nodo, se presente
         if let Some(pod_cidr) = node.spec.as_ref().and_then(|spec| spec.pod_cidr.clone()) {
             Ok(pod_cidr)
@@ -146,8 +147,39 @@ impl MeshAdapter {
             Err(format!("Node {} does not have a PodCIDR", node_name))
         }
     }
-    //aggiungere:
     //CheckTunCIDR--->check whether the mesh CIDR and the given parameter CIDR are in the same network or not.
+    pub async fn check_tunnel_cidr(cidr1: &str, cidr2: &str) -> bool {
+        /* Workflow:
+
+        1. Parse the provided outer CIDR.
+
+        Use net.ParseCIDR(outerCidr) to get the IP address and network of the outer CIDR.
+        If there is an error in parsing, return an error.
+
+        2. Parse the CIDR of the host network associated with the mesh.
+        Use net.ParseCIDR(mesh.HostCIDR) to get the network of the host CIDR associated with the MeshAdapter.
+        If there is an error in parsing, return an error.
+
+        3. Check if the outer IP address is contained in the host mesh.
+        Use hostNet.Contains(outerIP) to check if the external IP address (outerIP) belongs to the host network (hostNet).
+
+        4. Verify that the network masks are the same
+        Compare the network masks using hostNet.Mask.String() and outerNet.Mask.String() to make sure they are identical.
+
+        5. Return the result
+        If both verifications are true, return true.
+        If one of the verifications fails, return false.
+        If an error occurs during parsing, return a descriptive error.
+
+        */
+
+        /*      see ipnet documentation-->https://crates.io/crates/ipnet
+        https://docs.rs/ipnet/latest/ipnet/ */
+        let network1: IpNet = cidr1.parse().unwrap();
+        let network2: IpNet = cidr2.parse().unwrap();
+
+        network1 == network2
+    }
 }
 
 pub struct MeshCIDRConfig {
