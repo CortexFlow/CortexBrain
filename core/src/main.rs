@@ -1,18 +1,16 @@
 // module imports
-mod client;  
+mod client;
 mod edgecni;
 
-use client::client::Client; 
+use client::client::Client;
 use edgecni::edgecni::{EdgeCni, EdgeCniConfig, MeshAdapter, MeshCIDRConfig}; // Removed MeshAdapter since it's unused
 use std::error::Error;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     // Configuration files
-    let client_config = "config_string".to_string(); 
-    let edge_cni_config = EdgeCniConfig {
-        enable: true,
-    };
+    let client_config = "config_string".to_string();
+    let edge_cni_config = EdgeCniConfig { enable: true };
 
     // Set the cloud and edge cidrs
     let cidr_config = MeshCIDRConfig {
@@ -25,7 +23,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // Create EdgeCni instance with the new client
     let edge_cni = EdgeCni::new(edge_cni_config, client.kube_client.clone()); // Pass the kube_client from your custom Client
-    
+
     // Use the mesh_adapter to call get_cidr
     match edge_cni.mesh_adapter.get_cidr(&cidr_config) {
         Ok((cloud, edge)) => {
@@ -48,6 +46,20 @@ async fn main() -> Result<(), Box<dyn Error>> {
         }
         Err(e) => {
             println!("Error retrieving local CIDR: {}", e);
+        }
+    }
+    let outer_cidr = "192.168.1.0/24";
+    let host_cidr = "192.168.1.0/24";
+    match MeshAdapter::check_tunnel_cidr(&outer_cidr, &host_cidr).await {
+        Ok(result) => {
+            if result {
+                println!("The outer ip match with the inner host")
+            } else {
+                println!("The outer ip does not match with the inner host")
+            }
+        }
+        Err(e) => {
+            println!("lo hai preso in culo porcodio!,{}", e)
         }
     }
 

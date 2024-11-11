@@ -1,6 +1,10 @@
+use anyhow::anyhow;
+use anyhow::Error;
+use anyhow::Ok;
 use ipnet::IpNet;
 use iptables;
 use k8s_openapi::api::core::v1::Node;
+use k8s_openapi::chrono::format;
 use kube::Api;
 use kube::Client as Kubeclient;
 use std::env;
@@ -64,14 +68,14 @@ impl EdgeCni {
         }
     }
 
-    pub async fn cleanup_and_exit(&self) -> Result<(), String> {
+    pub async fn cleanup_and_exit(&self) -> Result<(), Error> {
         self.mesh_adapter.close_route().await?;
         Ok(())
     }
 }
 
 impl MeshAdapter {
-    pub fn new_mesh_adapter(_config: &EdgeCniConfig, client: &Kubeclient) -> Result<Self, String> {
+    pub fn new_mesh_adapter(_config: &EdgeCniConfig, client: &Kubeclient) -> Result<Self, Error> {
         let ipt_interface = iptables::IPTables {
             cmd: "iptables",
             has_check: true,
@@ -93,43 +97,43 @@ impl MeshAdapter {
         // Implement the actual functionality here
     }
 
-    pub async fn close_route(&self) -> Result<(), String> {
+    pub async fn close_route(&self) -> Result<(), Error> {
         info!("Closing route...");
         Ok(())
     }
 
     /// Function to read CIDR configuration and validate cloud and edge CIDRs
-    pub fn get_cidr(&self, cfg: &MeshCIDRConfig) -> Result<(Vec<String>, Vec<String>), String> {
+    pub fn get_cidr(&self, cfg: &MeshCIDRConfig) -> Result<(Vec<String>, Vec<String>), Error> {
         let cloud = cfg.cloud_cidr.clone();
         let edge = cfg.edge_cidr.clone();
 
         // Validate the cloud CIDRs
         if let Err(e) = Self::validate_cidrs(&cloud) {
-            return Err(format!("Cloud CIDRs are invalid, error: {:?}", e));
+            error!("Cloud CIDRs are invalid, error: {:?}", e);
         }
 
         // Validate the edge CIDRs
         if let Err(e) = Self::validate_cidrs(&edge) {
-            return Err(format!("Edge CIDRs are invalid, error: {:?}", e));
+            error!("Edge CIDRs are invalid, error: {:?}", e);
         }
 
         Ok((cloud, edge))
     }
 
     /// Helper function to validate CIDR list
-    fn validate_cidrs(cidrs: &[String]) -> Result<(), String> {
+    fn validate_cidrs(cidrs: &[String]) -> Result<(), Error> {
         for cidr in cidrs {
             if !cidr.parse::<std::net::IpAddr>().is_ok() {
-                return Err(format!("Invalid CIDR format: {}", cidr));
+                error!("Invalid CIDR format: {}", cidr);
             }
         }
         Ok(())
     }
 
-    pub async fn find_local_cidr(client: &Kubeclient) -> Result<String, String> {
+    pub async fn find_local_cidr(client: &Kubeclient) -> Result<String, Error> {
         // Ottieni il nome del nodo dall'ambiente
-        let node_name =
-            env::var("NODE_NAME").map_err(|_| "The env NODE_NAME is not set".to_string())?;
+        let node_name = env::var("NODE_NAME")
+            .map_err(|_| anyhow!("The env NODE_NAME is not set".to_string()))?;
 
         // Ottieni l'API per i nodi
         let nodes: Api<Node> = Api::all(client.clone());
@@ -138,17 +142,18 @@ impl MeshAdapter {
         let node = nodes
             .get(&node_name)
             .await
-            .map_err(|e| format!("Failed to get Node {}: {}", node_name, e))?;
+            .map_err(|e| anyhow!("Failed to get Node {}: {}", node_name, e))?;
 
         // Restituisci il PodCIDR del nodo, se presente
         if let Some(pod_cidr) = node.spec.as_ref().and_then(|spec| spec.pod_cidr.clone()) {
             Ok(pod_cidr)
         } else {
-            Err(format!("Node {} does not have a PodCIDR", node_name))
+            error!("Node {} does not have a PodCIDR", node_name);
+            Err(anyhow!("Node {} does not have a PodCIDR", node_name))
         }
     }
     //CheckTunCIDR--->check whether the mesh CIDR and the given parameter CIDR are in the same network or not.
-    pub async fn check_tunnel_cidr(cidr1: &str, cidr2: &str) -> bool {
+    pub async fn check_tunnel_cidr(outer_cidr: &str, host_cidr: &str) -> Result<bool, Error> {
         /* Workflow:
 
         1. Parse the provided outer CIDR.
@@ -175,10 +180,24 @@ impl MeshAdapter {
 
         /*      see ipnet documentation-->https://crates.io/crates/ipnet
         https://docs.rs/ipnet/latest/ipnet/ */
-        let network1: IpNet = cidr1.parse().unwrap();
-        let network2: IpNet = cidr2.parse().unwrap();
+        let outer_network: IpNet = outer_cidr
+            .parse()
+            .map_err(|e| Error::msg(format!("Error parsing outer CIDR {}", e)))?;
+        let mesh_network: IpNet = host_cidr
+            .parse()
+            .map_err(|e| Error::msg(format!("Error parsing host CIDR {}", e)))?;
 
-        network1 == network2
+        let outer_ip = outer_network.network();
+
+        if !mesh_network.contains(&outer_ip) {
+            return Err(Error::msg("The outer IP does not belong to the host network"));
+        }
+
+        if mesh_network.prefix_len() == outer_network.prefix_len() {
+            return Ok(true);
+        } else {
+            return Err(Error::msg("Network masks do not match"))
+        }
     }
 }
 
