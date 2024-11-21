@@ -2,6 +2,7 @@ use kube::{Client as KubeClient, Api};
 use kube::api::ListParams;
 use k8s_openapi::api::core::v1::Pod;
 use std::error::Error;
+#[derive(Clone)]
 pub struct Client {
     config: String,  
     pub kube_client: KubeClient, 
