@@ -1,3 +1,4 @@
+#[warn(unused_imports)]
 /* Imports */
 use anyhow::{anyhow, Error, Ok, Result};
 use ipnet::IpNet;
@@ -129,7 +130,7 @@ impl<'a> EdgeCni<'a> {
     }
     pub fn print_info(&self) {
         //user output
-        print!("-------E D G E M E S H  N E T W O R K -------\n");
+        print!("------- E D G E M E S H  N E T W O R K -------\n");
         println!("Info:");
         let name = self.name();
         let group = self.group();
