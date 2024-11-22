@@ -5,7 +5,7 @@ prophet==1.1.5
 requests==2.32.2
 pymongo==4.8.0
 asyncio==3.4.3
-aiohttp==3.10.2
+aiohttp==3.10.11
 networkx==3.2.1
 simpy==4.1.1
 geopy==2.4.1
