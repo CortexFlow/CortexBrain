@@ -18,7 +18,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         cloud_cidr: vec!["10.244.0.0/24".to_string()],
         edge_cidr: vec!["10.244.0.0/24".to_string()],
     };
-    
+
     // Create your client instance using the custom Client struct
     let client = Arc::new(Client::new_client(&client_config).await?); // Use Arc for shared reference
 
@@ -69,7 +69,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     }
     // Call the watch_route function to monitor network routes
     edge_cni.mesh_adapter.watch_route().await?;
-    
+
     // Actions
     // Retrieve and print the list of pods in the "default" namespace
     let pods = client.list_pods("default").await?; // This now uses your custom list_pods method

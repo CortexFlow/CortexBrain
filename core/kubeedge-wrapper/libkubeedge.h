@@ -79,9 +79,7 @@ typedef struct { void *data; GoInt len; GoInt cap; } GoSlice;
 extern "C" {
 #endif
 
-
-// Funzione per inizializzare KubeEdge
-extern char* InitKubeEdge(char* configPath);
+extern char* Register(char* configPath);
 
 #ifdef __cplusplus
 }

@@ -36,6 +36,8 @@ tower = "0.5.1"
 ipnet = "2.10.1"
 iptables = "0.5.2"
 itertools = "0.13.0"
+libc = "0.2.164"
+libloading = "0.8.5"
 
 [dev-dependencies]
 wiremock = "0.6.0"  # Dipendenza per il mocking delle richieste HTTP in test
