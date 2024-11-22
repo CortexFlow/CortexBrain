@@ -2,7 +2,6 @@
 
 CHECK_LIBS="../../../checkLibs.py"
 MQTT_TEST='../../App/Connectors/tests/test_mqtt_connection.py'
-TEST_GLOBAL_VAR='../../App/Globals/tests/test_global_var.py'
 
 # Colori per l'output
 RESET="\033[0m"

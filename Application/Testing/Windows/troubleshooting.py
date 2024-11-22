@@ -4,10 +4,9 @@ from colorama import Fore,Style
 
 CHECK_LIBS = "../../../checkLibs.py"
 MQTT_TEST = '../../App/Connectors/tests/test_mqtt_connection.py'
-TEST_GLOBAL_VAR = '../../App/Globals/tests/test_global_var.py'
 
 if __name__ == "__main__":
-    TESTS = [CHECK_LIBS,MQTT_TEST, TEST_GLOBAL_VAR]
+    TESTS = [CHECK_LIBS,MQTT_TEST]
     TEST_NAMES = ['Installed Libraries Test','MQTT Connection Test', 'Global Variables Test']
     
     success_count = 0

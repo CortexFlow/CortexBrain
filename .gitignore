@@ -208,6 +208,7 @@ cidr.md
 MeshAdapter.md
 default_config.rs
 frontend\node_modules
+vendor
 # PyCharm
 #  JetBrains specific template is maintained in a separate JetBrains.gitignore that can
 #  be found at https://github.com/github/gitignore/blob/main/Global/JetBrains.gitignore

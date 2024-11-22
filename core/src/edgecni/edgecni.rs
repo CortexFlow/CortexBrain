@@ -5,7 +5,7 @@ use ipnet::IpNet;
 use k8s_openapi::api::core::v1::Node;
 use kube::Api;
 use std::sync::Arc;
-use std::{env, string};
+use std::env;
 use tracing::{error, info}; //used for logging
 
 use crate::client::client::Client; //custom Client
