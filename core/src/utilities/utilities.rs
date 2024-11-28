@@ -26,7 +26,7 @@ fn is_valid_port(port: &str) -> bool {
         return false;
     }
 }
-fn remove_duplicates(ss: Vec<String>)->Vec<String> {
+pub fn remove_duplicates(ss: Vec<String>)->Vec<String> {
     /* 
     Workflow: 
     - into_iter():

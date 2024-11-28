@@ -1,0 +1,61 @@
+default:
+  base_dir: "/etc/edgemesh"
+  config_file: "/etc/edgemesh/config-file"
+  edgemesh_agent_config_name: "edgemesh-agent.yaml"
+  edgemesh_gateway_config_name: "edgemesh-gateway.yaml"
+
+  edgemesh_dns_module_name: "EdgeDNS"
+  edgemesh_proxy_module_name: "EdgeProxy"
+  edgemesh_gateway_module_name: "EdgeGateway"
+  edgemesh_tunnel_module_name: "EdgeTunnel"
+  edgemesh_cni_module_name: "EdgeCNI"
+
+  bridge_device_name: "edgemesh0"
+  bridge_device_ip: "169.254.96.16"
+  tun_device_name: "edge_tun0"
+
+  temp_kube_config_path: "kubeconfig"
+  temp_core_file_path: "corefile"
+  meta_server_address: "http://127.0.0.1:10550"
+  meta_server_cert_dir: "/etc/edgemesh/metaserver/"
+  meta_server_ca_file: "/etc/edgemesh/metaserver/rootCA.crt"
+  meta_server_cert_file: "/etc/edgemesh/metaserver/server.crt"
+  meta_server_key_file: "/etc/edgemesh/metaserver/server.key"
+
+  edge_mode: "EdgeMode"
+  cloud_mode: "CloudMode"
+  manual_mode: "ManualMode"
+
+  empty_node_name: "EMPTY_NODE_NAME"
+  empty_pod_name: "EMPTY_POD_NAME"
+
+v1:
+  base_dir: "/etc/edgemesh"
+  config_file: "/etc/edgemesh/config-file"
+  edgemesh_agent_config_name: "edgemesh-agent.yaml"
+  edgemesh_gateway_config_name: "edgemesh-gateway.yaml"
+
+  edgemesh_dns_module_name: "EdgeDNS"
+  edgemesh_proxy_module_name: "EdgeProxy"
+  edgemesh_gateway_module_name: "EdgeGateway"
+  edgemesh_tunnel_module_name: "EdgeTunnel"
+  edgemesh_cni_module_name: "EdgeCNI"
+
+  bridge_device_name: "edgemesh0"
+  bridge_device_ip: ""
+  tun_device_name: "edge_tun0"
+
+  temp_kube_config_path: "kubeconfig"
+  temp_core_file_path: "corefile"
+  meta_server_address: "http://127.0.0.1:10550"
+  meta_server_cert_dir: "/etc/edgemesh/metaserver/"
+  meta_server_ca_file: "/etc/edgemesh/metaserver/rootCA.crt"
+  meta_server_cert_file: "/etc/edgemesh/metaserver/server.crt"
+  meta_server_key_file: "/etc/edgemesh/metaserver/server.key"
+
+  edge_mode: "EdgeModev1"
+  cloud_mode: "CloudModev1"
+  manual_mode: "ManualModev1"
+
+  empty_node_name: "EMPTY_NODE_NAME"
+  empty_pod_name: "EMPTY_POD_NAME"

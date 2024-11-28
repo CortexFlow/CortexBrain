@@ -4,8 +4,8 @@ use anyhow::{anyhow, Error, Ok, Result};
 use ipnet::IpNet;
 use k8s_openapi::api::core::v1::Node;
 use kube::Api;
-use std::sync::Arc;
 use std::env;
+use std::sync::Arc;
 use tracing::{error, info}; //used for logging
 
 use crate::client::client::Client; //custom Client
@@ -130,13 +130,13 @@ impl<'a> EdgeCni<'a> {
     }
     pub fn print_info(&self) {
         //user output
-        print!("------- E D G E M E S H  N E T W O R K -------\n");
+        /* print!("------- E D G E M E S H  N E T W O R K -------\n");
         println!("Info:");
         let name = self.name();
         let group = self.group();
         println!("Name: {}", name);
-        print!("Group {}\n",group);
-        print!("--------------------------------\n");
+        print!("Group {}\n", group);
+        print!("--------------------------------\n"); */
     }
     pub async fn start(&self) {
         if self.enable() {
