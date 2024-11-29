@@ -6,7 +6,7 @@ use k8s_openapi::api::core::v1::Node;
 use kube::Api;
 use std::env;
 use std::sync::Arc;
-use tracing::{error, info}; //used for logging
+use tracing::{error, info}; //logging
 
 use crate::client::client::Client; //custom Client
 use crate::client::apiconfig::{ApiConfig,ConfigType};
@@ -16,13 +16,6 @@ pub struct EdgeCni<'a> {
     client: Arc<Client>,
     pub mesh_adapter: MeshAdapter<'a>,
 }
-/* 
-#[derive(Clone)]
-pub struct EdgeCniConfig {
-    pub enable: bool,
-    // ... other fields
-} */
-
 pub trait IpTableInterface {
     fn ensure_rule(&self, args: &[&str]) -> Result<String, Error>;
 }

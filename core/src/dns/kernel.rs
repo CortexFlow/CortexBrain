@@ -14,26 +14,21 @@ use std::ffi::{CStr, CString};
 #[warn(unused_imports)]
 use std::sync::Arc;
 use tracing::info;
-pub struct EdgeDNS {
-    config: Arc<EdgeDNSConfig>,
-}
 
-#[derive(Clone)]
-pub struct EdgeDNSConfig {
-    pub enable: bool,
-    pub namespace: String,
-    // ... other fields
+use crate::client::apiconfig::{ApiConfig,ConfigType};
+pub struct EdgeDNS {
+    config: Arc<ApiConfig>,
 }
 
 impl EdgeDNS {
     pub fn name(&self) -> &str {
-        "EdgeDNS"
+        &self.config.edgemesh_dns_module_name
     }
     pub fn group(&self) -> &str {
-        "EdgeDNSNetwork"
+        &self.config.edge_mode
     }
     pub fn enable(&self) -> bool {
-        self.config.enable
+        self.config.edge_mode_enable
     }
     pub async fn start(&self) {
         if self.enable() {
@@ -51,13 +46,13 @@ impl EdgeDNS {
         //TODO: Implement the EdgeDNS shutdown function
     }
 
-    pub fn update_corefile(config: &EdgeDNSConfig, clients: &Client) -> Result<()> {
+    pub fn update_corefile(config: &ApiConfig, clients: &Client) -> Result<()> {
         info!("Updating the EdgeDNS corefile configuration");
         Ok(())
     }
 
-    pub fn new(config: EdgeDNSConfig, client: &Client) -> Result<Self, Error> {
-        if !config.enable {
+    pub fn new(config: ApiConfig, client: &Client) -> Result<Self, Error> {
+        if !config.edge_mode_enable {
             return Ok(EdgeDNS {
                 config: Arc::new(config),
             });
@@ -71,7 +66,7 @@ impl EdgeDNS {
         })
     }
 
-    pub fn register(config: EdgeDNSConfig, client: Client) -> Result<(),Error> {
+    pub fn register(config: ApiConfig, client: Client) -> Result<(),Error> {
         // Load the KubeEdge shared library
         let library_path = "../../core/kubeedge-wrapper/libkubeedge.so";
         let library = unsafe {
