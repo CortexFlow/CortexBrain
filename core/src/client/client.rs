@@ -3,8 +3,10 @@ use k8s_openapi::api::core::v1::Pod;
 use kube::api::ListParams;
 use kube::{Api, Client as KubeClient};
 
-mod config;
-use config::apiconfig::{ApiConfig, ConfigType};
+
+use apiconfig::{ApiConfig, ConfigType};
+
+use super::apiconfig;
 
 #[derive(Clone)]
 pub struct Client {

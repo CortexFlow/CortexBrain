@@ -2,13 +2,13 @@
 mod client;
 mod edgecni;
 use client::client::Client;
-use edgecni::edgecni::{EdgeCni, EdgeCniConfig, MeshAdapter, MeshCIDRConfig};
+use edgecni::edgecni::{EdgeCni, MeshAdapter, MeshCIDRConfig};
 use std::error::Error;
 use std::sync::Arc;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    let edge_cni_config = EdgeCniConfig { enable: true };
+    //let edge_cni_config = EdgeCniConfig { enable: true };
 
     // Set the cloud and edge cidrs
     let cidr_config = MeshCIDRConfig {
@@ -22,8 +22,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     Client::print_config(&client); //return the client config
     
     // Create EdgeCni instance with the new client, passing a reference to edge_cni_config
-    let edge_cni = EdgeCni::new((edge_cni_config).clone().into(), (*client).clone().into()); // Deference and clone client
-    edge_cni.print_info();
+    /* let edge_cni = EdgeCni::new((edge_cni_config).clone().into(), (*client).clone().into()); // Deference and clone client
     // Create a MeshAdapter using the new_mesh_adapter method, passing a reference to edge_cni_config
     let mesh_adapter = MeshAdapter::new_mesh_adapter(&edge_cni_config, &client)?;
 
@@ -78,5 +77,5 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // Shutdown
     edge_cni.shutdown().await;
-    Ok(())
+ */    Ok(())
 }

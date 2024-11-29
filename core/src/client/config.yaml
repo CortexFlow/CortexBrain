@@ -23,6 +23,7 @@ default:
   meta_server_key_file: "/etc/edgemesh/metaserver/server.key"
 
   edge_mode: "EdgeMode"
+  edge_mode_enable: true
   cloud_mode: "CloudMode"
   manual_mode: "ManualMode"
 

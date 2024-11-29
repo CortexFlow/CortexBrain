@@ -9,18 +9,19 @@ use std::sync::Arc;
 use tracing::{error, info}; //used for logging
 
 use crate::client::client::Client; //custom Client
+use crate::client::apiconfig::{ApiConfig,ConfigType};
 
 pub struct EdgeCni<'a> {
-    config: Arc<EdgeCniConfig>,
+    config: Arc<ApiConfig>,
     client: Arc<Client>,
     pub mesh_adapter: MeshAdapter<'a>,
 }
-
+/* 
 #[derive(Clone)]
 pub struct EdgeCniConfig {
     pub enable: bool,
     // ... other fields
-}
+} */
 
 pub trait IpTableInterface {
     fn ensure_rule(&self, args: &[&str]) -> Result<String, Error>;
@@ -87,7 +88,7 @@ pub struct MeshCIDRConfig {
 
 impl<'a> EdgeCni<'a> {
     // Acts as a constructor. Accepts a config file and a Kubernetes client
-    pub fn new(config: Arc<EdgeCniConfig>, client: Arc<Client>) -> Self {
+    pub fn new(config: Arc<ApiConfig>, client: Arc<Client>) -> Self {
         let mesh_adapter = MeshAdapter::new_mesh_adapter(&config, &client).unwrap();
         EdgeCni {
             config,
@@ -117,27 +118,26 @@ impl<'a> EdgeCni<'a> {
     }
 
     pub fn name(&self) -> &str {
-        "EdgeCni"
+        &self.config.edgemesh_cni_module_name
     }
 
     pub fn group(&self) -> &str {
-        "EdgeNetworking"
+        &self.config.edge_mode
     }
 
     pub fn enable(&self) -> bool {
         //enables the config
-        self.config.enable
+        self.config.edge_mode_enable
     }
-    pub fn print_info(&self) {
+   /*  pub fn print_info(&self) {
         //user output
-        /* print!("------- E D G E M E S H  N E T W O R K -------\n");
         println!("Info:");
         let name = self.name();
         let group = self.group();
         println!("Name: {}", name);
         print!("Group {}\n", group);
-        print!("--------------------------------\n"); */
-    }
+        
+    } */
     pub async fn start(&self) {
         if self.enable() {
             info!("Starting the CNI...");
@@ -184,7 +184,7 @@ impl<'a> EdgeCni<'a> {
 }
 
 impl<'a> MeshAdapter<'a> {
-    pub fn new_mesh_adapter(_config: &EdgeCniConfig, client: &Client) -> Result<Self, Error> {
+    pub fn new_mesh_adapter(_config: &ApiConfig, client: &Client) -> Result<Self, Error> {
         let ipt_interface: Box<dyn IpTableInterface> = Box::new(IPTables);
 
         Ok(MeshAdapter {
