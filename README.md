@@ -1,4 +1,8 @@
-# CortexBrain © 2024 
+<div align="center" style="display: flex; justify-content: left; align-items: center; height: 100px;">
+  <img src="https://www.cortexflow.org/favicon.svg" alt="Logo" width="60" height="60">
+  <span style="margin-left: 10px; font-size:25px">CortexBrain © 2024</span>
+</div>
+
 [![Release](https://img.shields.io/badge/Release-Currently%20under%20development-red?style=flat-square&logo=github)](https://github.com/CortexFlow/CortexBrain/releases) 
 ![Auto Assign](https://img.shields.io/github/actions/workflow/status/CortexFlow/CortexBrain/auto-assign.yml?style=flat-square&logo=github&logoColor=white)
 [![Docker](https://img.shields.io/badge/Docker-Containerized-%232496ED.svg?style=flat-square&logo=docker&logoColor=white)](https://www.docker.com)
