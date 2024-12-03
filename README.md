@@ -9,7 +9,9 @@
 [![Discussions](https://img.shields.io/github/discussions/CortexFlow/CortexBrain?style=flat-square&logo=github-discussions&logoColor=white)](https://github.com/CortexFlow/CortexBrain/discussions)
 [![Contributors](https://img.shields.io/badge/Contributors-Welcome-brightgreen?style=flat-square&logo=github&logoColor=white)](https://github.com/CortexFlow/CortexBrain#contributing)
 [![Kubernetes](https://img.shields.io/badge/Kubernetes-Orchestrator-%23326CE5.svg?style=flat-square&logo=Kubernetes&logoColor=white)](https://kubernetes.io)  
-  
+
+[![Dev.To](https://img.shields.io/badge/dev.to-Community-%23326CE5.svg?style=flat-square&logo=Dev.To&logoColor=white)](https://dev.to/cortexflow)
+ 
 
 ![alt text](app.png)
 
@@ -70,31 +72,6 @@ To get started with CortexBrain, follow these steps:
 
 4. **Create a simple program**:
 
-   ```bash
-   import os
-   import sys
-   sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../')))
-
-   from GPSModel import GPS_Sensor
-   from Map import Map
-
-   if __name__=="__main__":
-      #create the sensors using the constructors
-      gps_sensor_1 = GPS_Sensor(initial_position=[0, 0], label="Static GPS Sensor ")
-      gps_sensor_2 = GPS_Sensor(initial_position=[0, 0], label="Static GPS Sensor 2")
-      
-      #set the positions
-      gps_sensor_1.SetPosition((45.812460, 8.986586))
-      gps_sensor_2.SetPosition((45.832460, 8.986586))
-      
-      #create the map
-      map=Map()
-      #add the sensors on the map
-      map.AddSensor(gps_sensor_1)
-      map.AddSensor(gps_sensor_2)
-      #create the sensor_map.html file
-      map.CreateMap()
-
 
 
 Check all the examples in the [Examples](./Examples/) folder
@@ -104,14 +81,6 @@ Explore all the features in the [documentation](doc.md).
 
 
 # Future Developments
-
-At CortexFlow, we're continually working to expand the capabilities of CortexBrain. Our current focus includes:
-
-- **Enhanced Scenario Simulation**: We're improving the scenario simulation engine to support more complex and dynamic environments.
-- **Real-time Data Integration**: Future updates will allow CortexBrain to integrate real-time data streams, making the simulations even more accurate and responsive.
-- **API Expansion**: We're actively working on extending our API to give developers more flexibility and control over their simulations.
-
-To stay updated on our progress and view what we're currently working on, check out our [Trello board](https://trello.com/invite/b/66c731aab6030598aef7aed3/ATTIdfd7d08e42dca6f8b56a8b26f499ab8c95EB547E/cortexbrain).
 
 # 🖥️ Contributing
 
