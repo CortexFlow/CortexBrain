@@ -1,10 +1,15 @@
 // module imports
 mod client;
 mod edgecni;
+mod kernel;
 use client::client::Client;
 use edgecni::edgecni::{EdgeCni, MeshAdapter, MeshCIDRConfig};
 use std::error::Error;
 use std::sync::Arc;
+
+use client::default_api_config::{Config, ConfigType};
+use kernel::kernel::EdgeDNS;
+
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -17,9 +22,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
     };
 
     // Create your client instance using the custom Client struct
-    let client = Arc::new(Client::new_client(None).await?); // Use Arc for shared reference
+    let client = Arc::new(Client::new_client(Some((ConfigType::V1))).await?); // Use Arc for shared reference
     
     Client::print_config(&client); //return the client config
+
+    //EdgeDNS::new(Some(ConfigType::Default), client);
     
     // Create EdgeCni instance with the new client, passing a reference to edge_cni_config
     /* let edge_cni = EdgeCni::new((edge_cni_config).clone().into(), (*client).clone().into()); // Deference and clone client

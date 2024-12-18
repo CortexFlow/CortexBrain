@@ -1,4 +1,4 @@
-Why is CoreDNS Important in Kubernetes?
+cWhy is CoreDNS Important in Kubernetes?
 
 - Simplifies Service Discovery
 CoreDNS allows services and pods to communicate using human-readable names instead of IP addresses.

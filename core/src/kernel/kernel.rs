@@ -7,7 +7,6 @@ https://github.com/EmilHernvall/dnsguide/blob/master/chapter1.md
     https://www.shuttle.dev/blog/2024/10/22/using-kubernetes-with-rust
 */
 use crate::client::client::Client;
-use crate::utilities::utilities;
 use anyhow::{Error, Ok, Result};
 use libloading::{Library, Symbol};
 use std::ffi::{CStr, CString};
@@ -15,7 +14,8 @@ use std::ffi::{CStr, CString};
 use std::sync::Arc;
 use tracing::info;
 
-use crate::client::apiconfig::{ApiConfig,ConfigType};
+use crate::client::default_api_config::{ApiConfig,ConfigType};
+
 pub struct EdgeDNS {
     config: Arc<ApiConfig>,
 }

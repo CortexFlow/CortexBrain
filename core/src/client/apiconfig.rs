@@ -1,71 +1,94 @@
 use anyhow::{Context, Error, Result};
-use serde::Deserialize;
+use k8s_openapi::chrono::format::strftime;
+use kube::config;
+use serde::{Deserialize, Serialize};
 use serde_yaml;
-use std::fs::File;
+use std::{fs::File, string};
 
-#[derive(Debug, Deserialize, Clone)]
-pub struct Config {
-    pub base_dir: String,
-    pub config_file: String,
-    pub edgemesh_agent_config_name: String,
-    pub edgemesh_gateway_config_name: String,
-    pub edgemesh_dns_module_name: String,
-    pub edgemesh_proxy_module_name: String,
-    pub edgemesh_tunnel_module_name: String,
-    pub edgemesh_cni_module_name: String,
+use default_api_config::{ApiConfig, ConfigType};
+
+use super::default_api_config;
+
+/* ###################################################################################
+################################# CONFIG ##########################################
+################################################################################### */
+
+/* Defines the API config for the Kubernetes Plugin */
+
+pub struct EdgeMeshAgentConfig {}
+pub struct AgentModules {
+    pub edge_dns_config: Option<EdgeDNSConfig>,
+    pub edge_proxy_config: Option<EdgeProxyConfig>,
+    pub edge_cni_config: Option<EdgeCNIConfig>,
+}
+pub struct EdgeMeshGatewayConfig {}
+pub struct GatewayModules {
+    pub edge_gateway_config: Option<EdgeGatewayConfig>,
+}
+#[derive(Clone,Serialize,Deserialize)]
+pub struct KubeApiConfig {
+    pub master: Option<String>,
+    pub content_type: Option<String>,
+    pub qps: i32,
+    pub burst: i32,
+    pub kube_config: Option<String>,
+    pub meta_server: Option<String>,
+    pub delete_kube_config: bool,
+}
+pub struct MetaServer {
+    pub server: String,
+    pub security: Option<MetaServerSecurity>,
+}
+pub struct MetaServerSecurity {}
+
+pub struct CommonConfig {
     pub bridge_device_name: String,
     pub bridge_device_ip: String,
-    pub tun_device_name: String,
-    pub temp_kube_config_path: String,
-    pub temp_core_file_path: String,
-    pub meta_server_address: String,
-    pub meta_server_cert_dir: String,
-    pub meta_server_ca_file: String,
-    pub meta_server_cert_file: String,
-    pub meta_server_key_file: String,
-    pub edge_mode: String,
-    pub edge_mode_enable: bool,
-    pub cloud_mode: String,
-    pub manual_mode: String,
-    pub empty_node_name: String,
-    pub empty_pod_name: String,
+}
+pub struct EdgeProxyConfig {
+    pub enable: bool,
+    pub listen_interface: String,
+    pub loadbalancer: Option<LoadBalancer>,
+    pub socks5proxy: Option<Socks5Proxy>,
+    pub service_filter_mode: String,
+}
+pub struct Socks5Proxy {
+    pub enable: bool,
+    pub listen_port: i32,
+    pub nodename: String,
+    pub namespace: String,
+}
+pub struct EdgeCNIConfig {
+    pub enable: bool,
+    pub encap_ip: String,
+    pub tun_mode: i32,
+    pub mesh_cidr_config: Option<MeshCIDRConfig>,
+}
+pub struct MeshCIDRConfig {
+    pub cloud_cidr: Vec<String>,
+    pub edge_cidr: Vec<String>,
+}
+pub struct EdgeGatewayConfig {
+    pub enable: bool,
+    pub nic: String,
+    pub include_ip: String,
+    pub exclude_ip: String,
+    pub loadbalancer: Option<LoadBalancer>,
 }
 
-#[derive(Debug)]
-pub enum ConfigType {
-    Default,
-    V1,
+#[derive(Clone,Serialize,Deserialize)]
+pub struct EdgeDNSConfig {
+    pub enable: bool,
+    pub listen_interface: String,
+    pub listen_port: i32,
+    pub kube_api_config: Option<KubeApiConfig>,
+    pub cache_dns: Option<CacheDNS>,
+    /* Remove this functions and add them in thhe KubeApiConfig Structure */
+    pub kubernetes_plugin_enable: bool,
+    pub kubernetes_api_server: String,
+    pub kubernetes_ttl: Option<u32>,
 }
-
-#[derive(Clone)]
-pub struct ApiConfig {
-    pub base_dir: String,
-    pub config_file: String,
-    pub edgemesh_agent_config_name: String,
-    pub edgemesh_gateway_config_name: String,
-    pub edgemesh_dns_module_name: String,
-    pub edgemesh_proxy_module_name: String,
-    pub edgemesh_tunnel_module_name: String,
-    pub edgemesh_cni_module_name: String,
-    pub bridge_device_name: String,
-    pub bridge_device_ip: String,
-    pub tun_device_name: String,
-    pub temp_kube_config_path: String,
-    pub temp_core_file_path: String,
-    pub meta_server_address: String,
-    pub meta_server_cert_dir: String,
-    pub meta_server_ca_file: String,
-    pub meta_server_cert_file: String,
-    pub meta_server_key_file: String,
-    pub edge_mode: String,
-    pub edge_mode_enable: bool,
-    pub cloud_mode: String,
-    pub manual_mode: String,
-    pub empty_node_name: String,
-    pub empty_pod_name: String,
-}
-
-impl ApiConfig {
+impl EdgeDNSConfig {
     pub fn load_from_file<P: AsRef<std::path::Path>>(
         path: P,
         config_type: ConfigType,
@@ -85,34 +108,34 @@ impl ApiConfig {
             ConfigType::V1 => &config_map["v1"],
         };
 
-        let config: Config = serde_yaml::from_value(config_section.clone())
+        let config: EdgeDNSConfig = serde_yaml::from_value(config_section.clone())
             .context("Failed to extract config section")?;
 
-        Ok(ApiConfig {
-            base_dir: config.base_dir,
-            config_file: config.config_file,
-            edgemesh_agent_config_name: config.edgemesh_agent_config_name,
-            edgemesh_gateway_config_name: config.edgemesh_gateway_config_name,
-            edgemesh_dns_module_name: config.edgemesh_dns_module_name,
-            edgemesh_proxy_module_name: config.edgemesh_proxy_module_name,
-            edgemesh_tunnel_module_name: config.edgemesh_tunnel_module_name,
-            edgemesh_cni_module_name: config.edgemesh_cni_module_name,
-            bridge_device_name: config.bridge_device_name,
-            bridge_device_ip: config.bridge_device_ip,
-            tun_device_name: config.tun_device_name,
-            temp_kube_config_path: config.temp_kube_config_path,
-            temp_core_file_path: config.temp_core_file_path,
-            meta_server_address: config.meta_server_address,
-            meta_server_cert_dir: config.meta_server_cert_dir,
-            meta_server_ca_file: config.meta_server_ca_file,
-            meta_server_cert_file: config.meta_server_cert_file,
-            meta_server_key_file: config.meta_server_key_file,
-            edge_mode: config.edge_mode,
-            edge_mode_enable: config.edge_mode_enable,
-            cloud_mode: config.cloud_mode,
-            manual_mode: config.manual_mode,
-            empty_node_name: config.empty_node_name,
-            empty_pod_name: config.empty_pod_name,
+        let cache_dns : CacheDNS = serde_yaml::from_value(config_section.clone())
+            .context("Failed to extract cache dns config section")?;
+
+        Ok(EdgeDNSConfig {
+            enable: config.enable,
+            listen_interface: config.listen_interface,
+            listen_port: config.listen_port,
+            kube_api_config: config.kube_api_config,
+            cache_dns: Some(cache_dns),
+            kubernetes_plugin_enable: config.kubernetes_plugin_enable,
+            kubernetes_api_server: config.kubernetes_api_server,
+            kubernetes_ttl: config.kubernetes_ttl,
         })
     }
+}
+
+#[derive(Clone,Serialize,Deserialize)]
+pub struct CacheDNS {
+    pub enable: bool,
+    pub auto_detect: bool,
+    pub upstream_servers: Vec<String>,
+    pub cache_ttl: u32,
+}
+pub struct LoadBalancer {
+    pub caller: String,
+    pub nodename: String,
+    //add consistent hash
 }

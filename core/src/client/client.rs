@@ -4,9 +4,9 @@ use kube::api::ListParams;
 use kube::{Api, Client as KubeClient};
 
 
-use apiconfig::{ApiConfig, ConfigType};
+use default_api_config::{ApiConfig, ConfigType};
 
-use super::apiconfig;
+use super::default_api_config;
 
 #[derive(Clone)]
 pub struct Client {

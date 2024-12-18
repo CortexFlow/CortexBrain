@@ -9,7 +9,7 @@ use std::sync::Arc;
 use tracing::{error, info}; //logging
 
 use crate::client::client::Client; //custom Client
-use crate::client::apiconfig::{ApiConfig,ConfigType};
+use crate::client::default_api_config::{ApiConfig,ConfigType};
 
 pub struct EdgeCni<'a> {
     config: Arc<ApiConfig>,

@@ -1,16 +1,16 @@
 /*
-    UTILITIES: support functions used in the EdgeDNS crate
+    UTILITIES: support functions used in the kernel crate
 
 */
 #[warn(unused_imports)]
 use std::net::Ipv4Addr;
 use itertools::Itertools;
 
-fn is_valid_ip(ip: &str) -> bool {
+pub fn is_valid_ip(ip: &str) -> bool {
     /* check if an ip address is valid or not*/
     ip.parse::<Ipv4Addr>().is_ok()
 }
-fn is_valid_port(port: &str) -> bool {
+pub fn is_valid_port(port: &str) -> bool {
     /* 
         Workflow:
         - convert the port from string to i32 integer

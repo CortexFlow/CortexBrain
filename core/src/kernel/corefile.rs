@@ -1,3 +1,4 @@
+use crate::client::apiconfig::EdgeDNSConfig;
 /* The corefile.go file in Kubernetes is part of the source code for CoreDNS, which is the default DNS server used in Kubernetes clusters for service name resolution and other internal DNS operations. This file defines the structure and functionality associated with CoreDNS configuration, specifically the object called Corefile.
 
 Corefile.go's main functionality
@@ -19,8 +20,7 @@ Provides functionality to integrate CoreDNS with Kubernetes clusters, such as co
 
 */
 use crate::client::client::Client;
-use crate::utilities::utilities;
-
+use crate::kernel::utilities::{is_valid_ip,remove_duplicates};
 use anyhow::{anyhow, Error, Result};
 use kube::api::{Api, ApiResource, DynamicObject, ListParams};
 use kube::{core::DynamicObject as CoreDynamicObject, discovery};
@@ -29,6 +29,8 @@ use std::collections::HashSet;
 use std::fs;
 use std::net::IpAddr;
 use tracing::{error, info};
+
+use crate::client::default_api_config::{ApiConfig,ConfigType,Config};
 
 /* template block */
 
@@ -150,7 +152,7 @@ pub async fn detect_cluster_dns(client: Client) -> Vec<String> {
     }
 
     let mut servers: Vec<String> = servers.into_iter().collect();
-    servers = utilities::remove_duplicates(servers);
+    servers = remove_duplicates(servers);
 
     if servers.is_empty() {
         error!("Unable to automatically detect cluster DNS. Do you have CoreDNS or kube-dns installed in your cluster?");
@@ -161,9 +163,13 @@ pub async fn detect_cluster_dns(client: Client) -> Vec<String> {
     return servers
 }
 
-/*
-// Funzione per ottenere l'indirizzo IP dell'interfaccia di rete (simile a netutil.GetInterfaceIP)
+
+// return the interface ip 
 fn get_interface_ip(interface: &str) -> Result<IpAddr, Error> {
+    /* 
+    Lib reference: pnet:
+        https://crates.io/crates/pnet
+     */
     let interfaces = pnet::datalink::interfaces();
     for iface in interfaces {
         if iface.name == interface {
@@ -177,70 +183,64 @@ fn get_interface_ip(interface: &str) -> Result<IpAddr, Error> {
     Err(anyhow!("Failed to find interface with name: {}", interface))
 }
 
-// Funzione principale che aggiorna il Corefile
-pub async fn update_corefile(cfg: &super::kernel::EdgeDNSConfig, kube_client: Client) -> Result<(), Error> {
+//update corefile function
+pub async fn update_corefile(cfg: EdgeDNSConfig, kube_client: Client) -> Result<(), Error> {
     // Ottieni l'indirizzo IP dell'interfaccia di rete
     let listen_ip = get_interface_ip(&cfg.listen_interface)?;
-    
+
     // Imposta i valori predefiniti per cacheTTL e upstreamServers
     let mut cache_ttl = DEFAULT_TTL;
     let mut upstream_servers = vec![DEFAULT_UPSTREAM_SERVER.to_string()];
 
     // Ottieni la stringa di configurazione del plugin Kubernetes
-    let kubernetes_plugin = get_kubernetes_plugin_str(cfg)?;
+    let kubernetes_plugin = get_kubernetes_plugin_str(cfg.clone())?;
 
-    // Se il caching DNS è abilitato
-    if cfg.cache_dns.enable {
-        upstream_servers.clear();
+    if let Some(cache_dns_config) = cfg.cache_dns {
+        if cache_dns_config.enable {
+            upstream_servers.clear();
 
-        // Se l'auto-rilevamento è abilitato, aggiungi gli upstream server rilevati dal cluster
-        if cfg.cache_dns.auto_detect {
-            upstream_servers.extend(detect_cluster_dns(kube_client).await);
-        }
-
-        // Aggiungi gli upstream servers specificati nella configurazione, ignorando le righe vuote
-        for server in &cfg.cache_dns.upstream_servers {
-            let server = server.trim();
-            if server.is_empty() {
-                continue;
+            // Rilevamento automatico degli upstream server dal cluster
+            if cache_dns_config.auto_detect {
+                let detected_servers = detect_cluster_dns(kube_client).await;
+                upstream_servers.extend(detected_servers);
             }
-            if is_valid_address(server) {
-                upstream_servers.push(server.to_string());
-            } else {
-                error!("Invalid address: {}", server);
+
+            // Aggiungi gli upstream servers configurati
+            for server in &cache_dns_config.upstream_servers {
+                let server = server.trim();
+                if !server.is_empty() {
+                    if is_valid_ip(server) {
+                        upstream_servers.push(server.to_string());
+                    } else {
+                        error!("Invalid address: {}", server);
+                    }
+                }
             }
+
+            // Rimuovi duplicati dagli upstream servers
+            upstream_servers = remove_duplicates(upstream_servers);
+
+            if upstream_servers.is_empty() {
+                return Err(anyhow!("No valid upstream servers detected"));
+            }
+
+            // Aggiorna il TTL della cache
+            cache_ttl = cache_dns_config.cache_ttl;
         }
-
-        // Rimuovi eventuali duplicati dagli upstream servers
-        upstream_servers = utilities::remove_duplicates(upstream_servers);
-
-        if upstream_servers.is_empty() {
-            return Err(anyhow!("Failed to get node local dns upstream servers"));
-        }
-
-        // Aggiorna il TTL della cache e disabilita il plugin Kubernetes di CoreDNS
-        cache_ttl = cfg.cache_dns.cache_ttl;
     }
 
-    // Crea la mappa per i domini stub
-    let mut stub_domain_map = std::collections::HashMap::new();
-    stub_domain_map.insert(".".to_string(), upstream_servers);
-
     // Crea la stringa di configurazione per il dominio stub
-    let stub_domain_str = generate_stub_domain_str(
-        stub_domain_map,
-        &StubDomainInfo {
-            domain_name: ".".to_string(),
-            local_ip: listen_ip.to_string(),
-            port: cfg.listen_port.to_string(),
-            cache_ttl,
-            upstream_servers: upstream_servers.join(", "),
-            kubernetes_plugin,
-        },
-    )?;
+    let stub_domain_str = generate_stub_domain_block(StubDomainInfo {
+        domain_name: ".".to_string(),
+        local_ip: listen_ip.to_string(),
+        port: cfg.listen_port.to_string(),
+        cache_ttl,
+        upstream_servers: upstream_servers.join(", "),
+        kubernetes_plugin,
+    })?;
 
     // Scrivi la nuova configurazione nel file temporaneo
-    let temp_corefile_path = "/tmp/Corefile"; // Puoi usare il path predefinito o configurabile
+    let temp_corefile_path = "/tmp/Corefile";
     fs::write(temp_corefile_path, stub_domain_str)?;
 
     info!("Corefile updated successfully at {}", temp_corefile_path);
@@ -249,7 +249,7 @@ pub async fn update_corefile(cfg: &super::kernel::EdgeDNSConfig, kube_client: Cl
 }
 
 // Helper per ottenere la configurazione del plugin Kubernetes
-fn get_kubernetes_plugin_str(cfg: &super::kernel::EdgeDNSConfig) -> Result<String, Error> {
+ fn get_kubernetes_plugin_str(cfg:EdgeDNSConfig) -> Result<String, Error> {
     // Logica per generare la stringa di configurazione del plugin Kubernetes
     if cfg.kubernetes_plugin_enable {
         let plugin_config = KubernetesPluginInfo {
@@ -258,11 +258,6 @@ fn get_kubernetes_plugin_str(cfg: &super::kernel::EdgeDNSConfig) -> Result<Strin
         };
         generate_kubernetes_plugin_block(plugin_config)
     } else {
-        Ok("".to_string()) // Nessun plugin Kubernetes se non abilitato
+        Ok("".to_string()) // Nessun  plugin Kubernetes se non abilitato
     }
-} */
-
-// Helper per validare gli indirizzi
-fn is_valid_address(address: &str) -> bool {
-    address.parse::<IpAddr>().is_ok()
-}
+} 
