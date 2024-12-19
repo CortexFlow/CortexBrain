@@ -1,4 +1,5 @@
 use anyhow::{Context, Error, Result};
+use futures::future::ok;
 use k8s_openapi::chrono::format::strftime;
 use kube::config;
 use serde::{Deserialize, Serialize};
@@ -25,7 +26,7 @@ pub struct EdgeMeshGatewayConfig {}
 pub struct GatewayModules {
     pub edge_gateway_config: Option<EdgeGatewayConfig>,
 }
-#[derive(Clone,Serialize,Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct KubeApiConfig {
     pub master: Option<String>,
     pub content_type: Option<String>,
@@ -35,6 +36,36 @@ pub struct KubeApiConfig {
     pub meta_server: Option<String>,
     pub delete_kube_config: bool,
 }
+impl KubeApiConfig {
+    pub fn load_from_file<P: AsRef<std::path::Path>>(
+        path: P,
+        config_type: ConfigType,
+    ) -> Result<Self> {
+
+        let cfg_file = File::open(path).context("Errore nell'aprire il file di configurazione")?;
+
+        // Analizza il file YAML
+        let config_map: serde_yaml::Value =
+            serde_yaml::from_reader(cfg_file).context("Errore nella lettura del file YAML")?;
+
+        // Seleziona la sezione corretta del file di configurazione
+        let config_section = match config_type {
+            ConfigType::Default => &config_map["default"],
+            ConfigType::V1 => &config_map["v1"],
+        };
+
+        // KubeAPI section
+        let kubeapi_section = config_section.get("kubeapi").ok_or_else(|| {
+            anyhow::anyhow!("'kubeapi' section doesn not exists in the config file")
+        })?;
+
+        let kubeapi_config: KubeApiConfig = serde_yaml::from_value(kubeapi_section.clone())
+            .context("Error parsing 'kubeapi' section")?;
+
+        Ok(KubeApiConfig { ..kubeapi_config })
+    }
+}
+
 pub struct MetaServer {
     pub server: String,
     pub security: Option<MetaServerSecurity>,
@@ -76,14 +107,15 @@ pub struct EdgeGatewayConfig {
     pub loadbalancer: Option<LoadBalancer>,
 }
 
-#[derive(Clone,Serialize,Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct EdgeDNSConfig {
     pub enable: bool,
     pub listen_interface: String,
     pub listen_port: i32,
     pub kube_api_config: Option<KubeApiConfig>,
     pub cache_dns: Option<CacheDNS>,
-    /* Remove this functions and add them in thhe KubeApiConfig Structure */
+
+    /* Remove this parameters and add them in the KubeApiConfig Structure */
     pub kubernetes_plugin_enable: bool,
     pub kubernetes_api_server: String,
     pub kubernetes_ttl: Option<u32>,
@@ -93,41 +125,47 @@ impl EdgeDNSConfig {
         path: P,
         config_type: ConfigType,
     ) -> Result<Self> {
-        let cfg_file = File::open(path);
+        let cfg_file = File::open(path).context("Errore nell'aprire il file di configurazione")?;
 
-        let file = match cfg_file {
-            Ok(file) => file,
-            Err(error) => panic!("Problem opening the file: {error:?}"),
-        };
-
+        // Analizza il file YAML
         let config_map: serde_yaml::Value =
-            serde_yaml::from_reader(file).context("Failed to parse YAML")?;
+            serde_yaml::from_reader(cfg_file).context("Errore nella lettura del file YAML")?;
 
+        // Seleziona la sezione corretta del file di configurazione
         let config_section = match config_type {
             ConfigType::Default => &config_map["default"],
             ConfigType::V1 => &config_map["v1"],
         };
 
-        let config: EdgeDNSConfig = serde_yaml::from_value(config_section.clone())
-            .context("Failed to extract config section")?;
+        // Edge DNS Section
+        let edge_dns_section = config_section.get("edge_dns").ok_or_else(|| {
+            anyhow::anyhow!("'edge_dns' section doesn not exists in the config file")
+        })?;
 
-        let cache_dns : CacheDNS = serde_yaml::from_value(config_section.clone())
-            .context("Failed to extract cache dns config section")?;
+        let edge_dns_config: EdgeDNSConfig = serde_yaml::from_value(edge_dns_section.clone())
+            .context("Error parsing 'edge_dns' section")?;
 
+        // Cache DNS section
+        let cache_dns_section = config_section.get("cache_dns");
+
+        let cache_dns_config = if let Some(cache_dns_section) = cache_dns_section {
+            Some(
+                serde_yaml::from_value(cache_dns_section.clone())
+                    .context("Error parsing 'edge_dns' section")?,
+            )
+        } else {
+            None
+        };
+
+        // Return the EdgeDNS configuration
         Ok(EdgeDNSConfig {
-            enable: config.enable,
-            listen_interface: config.listen_interface,
-            listen_port: config.listen_port,
-            kube_api_config: config.kube_api_config,
-            cache_dns: Some(cache_dns),
-            kubernetes_plugin_enable: config.kubernetes_plugin_enable,
-            kubernetes_api_server: config.kubernetes_api_server,
-            kubernetes_ttl: config.kubernetes_ttl,
+            cache_dns: cache_dns_config,
+            ..edge_dns_config
         })
     }
 }
 
-#[derive(Clone,Serialize,Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct CacheDNS {
     pub enable: bool,
     pub auto_detect: bool,

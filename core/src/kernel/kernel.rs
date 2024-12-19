@@ -15,6 +15,8 @@ use std::sync::Arc;
 use tracing::info;
 
 use crate::client::default_api_config::{ApiConfig,ConfigType};
+use crate::kernel::corefile::update_corefile;
+use crate::client::apiconfig::EdgeDNSConfig;
 
 pub struct EdgeDNS {
     config: Arc<ApiConfig>,
@@ -46,25 +48,25 @@ impl EdgeDNS {
         //TODO: Implement the EdgeDNS shutdown function
     }
 
-    pub fn update_corefile(config: &ApiConfig, clients: &Client) -> Result<()> {
-        info!("Updating the EdgeDNS corefile configuration");
-        Ok(())
-    }
 
-    pub fn new(config: ApiConfig, client: &Client) -> Result<Self, Error> {
+    pub async fn new(config: ApiConfig, edgednscfg: EdgeDNSConfig, client: Arc<Client>) -> Result<Self, Error> {
         if !config.edge_mode_enable {
             return Ok(EdgeDNS {
                 config: Arc::new(config),
             });
         }
-
+    
         // Update Corefile if EdgeDNS is enabled
-        EdgeDNS::update_corefile(&config, client)?;
-
+        update_corefile(edgednscfg, client.as_ref().clone()).await?; // Dereferenziamento dell'Arc<Client> e passaggio as_ref
+        
+        /* Reference as_ref: 
+            https://doc.rust-lang.org/std/convert/trait.AsRef.html
+         */
         Ok(EdgeDNS {
             config: Arc::new(config),
         })
     }
+    
 
     pub fn register(config: ApiConfig, client: Client) -> Result<(),Error> {
         // Load the KubeEdge shared library

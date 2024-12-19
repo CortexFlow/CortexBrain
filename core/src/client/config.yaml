@@ -26,10 +26,28 @@ default:
   edge_mode_enable: true
   cloud_mode: "CloudMode"
   manual_mode: "ManualMode"
-  kubernetes_plugin_enable: true
-  kubernetes_api_server: "0.0.0.0"
-  kubernetes_ttl: 2
-
+  kubeapi:
+    master: "https://127.0.0.1:6443"
+    content_type: "application/json"
+    qps: 50
+    burst: 100
+    kube_config: "~/.kube/config"
+    meta_server: null
+    delete_kube_config: false
+  edge_dns:
+    enable: true
+    listen_interface: "0.0.0.0"
+    listen_port: 50
+    kubernetes_plugin_enable: true
+    kubernetes_api_server: "0.0.0.0"
+    kubernetes_ttl: 2
+  cache_dns:
+    enable: true
+    auto_detect: true
+    upstream_servers:
+    - "8.8.8.8"
+    - "8.8.4.4"
+    cache_ttl: 20
   empty_node_name: "EMPTY_NODE_NAME"
   empty_pod_name: "EMPTY_POD_NAME"
   service_filter_mode:

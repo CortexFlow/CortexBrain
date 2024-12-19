@@ -1,4 +1,4 @@
-use crate::client::apiconfig::EdgeDNSConfig;
+
 /* The corefile.go file in Kubernetes is part of the source code for CoreDNS, which is the default DNS server used in Kubernetes clusters for service name resolution and other internal DNS operations. This file defines the structure and functionality associated with CoreDNS configuration, specifically the object called Corefile.
 
 Corefile.go's main functionality
@@ -19,6 +19,7 @@ Interface with Kubernetes:
 Provides functionality to integrate CoreDNS with Kubernetes clusters, such as configuring internal DNS services to resolve names such as my-service.my-n
 
 */
+use crate::client::apiconfig::EdgeDNSConfig;
 use crate::client::client::Client;
 use crate::kernel::utilities::{is_valid_ip,remove_duplicates};
 use anyhow::{anyhow, Error, Result};
@@ -185,7 +186,9 @@ fn get_interface_ip(interface: &str) -> Result<IpAddr, Error> {
 
 //update corefile function
 pub async fn update_corefile(cfg: EdgeDNSConfig, kube_client: Client) -> Result<(), Error> {
-    // Ottieni l'indirizzo IP dell'interfaccia di rete
+    info!("Updating the EdgeDNS corefile configuration");
+    println!("Updating the EdgeDNS corefile configuration");
+    // obtain the interface ip address 
     let listen_ip = get_interface_ip(&cfg.listen_interface)?;
 
     // Imposta i valori predefiniti per cacheTTL e upstreamServers
