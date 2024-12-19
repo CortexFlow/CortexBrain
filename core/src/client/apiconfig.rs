@@ -36,35 +36,6 @@ pub struct KubeApiConfig {
     pub meta_server: Option<String>,
     pub delete_kube_config: bool,
 }
-impl KubeApiConfig {
-    pub fn load_from_file<P: AsRef<std::path::Path>>(
-        path: P,
-        config_type: ConfigType,
-    ) -> Result<Self> {
-
-        let cfg_file = File::open(path).context("Errore nell'aprire il file di configurazione")?;
-
-        // Analizza il file YAML
-        let config_map: serde_yaml::Value =
-            serde_yaml::from_reader(cfg_file).context("Errore nella lettura del file YAML")?;
-
-        // Seleziona la sezione corretta del file di configurazione
-        let config_section = match config_type {
-            ConfigType::Default => &config_map["default"],
-            ConfigType::V1 => &config_map["v1"],
-        };
-
-        // KubeAPI section
-        let kubeapi_section = config_section.get("kubeapi").ok_or_else(|| {
-            anyhow::anyhow!("'kubeapi' section doesn not exists in the config file")
-        })?;
-
-        let kubeapi_config: KubeApiConfig = serde_yaml::from_value(kubeapi_section.clone())
-            .context("Error parsing 'kubeapi' section")?;
-
-        Ok(KubeApiConfig { ..kubeapi_config })
-    }
-}
 
 pub struct MetaServer {
     pub server: String,
@@ -144,13 +115,7 @@ pub struct EdgeDNSConfig {
     pub listen_interface: String,
     pub listen_port: i32,
     pub kube_api_config: Option<KubeApiConfig>,
-    pub cache_dns: Option<CacheDNS>,
-
-    /* Remove this parameters and add them in the KubeApiConfig Structure */
-    pub kubernetes_plugin_enable: bool,
-    pub kubernetes_api_server: String,
-    pub kubernetes_ttl: Option<u32>,
-}
+    pub cache_dns: Option<CacheDNS>,}
 impl EdgeDNSConfig {
     pub fn load_from_file<P: AsRef<std::path::Path>>(
         path: P,
@@ -188,9 +153,22 @@ impl EdgeDNSConfig {
             None
         };
 
+        // KubeAPI section
+        let kubeapi_section = config_section.get("kubeapi");
+
+        let kubeapi_config = if let Some(kubeapi_section) = kubeapi_section {
+            Some(
+                serde_yaml::from_value(kubeapi_section.clone())
+                    .context("Error parsing 'kubeapi' section")?,
+            )
+        } else {
+            None
+        };
+
         // Return the EdgeDNS configuration
         Ok(EdgeDNSConfig {
             cache_dns: cache_dns_config,
+            kube_api_config: kubeapi_config,
             ..edge_dns_config
         })
     }

@@ -254,10 +254,17 @@ pub async fn update_corefile(cfg: EdgeDNSConfig, kube_client: Client) -> Result<
 // Helper per ottenere la configurazione del plugin Kubernetes
  fn get_kubernetes_plugin_str(cfg:EdgeDNSConfig) -> Result<String, Error> {
     // Logica per generare la stringa di configurazione del plugin Kubernetes
-    if cfg.kubernetes_plugin_enable {
+    if cfg.enable {
         let plugin_config = KubernetesPluginInfo {
-            api_server: cfg.kubernetes_api_server.clone(),
-            ttl: cfg.kubernetes_ttl.unwrap_or(DEFAULT_TTL),
+            api_server: cfg.kube_api_config
+            .as_ref()
+            .and_then(|server| server.master.clone())
+            .unwrap_or(" ".to_owned()),
+
+            ttl: cfg.cache_dns
+            .as_ref()
+            .and_then(|cache|Some(cache.cache_ttl))
+            .unwrap_or(DEFAULT_TTL),
         };
         generate_kubernetes_plugin_block(plugin_config)
     } else {

@@ -28,7 +28,7 @@ default:
   manual_mode: "ManualMode"
   kubeapi:
     master: "https://127.0.0.1:6443"
-    content_type: "application/json"
+    content_type: "application/vnd.kubernetes.protobuf"
     qps: 50
     burst: 100
     kube_config: "~/.kube/config"
@@ -38,9 +38,6 @@ default:
     enable: true
     listen_interface: "0.0.0.0"
     listen_port: 50
-    kubernetes_plugin_enable: true
-    kubernetes_api_server: "0.0.0.0"
-    kubernetes_ttl: 2
   cache_dns:
     enable: true
     auto_detect: true

@@ -14,7 +14,6 @@ use crate::client::apiconfig::{EdgeDNSConfig,EdgeCNIConfig};
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
     //let edge_cni_config = EdgeCniConfig { enable: true };
-    let kubeapi = KubeApiConfig::load_from_file("./src/client/config.yaml", ConfigType::Default)?;
     let configuration = ApiConfig::load_from_file("./src/client/config.yaml", ConfigType::Default)?; /* the "?" operand return a "Result" type. Necessary */
     let edgecfg = EdgeDNSConfig::load_from_file("./src/client/config.yaml", ConfigType::Default)?; /* the "?" operand return a "Result" type. Necessary */
     let edgecnicfg = EdgeDNSConfig::load_from_file("./src/client/config.yaml", ConfigType::Default);
