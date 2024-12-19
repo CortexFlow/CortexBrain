@@ -89,12 +89,43 @@ pub struct Socks5Proxy {
     pub nodename: String,
     pub namespace: String,
 }
+#[derive(Serialize,Deserialize)]
 pub struct EdgeCNIConfig {
     pub enable: bool,
     pub encap_ip: String,
     pub tun_mode: i32,
     pub mesh_cidr_config: Option<MeshCIDRConfig>,
 }
+impl EdgeCNIConfig{
+    pub fn load_from_file<P: AsRef<std::path::Path>>(
+        path: P,
+        config_type: ConfigType,
+    ) -> Result<Self> {
+
+        let cfg_file = File::open(path).context("Errore nell'aprire il file di configurazione")?;
+
+        // Analizza il file YAML
+        let config_map: serde_yaml::Value =
+            serde_yaml::from_reader(cfg_file).context("Errore nella lettura del file YAML")?;
+
+        // Seleziona la sezione corretta del file di configurazione
+        let config_section = match config_type {
+            ConfigType::Default => &config_map["default"],
+            ConfigType::V1 => &config_map["v1"],
+        };
+
+        // EdgeCNI section
+        let edgecni_section = config_section.get("edgeCNI").ok_or_else(|| {
+            anyhow::anyhow!("'edgeCNI' section doesn not exists in the config file")
+        })?;
+
+        let edgecni_config: EdgeCNIConfig = serde_yaml::from_value(edgecni_section.clone())
+            .context("Error parsing 'edgeCNI' section")?;
+
+        Ok(EdgeCNIConfig { ..edgecni_config })
+    }
+}
+#[derive(Serialize,Deserialize)]
 pub struct MeshCIDRConfig {
     pub cloud_cidr: Vec<String>,
     pub edge_cidr: Vec<String>,
