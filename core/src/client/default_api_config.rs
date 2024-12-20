@@ -37,7 +37,7 @@ use serde::{Deserialize, Serialize};
 use serde_yaml;
 use std::fs::File;
 
-use crate::client::apiconfig::{EdgeCNIConfig, EdgeDNSConfig,CommonConfig};
+use crate::client::apiconfig::{EdgeCNIConfig, EdgeDNSConfig,CommonConfig,EdgeMeshAgentConfig,AgentModules};
 use crate::client::params::{DiscoveryType, LoadBalancerCaller, ServiceFilterMode};
 
 #[derive(Debug)]
@@ -237,3 +237,5 @@ impl CommonConfig{
         })
     }
 }
+impl EdgeMeshAgentConfig {}
+impl AgentModules {}

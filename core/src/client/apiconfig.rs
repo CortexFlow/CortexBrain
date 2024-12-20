@@ -51,7 +51,11 @@ use serde::{Deserialize, Serialize};
 // ======================== Agent Section ===========================
 // ==================================================================
 
-pub struct EdgeMeshAgentConfig {}
+pub struct EdgeMeshAgentConfig {
+    pub kubeapi_config: Option<KubeApiConfig>,
+    pub common_config: Option<CommonConfig>,
+    pub modules : Option<AgentModules>,
+}
 pub struct AgentModules {
     pub edge_dns_config: Option<EdgeDNSConfig>,
     pub edge_proxy_config: Option<EdgeProxyConfig>,
