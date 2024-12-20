@@ -2,14 +2,13 @@
 mod client;
 mod edgecni;
 mod kernel;
-use client::{apiconfig::KubeApiConfig, client::Client, default_api_config::ApiConfig};
-use edgecni::edgecni::{EdgeCni, MeshAdapter, MeshCIDRConfig};
+use client::{client::Client, default_api_config::ApiConfig};
 use std::sync::Arc;
-use anyhow::{Result,Error};
+use anyhow::Result;
 
 use client::default_api_config::ConfigType;
 use kernel::kernel::EdgeDNS;
-use crate::client::apiconfig::{EdgeDNSConfig,EdgeCNIConfig};
+use crate::client::apiconfig::EdgeDNSConfig;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {

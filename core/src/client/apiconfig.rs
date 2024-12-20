@@ -1,4 +1,3 @@
-
 /*!
     This module defines a series of configuration structures for a
     distributed network infrastructure. It includes parameters for
@@ -40,17 +39,48 @@
     edge computing configuration.
 */
 
+
+
+
+
+
+
 use serde::{Deserialize, Serialize};
+
+// ==================================================================
+// ======================== Agent Section ===========================
+// ==================================================================
+
 pub struct EdgeMeshAgentConfig {}
 pub struct AgentModules {
     pub edge_dns_config: Option<EdgeDNSConfig>,
     pub edge_proxy_config: Option<EdgeProxyConfig>,
     pub edge_cni_config: Option<EdgeCNIConfig>,
 }
+
+
+// ==================================================================
+// ======================= Gateway Section ==========================
+// ==================================================================
+
 pub struct EdgeMeshGatewayConfig {}
 pub struct GatewayModules {
     pub edge_gateway_config: Option<EdgeGatewayConfig>,
 }
+pub struct EdgeGatewayConfig {
+    pub enable: bool,
+    pub nic: String,
+    pub include_ip: String,
+    pub exclude_ip: String,
+    pub loadbalancer: Option<LoadBalancer>,
+}
+
+
+
+// ==================================================================
+// ======================= KubeAPI Section ==========================
+// ==================================================================
+
 #[derive(Clone, Serialize, Deserialize)]
 pub struct KubeApiConfig {
     pub master: Option<String>,
@@ -61,6 +91,18 @@ pub struct KubeApiConfig {
     pub meta_server: Option<String>,
     pub delete_kube_config: bool,
 }
+#[derive(Serialize,Deserialize,Clone)]
+pub struct CommonConfig {
+    pub bridge_device_name: String,
+    pub bridge_device_ip: String,
+    /* pub pprof : Option<PprofConfig> */
+}
+#[derive(Clone,Serialize,Deserialize)]
+pub struct PprofConfig {}
+
+// ==================================================================
+// ======================= MetaServer Section =======================
+// ==================================================================
 
 pub struct MetaServer {
     pub server: String,
@@ -68,10 +110,12 @@ pub struct MetaServer {
 }
 pub struct MetaServerSecurity {}
 
-pub struct CommonConfig {
-    pub bridge_device_name: String,
-    pub bridge_device_ip: String,
-}
+
+// ==================================================================
+// ======================== Proxy Section ===========================
+// ==================================================================
+
+#[derive(Serialize,Deserialize,Clone)]
 pub struct EdgeProxyConfig {
     pub enable: bool,
     pub listen_interface: String,
@@ -79,12 +123,19 @@ pub struct EdgeProxyConfig {
     pub socks5proxy: Option<Socks5Proxy>,
     pub service_filter_mode: String,
 }
+#[derive(Serialize,Deserialize,Clone)]
 pub struct Socks5Proxy {
     pub enable: bool,
     pub listen_port: i32,
     pub nodename: String,
     pub namespace: String,
 }
+
+// ==================================================================
+// ========================= CNI Section ============================
+// ==================================================================
+
+
 #[derive(Serialize, Deserialize)]
 pub struct EdgeCNIConfig {
     pub enable: bool,
@@ -98,13 +149,10 @@ pub struct MeshCIDRConfig {
     pub cloud_cidr: Vec<String>,
     pub edge_cidr: Vec<String>,
 }
-pub struct EdgeGatewayConfig {
-    pub enable: bool,
-    pub nic: String,
-    pub include_ip: String,
-    pub exclude_ip: String,
-    pub loadbalancer: Option<LoadBalancer>,
-}
+
+// ==================================================================
+// ========================= DNS Section ============================
+// ==================================================================
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct EdgeDNSConfig {
@@ -122,6 +170,12 @@ pub struct CacheDNS {
     pub upstream_servers: Vec<String>,
     pub cache_ttl: u32,
 }
+
+// ==================================================================
+// ====================== LoadBalancer Section ======================
+// ==================================================================
+
+#[derive(Serialize,Deserialize,Clone)]
 pub struct LoadBalancer {
     pub caller: String,
     pub nodename: String,

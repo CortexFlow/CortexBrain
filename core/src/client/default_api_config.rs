@@ -37,7 +37,7 @@ use serde::{Deserialize, Serialize};
 use serde_yaml;
 use std::fs::File;
 
-use crate::client::apiconfig::{EdgeCNIConfig, EdgeDNSConfig};
+use crate::client::apiconfig::{EdgeCNIConfig, EdgeDNSConfig,CommonConfig};
 use crate::client::params::{DiscoveryType, LoadBalancerCaller, ServiceFilterMode};
 
 #[derive(Debug)]
@@ -203,6 +203,37 @@ impl EdgeDNSConfig {
             cache_dns: cache_dns_config,
             kube_api_config: kubeapi_config,
             ..edge_dns_config
+        })
+    }
+}
+impl CommonConfig{
+    pub fn load_from_file<P: AsRef<std::path::Path>>(
+        path: P,
+        config_type: ConfigType,
+    ) -> Result<Self> {
+        let cfg_file = File::open(path);
+
+        let file = match cfg_file {
+            Ok(file) => file,
+            Err(error) => panic!("Problem opening the file: {error:?}"),
+        };
+
+        let config_map: serde_yaml::Value =
+            serde_yaml::from_reader(file).context("Failed to parse YAML")?;
+
+        let config_section = match config_type {
+            ConfigType::Default => &config_map["default"],
+            ConfigType::V1 => &config_map["v1"],
+        };
+
+        let common_config: CommonConfig = serde_yaml::from_value(config_section.clone())
+            .context("Failed to extract config section")?;
+
+        
+        // Return the CommonConfig configuration
+        Ok(CommonConfig {
+            bridge_device_name : common_config.bridge_device_name,
+            bridge_device_ip : common_config.bridge_device_ip
         })
     }
 }
