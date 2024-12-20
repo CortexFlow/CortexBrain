@@ -1,65 +1,49 @@
-/* 
+/*!
+    This module defines the components and parameters for the default API configuration.
 
-    Components of the default Api config. 
-    Contains the Default and V1 parameters and implementation  
+    Key functionalities:
+    - **API Configuration (`ApiConfig`)**:
+        Provides the primary structure for storing API-related settings, including:
+        - Base directory and configuration file paths.
+        - Module names for EdgeMesh Agent, Gateway, DNS, Proxy, Tunnel, and CNI.
+        - Metadata server settings and device configurations.
+        - Modes for service filtering, load balancing, and discovery types.
+        - Other operational modes like edge, cloud, and manual modes.
 
+    - **Configuration Loading**:
+        Implements methods to load configurations from YAML files for:
+        - Default settings.
+        - Version-specific settings (e.g., `V1`).
+
+    - **EdgeCNI and EdgeDNS Configurations**:
+        Handles parsing of specialized sections (`edgeCNI`, `edge_dns`, `cache_dns`, `kubeapi`)
+        within the configuration file for fine-grained control.
+
+    Features:
+    - **Error Handling**:
+        Uses the `anyhow` crate for detailed context in error reporting.
+    - **Serialization and Deserialization**:
+        Supports `Serialize` and `Deserialize` traits for seamless integration with YAML.
+    - **Configurable Defaults**:
+        Offers predefined defaults for critical parameters such as `ServiceFilterMode`,
+        `LoadBalancerCaller`, and `DiscoveryType`.
+
+    This module is essential for initializing and managing configurations in
+    distributed systems with complex edge and cloud operations.
 */
-
 
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use serde_yaml;
 use std::fs::File;
 
-/* ###################################################################################
-##################################  DEFAULT ######################################
-################################################################################### */
-
+use crate::client::apiconfig::{EdgeCNIConfig, EdgeDNSConfig};
+use crate::client::params::{DiscoveryType, LoadBalancerCaller, ServiceFilterMode};
 
 #[derive(Debug)]
 pub enum ConfigType {
     Default,
     V1,
-}
-
-#[derive(Debug, Deserialize, Clone,Serialize)]
-pub struct ServiceFilterMode {
-    pub filter_if_label_exists_mode: String,
-    pub filter_if_label_doesn_not_exists_mode: String,
-}
-impl ServiceFilterMode {
-    pub fn filter_if_label_exists_mode() -> &'static str {
-        "FilterIfLabelExists"
-    }
-    pub fn filter_if_label_doesn_not_exists_mode() -> &'static str {
-        "FilterIfLabelDoesNotExists"
-    }
-}
-#[derive(Debug, Deserialize, Clone,Serialize)]
-pub struct LoadBalancerCaller {
-    pub proxy_caller: String,
-    pub gateway_caller: String,
-}
-impl LoadBalancerCaller {
-    pub fn proxy_caller() -> &'static str {
-        "ProxyCaller"
-    }
-    pub fn gateway_caller() -> &'static str {
-        "GatewayCaller"
-    }
-}
-#[derive(Debug, Deserialize, Clone,Serialize)]
-pub struct DiscoveryType {
-    pub mdns_discovery: String,
-    pub dht_discovery: String,
-}
-impl DiscoveryType {
-    pub fn mdns_discovery() -> &'static str {
-        "MDNS"
-    }
-    pub fn dht_discovery() -> &'static str {
-        "DHT"
-    }
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -134,6 +118,91 @@ impl ApiConfig {
                 dht_discovery: String::from(DiscoveryType::dht_discovery()),
             }),
             ..config
+        })
+    }
+}
+impl EdgeCNIConfig {
+    pub fn load_from_file<P: AsRef<std::path::Path>>(
+        path: P,
+        config_type: ConfigType,
+    ) -> Result<Self> {
+        let cfg_file = File::open(path).context("Errore nell'aprire il file di configurazione")?;
+
+        // Analizza il file YAML
+        let config_map: serde_yaml::Value =
+            serde_yaml::from_reader(cfg_file).context("Errore nella lettura del file YAML")?;
+
+        // Seleziona la sezione corretta del file di configurazione
+        let config_section = match config_type {
+            ConfigType::Default => &config_map["default"],
+            ConfigType::V1 => &config_map["v1"],
+        };
+
+        // EdgeCNI section
+        let edgecni_section = config_section.get("edgeCNI").ok_or_else(|| {
+            anyhow::anyhow!("'edgeCNI' section doesn not exists in the config file")
+        })?;
+
+        let edgecni_config: EdgeCNIConfig = serde_yaml::from_value(edgecni_section.clone())
+            .context("Error parsing 'edgeCNI' section")?;
+
+        Ok(EdgeCNIConfig { ..edgecni_config })
+    }
+}
+impl EdgeDNSConfig {
+    pub fn load_from_file<P: AsRef<std::path::Path>>(
+        path: P,
+        config_type: ConfigType,
+    ) -> Result<Self> {
+        let cfg_file = File::open(path).context("Errore nell'aprire il file di configurazione")?;
+
+        // Analizza il file YAML
+        let config_map: serde_yaml::Value =
+            serde_yaml::from_reader(cfg_file).context("Errore nella lettura del file YAML")?;
+
+        // Seleziona la sezione corretta del file di configurazione
+        let config_section = match config_type {
+            ConfigType::Default => &config_map["default"],
+            ConfigType::V1 => &config_map["v1"],
+        };
+
+        // Edge DNS Section
+        let edge_dns_section = config_section.get("edge_dns").ok_or_else(|| {
+            anyhow::anyhow!("'edge_dns' section doesn not exists in the config file")
+        })?;
+
+        let edge_dns_config: EdgeDNSConfig = serde_yaml::from_value(edge_dns_section.clone())
+            .context("Error parsing 'edge_dns' section")?;
+
+        // Cache DNS section
+        let cache_dns_section = config_section.get("cache_dns");
+
+        let cache_dns_config = if let Some(cache_dns_section) = cache_dns_section {
+            Some(
+                serde_yaml::from_value(cache_dns_section.clone())
+                    .context("Error parsing 'edge_dns' section")?,
+            )
+        } else {
+            None
+        };
+
+        // KubeAPI section
+        let kubeapi_section = config_section.get("kubeapi");
+
+        let kubeapi_config = if let Some(kubeapi_section) = kubeapi_section {
+            Some(
+                serde_yaml::from_value(kubeapi_section.clone())
+                    .context("Error parsing 'kubeapi' section")?,
+            )
+        } else {
+            None
+        };
+
+        // Return the EdgeDNS configuration
+        Ok(EdgeDNSConfig {
+            cache_dns: cache_dns_config,
+            kube_api_config: kubeapi_config,
+            ..edge_dns_config
         })
     }
 }

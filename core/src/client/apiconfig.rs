@@ -1,19 +1,46 @@
-/* Contains the Config structures used in ApiConfig */
 
-use anyhow::{Context,Result};
+/*!
+    This module defines a series of configuration structures for a
+    distributed network infrastructure. It includes parameters for
+    components such as Edge Mesh, Gateway, DNS, and CNI (Container Network Interface).
+
+    Key functionalities:
+    - **Kubernetes API Configuration**:
+        Manages parameters for interacting with the Kubernetes API using the
+        `KubeApiConfig` structure.
+
+    - **Edge Mesh Configuration**:
+        Configures agents (`EdgeMeshAgentConfig`) and gateways (`EdgeMeshGatewayConfig`)
+        for the Edge Mesh network.
+
+    - **Edge DNS**:
+        Defines parameters for a custom DNS system, including interfaces,
+        ports, and caching, through the `EdgeDNSConfig` structure.
+
+    - **Edge Proxy**:
+        Configures the Edge network proxy, with support for load balancing
+        and Socks5 (`EdgeProxyConfig`).
+
+    - **CNI Configuration**:
+        Manages containerized network settings, such as tunneling and Mesh CIDR,
+        using the `EdgeCNIConfig` structure.
+
+    - **Gateway Components**:
+        Configures specific gateway settings via `EdgeGatewayConfig`.
+
+    Features:
+    - **Serialization and Deserialization**:
+        Uses `Serialize` and `Deserialize` traits to support formats like JSON and YAML.
+    - **Modularity**:
+        Independent configurations for clear and scalable management.
+    - **Flexibility**:
+        The use of `Option<T>` allows for partial and customizable configurations.
+
+    This module is designed as an integral part of a distributed system's
+    edge computing configuration.
+*/
+
 use serde::{Deserialize, Serialize};
-use serde_yaml;
-use std::fs::File;
-
-use default_api_config::ConfigType;
-
-use super::default_api_config;
-
-/* ###################################################################################
-################################# CONFIG ##########################################
-################################################################################### */
-
-/* Defines the API config for the Kubernetes Plugin */
 pub struct EdgeMeshAgentConfig {}
 pub struct AgentModules {
     pub edge_dns_config: Option<EdgeDNSConfig>,
@@ -58,43 +85,15 @@ pub struct Socks5Proxy {
     pub nodename: String,
     pub namespace: String,
 }
-#[derive(Serialize,Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub struct EdgeCNIConfig {
     pub enable: bool,
     pub encap_ip: String,
     pub tun_mode: i32,
     pub mesh_cidr_config: Option<MeshCIDRConfig>,
 }
-impl EdgeCNIConfig{
-    pub fn load_from_file<P: AsRef<std::path::Path>>(
-        path: P,
-        config_type: ConfigType,
-    ) -> Result<Self> {
 
-        let cfg_file = File::open(path).context("Errore nell'aprire il file di configurazione")?;
-
-        // Analizza il file YAML
-        let config_map: serde_yaml::Value =
-            serde_yaml::from_reader(cfg_file).context("Errore nella lettura del file YAML")?;
-
-        // Seleziona la sezione corretta del file di configurazione
-        let config_section = match config_type {
-            ConfigType::Default => &config_map["default"],
-            ConfigType::V1 => &config_map["v1"],
-        };
-
-        // EdgeCNI section
-        let edgecni_section = config_section.get("edgeCNI").ok_or_else(|| {
-            anyhow::anyhow!("'edgeCNI' section doesn not exists in the config file")
-        })?;
-
-        let edgecni_config: EdgeCNIConfig = serde_yaml::from_value(edgecni_section.clone())
-            .context("Error parsing 'edgeCNI' section")?;
-
-        Ok(EdgeCNIConfig { ..edgecni_config })
-    }
-}
-#[derive(Serialize,Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub struct MeshCIDRConfig {
     pub cloud_cidr: Vec<String>,
     pub edge_cidr: Vec<String>,
@@ -113,63 +112,7 @@ pub struct EdgeDNSConfig {
     pub listen_interface: String,
     pub listen_port: i32,
     pub kube_api_config: Option<KubeApiConfig>,
-    pub cache_dns: Option<CacheDNS>,}
-impl EdgeDNSConfig {
-    pub fn load_from_file<P: AsRef<std::path::Path>>(
-        path: P,
-        config_type: ConfigType,
-    ) -> Result<Self> {
-        let cfg_file = File::open(path).context("Errore nell'aprire il file di configurazione")?;
-
-        // Analizza il file YAML
-        let config_map: serde_yaml::Value =
-            serde_yaml::from_reader(cfg_file).context("Errore nella lettura del file YAML")?;
-
-        // Seleziona la sezione corretta del file di configurazione
-        let config_section = match config_type {
-            ConfigType::Default => &config_map["default"],
-            ConfigType::V1 => &config_map["v1"],
-        };
-
-        // Edge DNS Section
-        let edge_dns_section = config_section.get("edge_dns").ok_or_else(|| {
-            anyhow::anyhow!("'edge_dns' section doesn not exists in the config file")
-        })?;
-
-        let edge_dns_config: EdgeDNSConfig = serde_yaml::from_value(edge_dns_section.clone())
-            .context("Error parsing 'edge_dns' section")?;
-
-        // Cache DNS section
-        let cache_dns_section = config_section.get("cache_dns");
-
-        let cache_dns_config = if let Some(cache_dns_section) = cache_dns_section {
-            Some(
-                serde_yaml::from_value(cache_dns_section.clone())
-                    .context("Error parsing 'edge_dns' section")?,
-            )
-        } else {
-            None
-        };
-
-        // KubeAPI section
-        let kubeapi_section = config_section.get("kubeapi");
-
-        let kubeapi_config = if let Some(kubeapi_section) = kubeapi_section {
-            Some(
-                serde_yaml::from_value(kubeapi_section.clone())
-                    .context("Error parsing 'kubeapi' section")?,
-            )
-        } else {
-            None
-        };
-
-        // Return the EdgeDNS configuration
-        Ok(EdgeDNSConfig {
-            cache_dns: cache_dns_config,
-            kube_api_config: kubeapi_config,
-            ..edge_dns_config
-        })
-    }
+    pub cache_dns: Option<CacheDNS>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
