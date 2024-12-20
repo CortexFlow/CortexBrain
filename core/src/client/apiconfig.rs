@@ -1,12 +1,11 @@
-use anyhow::{Context, Error, Result};
-use futures::future::ok;
-use k8s_openapi::chrono::format::strftime;
-use kube::config;
+/* Contains the Config structures used in ApiConfig */
+
+use anyhow::{Context,Result};
 use serde::{Deserialize, Serialize};
 use serde_yaml;
-use std::{fs::File, string};
+use std::fs::File;
 
-use default_api_config::{ApiConfig, ConfigType};
+use default_api_config::ConfigType;
 
 use super::default_api_config;
 
@@ -15,7 +14,6 @@ use super::default_api_config;
 ################################################################################### */
 
 /* Defines the API config for the Kubernetes Plugin */
-
 pub struct EdgeMeshAgentConfig {}
 pub struct AgentModules {
     pub edge_dns_config: Option<EdgeDNSConfig>,

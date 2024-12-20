@@ -23,15 +23,15 @@ use crate::client::apiconfig::EdgeDNSConfig;
 use crate::client::client::Client;
 use crate::kernel::utilities::{is_valid_ip,remove_duplicates};
 use anyhow::{anyhow, Error, Result};
-use kube::api::{Api, ApiResource, DynamicObject, ListParams};
-use kube::{core::DynamicObject as CoreDynamicObject, discovery};
+use kube::api::{Api,DynamicObject, ListParams};
+use kube::discovery;
 use serde::Serialize;
 use std::collections::HashSet;
 use std::fs;
 use std::net::IpAddr;
 use tracing::{error, info};
 
-use crate::client::default_api_config::{ApiConfig,ConfigType,Config};
+use crate::client::default_api_config::{ApiConfig,ConfigType};
 
 /* template block */
 

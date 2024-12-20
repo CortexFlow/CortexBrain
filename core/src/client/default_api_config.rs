@@ -1,3 +1,11 @@
+/* 
+
+    Components of the default Api config. 
+    Contains the Default and V1 parameters and implementation  
+
+*/
+
+
 use anyhow::{Context, Error, Result};
 use k8s_openapi::chrono::format::strftime;
 use kube::config;
@@ -53,34 +61,6 @@ impl DiscoveryType {
     pub fn dht_discovery() -> &'static str {
         "DHT"
     }
-}
-
-//probably useless
-pub struct Config {
-    pub base_dir: String,
-    pub config_file: String,
-    pub edgemesh_agent_config_name: String,
-    pub edgemesh_gateway_config_name: String,
-    pub edgemesh_dns_module_name: String,
-    pub edgemesh_proxy_module_name: String,
-    pub edgemesh_tunnel_module_name: String,
-    pub edgemesh_cni_module_name: String,
-    pub bridge_device_name: String,
-    pub bridge_device_ip: String,
-    pub tun_device_name: String,
-    pub temp_kube_config_path: String,
-    pub temp_core_file_path: String,
-    pub meta_server_address: String,
-    pub meta_server_cert_dir: String,
-    pub meta_server_ca_file: String,
-    pub meta_server_cert_file: String,
-    pub meta_server_key_file: String,
-    pub edge_mode: String,
-    pub edge_mode_enable: bool,
-    pub cloud_mode: String,
-    pub manual_mode: String,
-    pub empty_node_name: String,
-    pub empty_pod_name: String,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
