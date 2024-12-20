@@ -6,16 +6,15 @@
 */
 
 
-use anyhow::{Context, Error, Result};
-use k8s_openapi::chrono::format::strftime;
-use kube::config;
+use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use serde_yaml;
-use std::{fs::File, string};
+use std::fs::File;
 
 /* ###################################################################################
 ##################################  DEFAULT ######################################
 ################################################################################### */
+
 
 #[derive(Debug)]
 pub enum ConfigType {
@@ -118,30 +117,6 @@ impl ApiConfig {
             .context("Failed to extract config section")?;
 
         Ok(ApiConfig {
-            base_dir: config.base_dir,
-            config_file: config.config_file,
-            edgemesh_agent_config_name: config.edgemesh_agent_config_name,
-            edgemesh_gateway_config_name: config.edgemesh_gateway_config_name,
-            edgemesh_dns_module_name: config.edgemesh_dns_module_name,
-            edgemesh_proxy_module_name: config.edgemesh_proxy_module_name,
-            edgemesh_tunnel_module_name: config.edgemesh_tunnel_module_name,
-            edgemesh_cni_module_name: config.edgemesh_cni_module_name,
-            bridge_device_name: config.bridge_device_name,
-            bridge_device_ip: config.bridge_device_ip,
-            tun_device_name: config.tun_device_name,
-            temp_kube_config_path: config.temp_kube_config_path,
-            temp_core_file_path: config.temp_core_file_path,
-            meta_server_address: config.meta_server_address,
-            meta_server_cert_dir: config.meta_server_cert_dir,
-            meta_server_ca_file: config.meta_server_ca_file,
-            meta_server_cert_file: config.meta_server_cert_file,
-            meta_server_key_file: config.meta_server_key_file,
-            edge_mode: config.edge_mode,
-            edge_mode_enable: config.edge_mode_enable,
-            cloud_mode: config.cloud_mode,
-            manual_mode: config.manual_mode,
-            empty_node_name: config.empty_node_name,
-            empty_pod_name: config.empty_pod_name,
             service_filter_mode: Some(ServiceFilterMode {
                 filter_if_label_exists_mode: String::from(
                     ServiceFilterMode::filter_if_label_exists_mode(),
@@ -158,6 +133,7 @@ impl ApiConfig {
                 mdns_discovery: String::from(DiscoveryType::mdns_discovery()),
                 dht_discovery: String::from(DiscoveryType::dht_discovery()),
             }),
+            ..config
         })
     }
 }
