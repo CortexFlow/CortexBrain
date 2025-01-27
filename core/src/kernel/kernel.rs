@@ -18,6 +18,7 @@ use crate::client::default_api_config::{ApiConfig,ConfigType};
 use crate::kernel::corefile::update_corefile;
 use crate::client::apiconfig::EdgeDNSConfig;
 
+
 pub struct EdgeDNS {
     config: Arc<ApiConfig>,
 }
@@ -32,14 +33,21 @@ impl EdgeDNS {
     pub fn enable(&self) -> bool {
         self.config.edge_mode_enable
     }
+    pub fn get_kernel_info(&self){
+        println!("Kernel info:\n");
+        println!("name: {}",self.name());
+        println!("group: {}",self.group());
+        println!("enabled: {}\n",self.enable());
+    }
     pub async fn start(&self) {
-        if self.enable() {
+        if self.enable() == true {
             self.run().await;
         }
     }
 
     pub async fn run(&self) {
         info!("EdgeDNS is running ");
+        println!("EdgeDNS is running")
         //TODO: Implement the EdgeDNS run function
     }
 
@@ -55,9 +63,13 @@ impl EdgeDNS {
                 config: Arc::new(config),
             });
         }
-    
+        
         // Update Corefile if EdgeDNS is enabled
-        update_corefile(edgednscfg, client.as_ref().clone()).await?; // Dereferenziamento dell'Arc<Client> e passaggio as_ref
+        //TODO: add expection handler for update_corefile function
+        //TODO: requirements 
+        //TODO: do not block the code if the are no services available + return a report to notify the user that there are no services available
+        
+        //update_corefile(edgednscfg, client.as_ref().clone()).await?; // Dereferenziamento dell'Arc<Client> e passaggio as_ref
         
         /* Reference as_ref: 
             https://doc.rust-lang.org/std/convert/trait.AsRef.html
@@ -67,6 +79,7 @@ impl EdgeDNS {
         })
     }
     
+    //registers a service
 
     pub fn register(config: ApiConfig, client: Client) -> Result<(),Error> {
         // Load the KubeEdge shared library
