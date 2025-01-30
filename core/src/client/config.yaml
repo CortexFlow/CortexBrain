@@ -36,7 +36,7 @@ default:
     delete_kube_config: false
   edge_dns:
     enable: true
-    listen_interface: "0.0.0.0"
+    listen_interface: "lo"
     listen_port: 50
   cache_dns:
     enable: true

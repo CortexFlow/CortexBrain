@@ -21,8 +21,9 @@ Provides functionality to integrate CoreDNS with Kubernetes clusters, such as co
 */
 use crate::client::apiconfig::EdgeDNSConfig;
 use crate::client::client::Client;
-use crate::kernel::utilities::{is_valid_ip,remove_duplicates};
+use crate::kernel::utilities::{is_valid_ip,remove_duplicates,get_interfaces};
 use anyhow::{anyhow, Error, Result};
+use k8s_openapi::api::core::v1::ConfigMap;
 use kube::api::{Api,DynamicObject, ListParams};
 use kube::discovery;
 use serde::Serialize;
@@ -181,30 +182,51 @@ fn get_interface_ip(interface: &str) -> Result<IpAddr, Error> {
             }
         }
     }
-    Err(anyhow!("Failed to find interface with name: {}", interface))
+    let _itfc=get_interfaces();
+    Err(anyhow!("Failed to find interface with name: {:?}", interface))
 }
 
 //update corefile function
-pub async fn update_corefile(cfg: EdgeDNSConfig, kube_client: Client) -> Result<(), Error> {
+pub async fn update_corefile(cfg: EdgeDNSConfig, kube_client: &Client) -> Result<(), Error> {
     info!("Updating the EdgeDNS corefile configuration");
     println!("Updating the EdgeDNS corefile configuration");
+    println!("\n\n");
+    println!("Retrieving the corefile current configuration");    
+    let configmaps: Api<ConfigMap> = Api::namespaced(kube_client.get_client().clone(),"kube-system");
+    let corefile_configmap=configmaps.get("coredns").await?;
+    println!("{:?}\n\n",corefile_configmap);
+
+    //TODO: inject in the kubernetes corefile the modified parameters
+
     // obtain the interface ip address 
     let listen_ip = get_interface_ip(&cfg.listen_interface)?;
+   
+    info!("listener ip {}",listen_ip);
+    println!("listener ip {}",listen_ip);
 
-    // Imposta i valori predefiniti per cacheTTL e upstreamServers
+    // Set default values for cacheTTL and upstreamServers
     let mut cache_ttl = DEFAULT_TTL;
     let mut upstream_servers = vec![DEFAULT_UPSTREAM_SERVER.to_string()];
-
-    // Ottieni la stringa di configurazione del plugin Kubernetes
+    
+    info!("Cache ttl {}",cache_ttl);
+    println!("Cache ttl {}",cache_ttl);
+    
+    info!("upstream server {:?}",upstream_servers);
+    println!("upstream server {:?}",upstream_servers);
+    
+    // Get the Kubernetes plugin configuration string
     let kubernetes_plugin = get_kubernetes_plugin_str(cfg.clone())?;
+   
+    info!("kubernetes plugin string {}",kubernetes_plugin);
+    println!("kubernetes plugin string {}",kubernetes_plugin);
 
     if let Some(cache_dns_config) = cfg.cache_dns {
         if cache_dns_config.enable {
             upstream_servers.clear();
 
-            // Rilevamento automatico degli upstream server dal cluster
+            // Automatic detection of upstream servers from the cluster
             if cache_dns_config.auto_detect {
-                let detected_servers = detect_cluster_dns(kube_client).await;
+                let detected_servers = detect_cluster_dns(kube_client.clone()).await;
                 upstream_servers.extend(detected_servers);
             }
 

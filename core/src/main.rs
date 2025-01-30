@@ -12,10 +12,11 @@ use crate::client::apiconfig::EdgeDNSConfig;
 use crate::developers_msg::developers_msg::info;
 use client::default_api_config::ConfigType;
 use kernel::kernel::EdgeDNS;
+use kernel::kafka::test_kafka;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
-    
+
     //Development message for all the developers
     info();
 
@@ -32,6 +33,8 @@ async fn main() -> Result<(), anyhow::Error> {
     let edgedns = EdgeDNS::new(configuration, edgecfg, client.clone()).await?;
     edgedns.get_kernel_info();
     edgedns.start().await;
+
+    //test_kafka();
 
     Ok(())
 }

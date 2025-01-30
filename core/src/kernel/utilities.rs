@@ -5,6 +5,7 @@
 #[warn(unused_imports)]
 use std::net::Ipv4Addr;
 use itertools::Itertools;
+use pnet::datalink::interfaces;
 
 pub fn is_valid_ip(ip: &str) -> bool {
     /* check if an ip address is valid or not*/
@@ -38,4 +39,13 @@ pub fn remove_duplicates(ss: Vec<String>)->Vec<String> {
     
     */
     ss.into_iter().unique().collect()
+}
+
+
+pub fn get_interfaces(){
+    let interfaces = interfaces();
+    println!("Eligible interfaces:");
+    for iface in interfaces{
+        println!("interface:{}",iface.name);
+    }
 }

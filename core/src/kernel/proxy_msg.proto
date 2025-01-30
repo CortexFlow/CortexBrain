@@ -1,0 +1,6 @@
+syntax = "proto3";
+
+message ProxyMessage {
+    string service = 1;
+    string payload = 2;
+}

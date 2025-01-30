@@ -7,20 +7,36 @@ https://github.com/EmilHernvall/dnsguide/blob/master/chapter1.md
     https://www.shuttle.dev/blog/2024/10/22/using-kubernetes-with-rust
 */
 use crate::client::client::Client;
-use anyhow::{Error, Ok, Result};
+use anyhow::{Error, Result};
 use libloading::{Library, Symbol};
 use std::ffi::{CStr, CString};
 #[warn(unused_imports)]
 use std::sync::Arc;
 use tracing::info;
 
-use crate::client::default_api_config::{ApiConfig,ConfigType};
-use crate::kernel::corefile::update_corefile;
-use crate::client::apiconfig::EdgeDNSConfig;
+use std::net::SocketAddr;
+use tokio::net::UdpSocket;
+use tracing::error;
+use trust_dns_server::authority::{AuthorityObject, Catalog};
+use trust_dns_server::proto::rr::{Name,Record,RecordType,RData};
+use trust_dns_server::authority::ZoneType;
+use trust_dns_server::server::ServerFuture;
+use trust_dns_server::store::in_memory::InMemoryAuthority;
+use trust_dns_server::proto::rr::rdata::A;
+use std::net::Ipv4Addr;
 
+use std::fs;
+use tokio::signal;
+use tokio::time::{self, Duration};
+
+
+use crate::client::apiconfig::EdgeDNSConfig;
+use crate::client::default_api_config::ApiConfig;
+use crate::kernel::corefile::update_corefile;
 
 pub struct EdgeDNS {
     config: Arc<ApiConfig>,
+    edgednsconfig: Arc<EdgeDNSConfig>,
 }
 
 impl EdgeDNS {
@@ -33,55 +49,173 @@ impl EdgeDNS {
     pub fn enable(&self) -> bool {
         self.config.edge_mode_enable
     }
-    pub fn get_kernel_info(&self){
+    pub fn get_kernel_info(&self) {
+        println!("----------- K E R N E L   I N F O ---------------");
         println!("Kernel info:\n");
-        println!("name: {}",self.name());
-        println!("group: {}",self.group());
-        println!("enabled: {}\n",self.enable());
+        println!("name: {}", self.name());
+        println!("group: {}", self.group());
+        println!("enabled: {}\n", self.enable());
+        println!("------------------------------------------------");
     }
     pub async fn start(&self) {
         if self.enable() == true {
             self.run().await;
+        } else {
+            println!("kernel is disabled ");
+            info!("kernel is disabled");
         }
     }
 
     pub async fn run(&self) {
+        // creates the proxy server using tokio crate
         info!("EdgeDNS is running ");
-        println!("EdgeDNS is running")
+        println!("----------- K E R N E L   L O G---------------");
+        println!("EdgeDNS is running");
+    
         //TODO: Implement the EdgeDNS run function
+    
+        //cache_dns_enable
+        if self.edgednsconfig.cache_dns.clone().unwrap().enable {
+            info!("Running TrustDNS as a cache DNS server");
+            println!("Running TrustDNS as a cache DNS server")
+        } else {
+            info!("Running TrustDNS as a local DNS server");
+            println!("Running TrustDNS as a local DNS server");
+        }
+    
+        let addr: SocketAddr = "0.0.0.0:8081".parse().unwrap();
+    
+        //TODO: add auto port recognition if the port is not available
+    
+        let socket = UdpSocket::bind(addr).await.unwrap();
+        info!("Listening for DNS requests on {}", addr);
+    
+        let local_name = "example.com."; // Nome del dominio che stai parsificando
+        let origin = Name::root(); // Usa il dominio radice come origin per un nome assoluto
+    
+        let authority = Arc::new(InMemoryAuthority::empty(
+            Name::parse(local_name, Some(&origin)).expect("Failed to parse domain name"),
+            ZoneType::Primary, // Tipo di zona
+            false,             // Usa Some(false) invece di false
+        ));
+    
+        // Crea un record DNS
+        let mut record = Record::with(
+            Name::parse("www.example.com.", None).unwrap(),
+            RecordType::A,
+            self.edgednsconfig.cache_dns.clone().unwrap().cache_ttl,
+        );
+    
+        record.set_data(Some(RData::A(A(Ipv4Addr::new(192, 168, 0, 1)))));  // Correzione qui
+    
+        // Aggiungi il record all'autorità
+        authority.upsert(record, 0).await;
+    
+        let mut catalog = Catalog::new();
+        catalog.upsert(
+            Name::parse(&local_name, Some(&origin))
+                .expect("Failed to parse domain name").into(),
+            Box::new(authority) as Box<dyn AuthorityObject + Send + Sync>,  // Correzione qui
+        );
+    
+        let mut server = ServerFuture::new(catalog);
+        server.register_socket(socket);
+    
+        // Inizializzazione di un meccanismo di "shutdown" basato su un errore o su un input
+        // Esegui la selezione
+        let server_result:Result<(), anyhow::Error> = tokio::select! {
+            _ = server.block_until_done() => {
+                info!("Server stopped gracefully");
+                println!("Server stopped gracefully");
+                Ok(()) // Usa Ok() per il risultato positivo con anyhow
+            },
+            _ = self.wait_for_shutdown() => {
+                info!("Shutdown command received");
+                println!("Shutdown command received");
+                Err(anyhow::anyhow!("Shutting down the server").into()) // Errore con anyhow::Error
+            }
+        };
+
+        // Gestisci il risultato
+        match server_result {
+            Ok(_) => {
+                info!("Server stopped gracefully");
+                println!("Server stopped gracefully");
+            }
+            Err(err) => {
+                error!("Server encountered an error: {}", err);
+                println!("Server encountered an error: {}",err);
+                self.shutdown().await;  // Chiamata alla funzione di shutdown
+            }
+        }
     }
 
+    async fn wait_for_shutdown(&self) -> Result<(), String> {
+        // Crea un futuro che aspetta il segnale SIGINT (Ctrl + C)
+        let ctrl_c = async {
+            signal::ctrl_c()
+                .await
+                .expect("Failed to listen for Ctrl + C signal");
+            println!("Ctrl + C received, shutting down...");
+        };
+    
+        // Usa `tokio::select!` per attendere il primo futuro che si completa
+        tokio::select! {
+            _ = ctrl_c => {
+                // Se Ctrl + C viene premuto, restituisci un errore per indicare l'arresto
+                Err("Ctrl + C received, shutting down".to_string())
+            }
+        }
+    }
+        
+    
     pub async fn shutdown(&self) {
         info!("Shutting down the EdgeDNS ");
         //TODO: Implement the EdgeDNS shutdown function
+
+        // Operazioni di pulizia
+        info!("Shutting down EdgeDNS server");
+        println!("Shutting down EdgeDNS server");
+
+        // Pulizia delle risorse (se necessario)
+        if self.edgednsconfig.kube_api_config.clone().unwrap().delete_kube_config {
+            if let Err(err) = fs::remove_file("/path/to/temp/kubeconfig") {
+                error!("Failed to delete kubeconfig: {}", err);
+            }
+        }
+
+        // Chiudi eventuali altre risorse necessarie (es. file, connessioni, etc.)
+        info!("EdgeDNS shutdown complete.");
+        println!("EdgeDNS shutdown complete.")
     }
 
-
-    pub async fn new(config: ApiConfig, edgednscfg: EdgeDNSConfig, client: Arc<Client>) -> Result<Self, Error> {
+    pub async fn new(
+        config: ApiConfig,
+        edgednscfg: EdgeDNSConfig,
+        client: Arc<Client>,
+    ) -> Result<Self, Error> {
         if !config.edge_mode_enable {
             return Ok(EdgeDNS {
                 config: Arc::new(config),
+                edgednsconfig: Arc::new(edgednscfg),
             });
         }
-        
+
         // Update Corefile if EdgeDNS is enabled
-        //TODO: add expection handler for update_corefile function
-        //TODO: requirements 
-        //TODO: do not block the code if the are no services available + return a report to notify the user that there are no services available
-        
-        //update_corefile(edgednscfg, client.as_ref().clone()).await?; // Dereferenziamento dell'Arc<Client> e passaggio as_ref
-        
-        /* Reference as_ref: 
-            https://doc.rust-lang.org/std/convert/trait.AsRef.html
-         */
+        update_corefile(edgednscfg.clone(), &client.as_ref().clone()).await?; // Dereferenziamento dell'Arc<Client> e passaggio as_ref
+
+        /* Reference as_ref:
+           https://doc.rust-lang.org/std/convert/trait.AsRef.html
+        */
         Ok(EdgeDNS {
             config: Arc::new(config),
+            edgednsconfig: Arc::new(edgednscfg),
         })
     }
-    
+
     //registers a service
 
-    pub fn register(config: ApiConfig, client: Client) -> Result<(),Error> {
+    pub fn register(config: ApiConfig, client: Client) -> Result<(), Error> {
         // Load the KubeEdge shared library
         let library_path = "../../core/kubeedge-wrapper/libkubeedge.so";
         let library = unsafe {
@@ -106,5 +240,4 @@ impl EdgeDNS {
         }
         Ok(())
     }
-    
 }

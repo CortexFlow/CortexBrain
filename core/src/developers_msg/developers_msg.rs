@@ -15,6 +15,7 @@ pub fn info() {
         enabling efficient collaboration and progress.
         \n"
     );
+    println!("Requirements: Docker, Kubernetes, Apache Kafka");
     changelog();
     whats_new();
     problems_to_solve();
@@ -22,6 +23,10 @@ pub fn info() {
 
 pub fn changelog() {
     println!("------------------ C H A N G E L O G -------------------\n");
+    println!("29.01.2025");
+    println!("1-added send message function and consume_and_forward functions in kafka.rs");
+    println!("2-added expection handler in update_corefile function. If the interface is unavailable it show the available interfaces");
+    println!("27.01.2025");
     println!("- Added APIs for 'Default' and 'V1' base configurations");
     println!("- Introduced a developer message tab");
     println!("- Refactored client code to align with the new crate structure");
@@ -40,9 +45,8 @@ pub fn whats_new() {
 
 pub fn problems_to_solve() {
     println!("--------------- O P E N   I S S U E S ------------------\n");
-    println!("1. In 'kernel.rs', the 'update_corefile' function needs an exception handler.");
-    println!("2. The 'validation.rs' module requires full implementation.");
-    println!("3. The 'update_corefile' function requires a code review.");
-    println!("4. In 'edgecni.rs', the 'run' functionality needs implementation.");
-    println!("5. The 'stop' functionality in the 'close_route' function of 'edgecni.rs' needs implementation.\n");
+    println!("1. The 'validation.rs' module requires full implementation.");
+    println!("2. The 'update_corefile' function requires a code review.");
+    println!("3. In 'edgecni.rs', the 'run' functionality needs implementation.");
+    println!("4. The 'stop' functionality in the 'close_route' function of 'edgecni.rs' needs implementation.\n");
 }
