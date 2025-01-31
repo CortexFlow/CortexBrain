@@ -1,4 +1,3 @@
-
 /* The corefile.go file in Kubernetes is part of the source code for CoreDNS, which is the default DNS server used in Kubernetes clusters for service name resolution and other internal DNS operations. This file defines the structure and functionality associated with CoreDNS configuration, specifically the object called Corefile.
 
 Corefile.go's main functionality
@@ -21,18 +20,21 @@ Provides functionality to integrate CoreDNS with Kubernetes clusters, such as co
 */
 use crate::client::apiconfig::EdgeDNSConfig;
 use crate::client::client::Client;
-use crate::kernel::utilities::{is_valid_ip,remove_duplicates,get_interfaces};
+use crate::kernel::utilities::{get_interfaces, is_valid_ip, remove_duplicates};
 use anyhow::{anyhow, Error, Result};
 use k8s_openapi::api::core::v1::ConfigMap;
-use kube::api::{Api,DynamicObject, ListParams};
+use k8s_openapi::apimachinery::pkg::apis::meta::v1::Patch;
+use kube::api::{Api, DynamicObject, ListParams};
 use kube::discovery;
 use serde::Serialize;
+use serde_json::json;
+use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fs;
 use std::net::IpAddr;
 use tracing::{error, info};
 
-use crate::client::default_api_config::{ApiConfig,ConfigType};
+use crate::client::default_api_config::{ApiConfig, ConfigType};
 
 /* template block */
 
@@ -116,15 +118,16 @@ pub async fn detect_cluster_dns(client: Client) -> Vec<String> {
     };
 
     // Risolve la risorsa "Service"
-    let service_resource = match discovery.resolve_gvk(&gvk){
-        Some((resource, _capabilities)) => resource,  // Estrai solo ApiResource
+    let service_resource = match discovery.resolve_gvk(&gvk) {
+        Some((resource, _capabilities)) => resource, // Estrai solo ApiResource
         None => {
             error!("Failed to resolve Service resource: Service resource not found");
             return Vec::new(); // Nessuna risorsa trovata
         }
     };
-    
-    let services: Api<DynamicObject> = Api::namespaced_with(client.get_client().clone(), namespace, &service_resource);
+
+    let services: Api<DynamicObject> =
+        Api::namespaced_with(client.get_client().clone(), namespace, &service_resource);
 
     if let std::result::Result::Ok(coredns) = services.get("coredns").await {
         if let Some(cluster_ip) = coredns.data["spec"]["clusterIP"].as_str() {
@@ -162,13 +165,12 @@ pub async fn detect_cluster_dns(client: Client) -> Vec<String> {
         info!("Automatically detected cluster DNS: {:?}", servers);
     }
 
-    return servers
+    return servers;
 }
 
-
-// return the interface ip 
+// return the interface ip
 fn get_interface_ip(interface: &str) -> Result<IpAddr, Error> {
-    /* 
+    /*
     Lib reference: pnet:
         https://crates.io/crates/pnet
      */
@@ -182,8 +184,11 @@ fn get_interface_ip(interface: &str) -> Result<IpAddr, Error> {
             }
         }
     }
-    let _itfc=get_interfaces();
-    Err(anyhow!("Failed to find interface with name: {:?}", interface))
+    let _itfc = get_interfaces();
+    Err(anyhow!(
+        "Failed to find interface with name: {:?}",
+        interface
+    ))
 }
 
 //update corefile function
@@ -191,34 +196,35 @@ pub async fn update_corefile(cfg: EdgeDNSConfig, kube_client: &Client) -> Result
     info!("Updating the EdgeDNS corefile configuration");
     println!("Updating the EdgeDNS corefile configuration");
     println!("\n\n");
-    println!("Retrieving the corefile current configuration");    
-    let configmaps: Api<ConfigMap> = Api::namespaced(kube_client.get_client().clone(),"kube-system");
-    let corefile_configmap=configmaps.get("coredns").await?;
-    println!("{:?}\n\n",corefile_configmap);
+    println!("Retrieving the corefile current configuration");
+    let configmaps: Api<ConfigMap> =
+        Api::namespaced(kube_client.get_client().clone(), "kube-system");
+    let mut corefile_configmap = configmaps.get("coredns").await?;
+    println!("{:?}\n\n", corefile_configmap);
 
     //TODO: inject in the kubernetes corefile the modified parameters
 
-    // obtain the interface ip address 
+    // obtain the interface ip address
     let listen_ip = get_interface_ip(&cfg.listen_interface)?;
-   
-    info!("listener ip {}",listen_ip);
-    println!("listener ip {}",listen_ip);
+
+    info!("listener ip {}", listen_ip);
+    println!("listener ip {}", listen_ip);
 
     // Set default values for cacheTTL and upstreamServers
     let mut cache_ttl = DEFAULT_TTL;
     let mut upstream_servers = vec![DEFAULT_UPSTREAM_SERVER.to_string()];
-    
-    info!("Cache ttl {}",cache_ttl);
-    println!("Cache ttl {}",cache_ttl);
-    
-    info!("upstream server {:?}",upstream_servers);
-    println!("upstream server {:?}",upstream_servers);
-    
+
+    info!("Cache ttl {}", cache_ttl);
+    println!("Cache ttl {}", cache_ttl);
+
+    info!("upstream server {:?}", upstream_servers);
+    println!("upstream server {:?}", upstream_servers);
+
     // Get the Kubernetes plugin configuration string
     let kubernetes_plugin = get_kubernetes_plugin_str(cfg.clone())?;
-   
-    info!("kubernetes plugin string {}",kubernetes_plugin);
-    println!("kubernetes plugin string {}",kubernetes_plugin);
+
+    info!("kubernetes plugin string: {}", kubernetes_plugin);
+    println!("kubernetes plugin string: {}", kubernetes_plugin);
 
     if let Some(cache_dns_config) = cfg.cache_dns {
         if cache_dns_config.enable {
@@ -264,32 +270,84 @@ pub async fn update_corefile(cfg: EdgeDNSConfig, kube_client: &Client) -> Result
         kubernetes_plugin,
     })?;
 
+    let stub_domain_str_copy = stub_domain_str.clone();
+
     // Scrivi la nuova configurazione nel file temporaneo
     let temp_corefile_path = "/tmp/Corefile";
     fs::write(temp_corefile_path, stub_domain_str)?;
 
-    info!("Corefile updated successfully at {}", temp_corefile_path);
+    //Create a full patched file to check before submission in the k8s coredns file in corefile
+
+    if let Some(coredns_data) = corefile_configmap.data.as_mut() {
+        //search for corefile in data map
+        if let Some(corefile) = coredns_data.get_mut("Corefile") {
+            let mut corefile_copy = corefile.clone();
+
+            //new config to add--> stub_domain_str
+            corefile_copy.push_str(&stub_domain_str_copy); //copy trait implementare
+
+            let patched_data = json!({
+                "data":{
+                    "Corefile": corefile_copy
+                }
+            });
+
+            let temp_coredns_patch = "/tmp/PatchedCoreDns";
+            fs::write(
+                temp_coredns_patch,
+                serde_json::to_string_pretty(&patched_data)?,
+            )?;
+
+            info!("CoreDNS updated successfully at {}", temp_coredns_patch);
+            println!("CoreDNS updated successfully at {}", temp_coredns_patch);
+
+            //apply the corefile patched file after user decision
+            //TODO: remember to send the patch to the cluster
+            if corefile.contains(".::50") {
+                println!("Configuration block already present, skipping update.");
+            } else {
+                println!("Do you want to patch the coredns configuration? Yes[Y] No[N]");
+                let mut input = String::new();
+                std::io::stdin().read_line(&mut input)?;
+                if input.trim().eq_ignore_ascii_case("Y") {
+                    println!("\nInserting patch:");
+                    println!("{:?}\n",stub_domain_str_copy);
+                    *corefile = format!("{}{}", corefile, stub_domain_str_copy);
+
+                    //logging
+                    println!("Patched corefile:\n");
+                    println!("{:?}", corefile);
+                } else {
+                    //logging
+                    info!("Corefile not patched");
+                    println!("Corefile not patched");
+                }
+            }
+        }
+    }
 
     Ok(())
 }
 
 // Helper per ottenere la configurazione del plugin Kubernetes
- fn get_kubernetes_plugin_str(cfg:EdgeDNSConfig) -> Result<String, Error> {
+fn get_kubernetes_plugin_str(cfg: EdgeDNSConfig) -> Result<String, Error> {
     // Logica per generare la stringa di configurazione del plugin Kubernetes
     if cfg.enable {
         let plugin_config = KubernetesPluginInfo {
-            api_server: cfg.kube_api_config
-            .as_ref()
-            .and_then(|server| server.master.clone())
-            .unwrap_or(" ".to_owned()),
+            api_server: cfg
+                .kube_api_config
+                .as_ref()
+                .and_then(|server| server.master.clone())
+                .unwrap_or(" ".to_owned()),
 
-            ttl: cfg.cache_dns
-            .as_ref()
-            .and_then(|cache|Some(cache.cache_ttl))
-            .unwrap_or(DEFAULT_TTL),
+            ttl: cfg
+                .cache_dns
+                .as_ref()
+                .and_then(|cache| Some(cache.cache_ttl))
+                .unwrap_or(DEFAULT_TTL),
         };
         generate_kubernetes_plugin_block(plugin_config)
     } else {
         Ok("".to_string()) // Nessun  plugin Kubernetes se non abilitato
     }
-} 
+}
