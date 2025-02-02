@@ -23,7 +23,7 @@ use crate::client::client::Client;
 use crate::kernel::utilities::{get_interfaces, is_valid_ip, remove_duplicates};
 use anyhow::{anyhow, Error, Result};
 use k8s_openapi::api::core::v1::ConfigMap;
-use k8s_openapi::apimachinery::pkg::apis::meta::v1::Patch;
+use kube::api::{Patch, PatchParams};
 use kube::api::{Api, DynamicObject, ListParams};
 use kube::discovery;
 use serde::Serialize;
@@ -38,6 +38,26 @@ use crate::client::default_api_config::{ApiConfig, ConfigType};
 
 /* template block */
 
+/* .:50 {
+        bind 127.0.0.1
+        cache 20
+        errors
+        forward . 8.8.8.8 8.8.4.4 {
+            force_tcp
+        }
+        kubernetes cluster.local in-addr.arpa ip6.arpa {
+            endpoint https://127.0.0.1:6443
+            tls /var/run/secrets/kubernetes.io/serviceaccount/ca.crt /var/run/secrets/kubernetes.io/serviceaccount/token ""
+            pods insecure
+            fallthrough in-addr.arpa ip6.arpa
+            ttl 20
+        }
+        log
+        loop
+        reload
+    }
+} */
+
 const STUB_DOMAIN_BLOCK: &str = r#"{{domain_name}}::{{port}}{
     bind {{local_ip}}
     cache {{cache_ttl}}
@@ -51,8 +71,31 @@ const STUB_DOMAIN_BLOCK: &str = r#"{{domain_name}}::{{port}}{
     reload
 }"#;
 
+
+/* .:50 {
+        bind 127.0.0.1
+        cache 20
+        errors
+        forward . 8.8.8.8 8.8.4.4 {
+            force_tcp
+        }
+        kubernetes cluster.local in-addr.arpa ip6.arpa {
+            endpoint https://127.0.0.1:6443
+            tls /var/run/secrets/kubernetes.io/serviceaccount/ca.crt /var/run/secrets/kubernetes.io/serviceaccount/token ""
+            pods insecure
+            fallthrough in-addr.arpa ip6.arpa
+            ttl 20
+        }
+        log
+        loop
+        reload
+    }
+} */
+
+
 const KUBERNETES_PLUGIN_BLOCK: &str = r#"Kubernetes cluster.local in-addr.arpa ip6.arpa{
-    {{api_server}}
+    endpoint {{api_server}}
+    tls /var/run/secrets/kubernetes.io/serviceaccount/ca.crt /var/run/secrets/kubernetes.io/serviceaccount/token ""
     pods insecure
     fallthrough in-addr.arpa ip6.arpa
     ttl {{ttl}}
@@ -313,9 +356,26 @@ pub async fn update_corefile(cfg: EdgeDNSConfig, kube_client: &Client) -> Result
                     println!("\nInserting patch:");
                     println!("{:?}\n",stub_domain_str_copy);
                     *corefile = format!("{}{}", corefile, stub_domain_str_copy);
+                    
+
+                    //send the patch to the cluster
+                    let patch_data = json!({
+                        "data": {
+                            "Corefile": corefile.clone()
+                        }
+                    });
+                    
+                    let patch_new = Patch::Merge(patch_data);
+                    
+                    configmaps
+                        .patch("coredns", &PatchParams::default(), &patch_new)
+                        .await?;
+                    
+
+                    //TODO: add error handler
 
                     //logging
-                    println!("Patched corefile:\n");
+                    println!("Patched corefile successfully:\n");
                     println!("{:?}", corefile);
                 } else {
                     //logging
