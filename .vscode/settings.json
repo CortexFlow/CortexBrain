@@ -1,6 +1,0 @@
-{
-    "python.pythonPath": "env/bin/python3.11",
-    "python.analysis.extraPaths": [
-        "./Analyze/data_processor"
-    ]
-}

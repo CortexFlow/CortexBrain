@@ -73,7 +73,7 @@ impl EdgeDNS {
             info!("Running TrustDNS as a local DNS server");
         }
     
-        let addr: SocketAddr = "127.0.0.1:5053".parse().unwrap(); 
+        let addr: SocketAddr = "127.0.0.1:53".parse().unwrap(); 
     
         // TODO: automatic select address
         //TODO: add support for recursion
@@ -82,16 +82,16 @@ impl EdgeDNS {
         let socket = UdpSocket::bind(addr).await.unwrap();
         info!("Listening for DNS requests on {}", addr);
     
-        let local_name = "example.com."; // Nome del dominio che stai parsificando
-        let origin = Name::root(); // Usa il dominio radice come origin per un nome assoluto
+        let local_name = "example.com."; 
+        let origin = Name::root(); 
     
         let authority = Arc::new(InMemoryAuthority::empty(
             Name::parse(local_name, Some(&origin)).expect("Failed to parse domain name"),
-            ZoneType::Primary, // Tipo di zona
-            false,             // Usa Some(false) invece di false
+            ZoneType::Primary, // Zone type
+            false,            
         ));
     
-        // Crea un record DNS
+        // Create a DNS record
         let mut record = Record::with(
             Name::parse("www.example.com.", None).unwrap(),
             RecordType::A,
@@ -122,11 +122,11 @@ impl EdgeDNS {
             },
             _ = self.wait_for_shutdown() => {
                 info!("Shutdown command received");
-                Err(anyhow::anyhow!("Shutting down the server")) // Errore con anyhow::Error
+                Err(anyhow::anyhow!("Shutting down the server")) 
             }
         };
 
-        // Gestisci il risultato
+        // handle the server_result
         match server_result {
             Ok(_) => {
                 info!("Server stopped gracefully");
@@ -139,7 +139,7 @@ impl EdgeDNS {
     }
 
     async fn wait_for_shutdown(&self) -> Result<(), String> {
-        // Crea un futuro che aspetta il segnale SIGINT (Ctrl + C)
+        // wait for sigint for shutting down
         let ctrl_c = async {
             signal::ctrl_c()
                 .await
@@ -147,10 +147,9 @@ impl EdgeDNS {
             info!("Ctrl + C received, shutting down...");
         };
     
-        // Usa `tokio::select!` per attendere il primo futuro che si completa
         tokio::select! {
             _ = ctrl_c => {
-                // Se Ctrl + C viene premuto, restituisci un errore per indicare l'arresto
+                // if sigint is triggered shut down the server and reutrn an error msg
                 Err("Ctrl + C received, shutting down".to_string())
             }
         }
@@ -161,15 +160,15 @@ impl EdgeDNS {
         info!("Shutting down the EdgeDNS ");
     
 
-        // Operazioni di pulizia
         info!("Shutting down EdgeDNS server");
         
 
-        // Pulizia delle risorse (se necessario)
+        // clear the resources
         if self.edgednsconfig.kube_api_config.clone().unwrap().delete_kube_config {
             if let Err(err) = fs::remove_file("/path/to/temp/kubeconfig") {
                 error!("Failed to delete kubeconfig: {}", err);
             }
+            //TODO: remove the temp files
         }
 
         info!("EdgeDNS shutdown complete.");

@@ -52,7 +52,6 @@ const STUB_DOMAIN_BLOCK: &str = r#"{{domain_name}}:{{port}} {
 
 
 //TODO: add certificate to protect the route
-//TODO: auto deduct the port 
 const KUBERNETES_PLUGIN_BLOCK: &str = r#"kubernetes cluster.local in-addr.arpa ip6.arpa{
         pods insecure
         fallthrough in-addr.arpa ip6.arpa
@@ -193,7 +192,6 @@ pub async fn update_corefile(cfg: EdgeDNSConfig, kube_client: &Client) -> Result
     let mut corefile_configmap = configmaps.get("coredns").await?;
     info!("{:?}\n\n", corefile_configmap);
 
-    //TODO: inject in the kubernetes corefile the modified parameters
 
     // obtain the interface ip address
     let listen_ip = get_interface_ip(&cfg.listen_interface)?;
@@ -222,18 +220,18 @@ pub async fn update_corefile(cfg: EdgeDNSConfig, kube_client: &Client) -> Result
                 info!("\nAuto detecting servers");
                 match detect_cluster_dns(kube_client.clone()).await {
                     Ok(detected_servers) => {
-                        // Aggiungi i server rilevati alla lista upstream_servers
+                        // Add the detected servers to the upstream_servers list
                         upstream_servers.extend(detected_servers);
                         info!("Auto detected servers: {:?}\n", upstream_servers);
                     }
                     Err(e) => {
-                        // Gestisci l'errore se il rilevamento fallisce
+                        // Handle the error if detection fails
                         error!("Failed to auto-detect servers: {}", e);
                     }
                 }
             }
             
-            // Aggiungi gli upstream servers configurati
+            //Add upstream servers configured
             for server in &cache_dns_config.upstream_servers {
                 let server = server.trim();
                 if !server.is_empty() {
@@ -245,19 +243,19 @@ pub async fn update_corefile(cfg: EdgeDNSConfig, kube_client: &Client) -> Result
                 }
             }
 
-            // Rimuovi duplicati dagli upstream servers
+            // Remove duplicates
             upstream_servers = remove_duplicates(upstream_servers);
 
             if upstream_servers.is_empty() {
                 return Err(anyhow!("No valid upstream servers detected"));
             }
 
-            // Aggiorna il TTL della cache
+            // update the cache ttl 
             cache_ttl = cache_dns_config.cache_ttl;
         }
     }
 
-    // Crea la stringa di configurazione per il dominio stub
+    // Create the configuration string for the stub domain
     let stub_domain_str = generate_stub_domain_block(StubDomainInfo {
         domain_name: "cortexflow-edge.dns".to_string(),
         local_ip: listen_ip.to_string(),
@@ -340,9 +338,9 @@ pub async fn update_corefile(cfg: EdgeDNSConfig, kube_client: &Client) -> Result
     Ok(())
 }
 
-// Helper per ottenere la configurazione del plugin Kubernetes
+
 fn get_kubernetes_plugin_str(cfg: EdgeDNSConfig) -> Result<String, Error> {
-    // Logica per generare la stringa di configurazione del plugin Kubernetes
+
     if cfg.enable {
         let plugin_config = KubernetesPluginInfo {
             api_server: cfg
@@ -358,6 +356,6 @@ fn get_kubernetes_plugin_str(cfg: EdgeDNSConfig) -> Result<String, Error> {
         };
         generate_kubernetes_plugin_block(plugin_config)
     } else {
-        Ok("".to_string()) // Nessun  plugin Kubernetes se non abilitato
+        Ok("".to_string()) 
     }
 }
