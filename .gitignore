@@ -214,6 +214,7 @@ coredns_explaination.md
 corefilego.md
 functions1.md
 Guide.md
+test_config/
 # PyCharm
 #  JetBrains specific template is maintained in a separate JetBrains.gitignore that can
 #  be found at https://github.com/github/gitignore/blob/main/Global/JetBrains.gitignore

@@ -1,4 +1,5 @@
 /* Contains the Client configuration  */
+#[allow(unused_imports)]
 
 use anyhow::{anyhow, Error, Result};
 use k8s_openapi::api::core::v1::Pod;
@@ -9,6 +10,8 @@ use kube::{Api, Client as KubeClient};
 use default_api_config::{ApiConfig, ConfigType};
 
 use super::default_api_config;
+use tracing::{info,instrument};
+
 
 #[derive(Clone)]
 pub struct Client {
@@ -38,61 +41,59 @@ impl Client {
         let lp = ListParams::default();
         let pod_list = pods.list(&lp).await?;
         if pod_list.items.is_empty() {
-            return Err(anyhow!("No pods found").into());
+            return Err(anyhow!("No pods found"));
         }
         Ok(pod_list.items)
     }
 
     pub fn print_config(&self) {
-        println!("\n");
-        println!("------- E D G E M E S H  N E T W O R K -------\n");
-        println!("Base dir: {}", self.config.base_dir);
-        println!("Config File: {}", self.config.config_file);
-        println!(
+        info!("------- E D G E M E S H  N E T W O R K -------\n");
+        info!("Base dir: {}", self.config.base_dir);
+        info!("Config File: {}", self.config.config_file);
+        info!(
             "Edgemesh Agent config name: {}",
             self.config.edgemesh_agent_config_name
         );
-        println!(
+        info!(
             "Edgemesh Gateway config name: {}",
             self.config.edgemesh_gateway_config_name
         );
-        println!(
+        info!(
             "Edgemesh Dns Module Name: {}",
             self.config.edgemesh_dns_module_name
         );
-        println!(
+        info!(
             "Edgemesh Proxy Module Name: {}",
             self.config.edgemesh_proxy_module_name
         );
-        println!(
+        info!(
             "Edgemesh Tunnel Module Name: {}",
             self.config.edgemesh_tunnel_module_name
         );
-        println!(
+        info!(
             "Edgemesh CNI Module Name: {}",
             self.config.edgemesh_cni_module_name
         );
-        println!("Bridge Device: {}", self.config.bridge_device_name);
-        println!("Bridge Device IP: {}", self.config.bridge_device_ip);
-        println!("TUN Device Name: {}", self.config.tun_device_name);
-        println!(
+        info!("Bridge Device: {}", self.config.bridge_device_name);
+        info!("Bridge Device IP: {}", self.config.bridge_device_ip);
+        info!("TUN Device Name: {}", self.config.tun_device_name);
+        info!(
             "Temp Kube Config Path: {}",
             self.config.temp_kube_config_path
         );
-        println!("Temp Core File Path: {}", self.config.temp_core_file_path);
-        println!("Meta Server Address: {}", self.config.meta_server_address);
-        println!("Meta Server Cert Dir: {}", self.config.meta_server_cert_dir);
-        println!("Meta Server CA File: {}", self.config.meta_server_ca_file);
-        println!(
+        info!("Temp Core File Path: {}", self.config.temp_core_file_path);
+        info!("Meta Server Address: {}", self.config.meta_server_address);
+        info!("Meta Server Cert Dir: {}", self.config.meta_server_cert_dir);
+        info!("Meta Server CA File: {}", self.config.meta_server_ca_file);
+        info!(
             "Meta Server Cert File: {}",
             self.config.meta_server_cert_file
         );
-        println!("Meta Server Key File: {}", self.config.meta_server_key_file);
-        println!("Edge Mode: {}", self.config.edge_mode);
-        println!("Cloud Mode: {}", self.config.cloud_mode);
-        println!("Manual Mode: {}", self.config.manual_mode);
-        println!("Empty Node Name: {}", self.config.empty_node_name);
-        println!("Empty Pod Name: {}", self.config.empty_pod_name);
-        println!("--------------------------------\n\n");
+        info!("Meta Server Key File: {}", self.config.meta_server_key_file);
+        info!("Edge Mode: {}", self.config.edge_mode);
+        info!("Cloud Mode: {}", self.config.cloud_mode);
+        info!("Manual Mode: {}", self.config.manual_mode);
+        info!("Empty Node Name: {}", self.config.empty_node_name);
+        info!("Empty Pod Name: {}", self.config.empty_pod_name);
     }
 }

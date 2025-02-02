@@ -27,7 +27,7 @@ default:
   cloud_mode: "CloudMode"
   manual_mode: "ManualMode"
   kubeapi:
-    master: "https://127.0.0.1:6443"
+    master: "127.0.0.1:54616"
     content_type: "application/vnd.kubernetes.protobuf"
     qps: 50
     burst: 100
@@ -37,13 +37,11 @@ default:
   edge_dns:
     enable: true
     listen_interface: "lo"
-    listen_port: 50
+    listen_port: 53
   cache_dns:
     enable: true
     auto_detect: true
-    upstream_servers:
-    - "8.8.8.8"
-    - "8.8.4.4"
+    upstream_servers: #will be delete in the next update
     cache_ttl: 20
   edgeCNI:
     enable: true

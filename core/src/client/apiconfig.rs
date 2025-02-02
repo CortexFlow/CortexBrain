@@ -41,8 +41,7 @@
 
 
 
-
-
+#[allow(unused_imports)]
 
 
 use serde::{Deserialize, Serialize};
@@ -85,7 +84,7 @@ pub struct EdgeGatewayConfig {
 // ======================= KubeAPI Section ==========================
 // ==================================================================
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize,Debug)]
 pub struct KubeApiConfig {
     pub master: Option<String>,
     pub content_type: Option<String>,
@@ -158,7 +157,7 @@ pub struct MeshCIDRConfig {
 // ========================= DNS Section ============================
 // ==================================================================
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize,Debug)]
 pub struct EdgeDNSConfig {
     pub enable: bool,
     pub listen_interface: String,
@@ -167,7 +166,7 @@ pub struct EdgeDNSConfig {
     pub cache_dns: Option<CacheDNS>,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize,Debug)]
 pub struct CacheDNS {
     pub enable: bool,
     pub auto_detect: bool,

@@ -18,88 +18,46 @@ Interface with Kubernetes:
 Provides functionality to integrate CoreDNS with Kubernetes clusters, such as configuring internal DNS services to resolve names such as my-service.my-n
 
 */
+#[allow(unused_imports)]
 use crate::client::apiconfig::EdgeDNSConfig;
 use crate::client::client::Client;
 use crate::kernel::utilities::{get_interfaces, is_valid_ip, remove_duplicates};
 use anyhow::{anyhow, Error, Result};
-use k8s_openapi::api::core::v1::ConfigMap;
+use k8s_openapi::api::core::v1::{Capabilities, ConfigMap};
 use kube::api::{Patch, PatchParams};
 use kube::api::{Api, DynamicObject, ListParams};
 use kube::discovery;
+use k8s_openapi::api::core::v1::Service; 
 use serde::Serialize;
 use serde_json::json;
-use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fs;
 use std::net::IpAddr;
-use tracing::{error, info};
-
-use crate::client::default_api_config::{ApiConfig, ConfigType};
+use tracing::{error, info,instrument, warn};
 
 /* template block */
 
-/* .:50 {
-        bind 127.0.0.1
-        cache 20
-        errors
-        forward . 8.8.8.8 8.8.4.4 {
-            force_tcp
-        }
-        kubernetes cluster.local in-addr.arpa ip6.arpa {
-            endpoint https://127.0.0.1:6443
-            tls /var/run/secrets/kubernetes.io/serviceaccount/ca.crt /var/run/secrets/kubernetes.io/serviceaccount/token ""
-            pods insecure
-            fallthrough in-addr.arpa ip6.arpa
-            ttl 20
-        }
-        log
-        loop
-        reload
-    }
-} */
-
-const STUB_DOMAIN_BLOCK: &str = r#"{{domain_name}}::{{port}}{
+const STUB_DOMAIN_BLOCK: &str = r#"{{domain_name}}:{{port}} {
     bind {{local_ip}}
-    cache {{cache_ttl}}
+    log
     errors
-    forward . {{upstream_servers}}{
+    forward . {{upstream_servers}} {
         force_tcp
     }
-    {{kubernetes_plugin}}
-    log
+    cache {{cache_ttl}}
     loop
     reload
 }"#;
 
 
-/* .:50 {
-        bind 127.0.0.1
-        cache 20
-        errors
-        forward . 8.8.8.8 8.8.4.4 {
-            force_tcp
-        }
-        kubernetes cluster.local in-addr.arpa ip6.arpa {
-            endpoint https://127.0.0.1:6443
-            tls /var/run/secrets/kubernetes.io/serviceaccount/ca.crt /var/run/secrets/kubernetes.io/serviceaccount/token ""
-            pods insecure
-            fallthrough in-addr.arpa ip6.arpa
-            ttl 20
-        }
-        log
-        loop
-        reload
-    }
-} */
 
-
-const KUBERNETES_PLUGIN_BLOCK: &str = r#"Kubernetes cluster.local in-addr.arpa ip6.arpa{
-    endpoint {{api_server}}
-    tls /var/run/secrets/kubernetes.io/serviceaccount/ca.crt /var/run/secrets/kubernetes.io/serviceaccount/token ""
-    pods insecure
-    fallthrough in-addr.arpa ip6.arpa
-    ttl {{ttl}}
-}"#;
+//TODO: add certificate to protect the route
+//TODO: auto deduct the port 
+const KUBERNETES_PLUGIN_BLOCK: &str = r#"kubernetes cluster.local in-addr.arpa ip6.arpa{
+        pods insecure
+        fallthrough in-addr.arpa ip6.arpa
+        ttl {{ttl}}
+    }"#;
 
 /* constants */
 const DEFAULT_TTL: u32 = 30;
@@ -146,71 +104,62 @@ fn generate_kubernetes_plugin_block(config: KubernetesPluginInfo) -> Result<Stri
     Ok(rendered)
 }
 
-pub async fn detect_cluster_dns(client: Client) -> Vec<String> {
+#[instrument(skip(client))]
+pub async fn detect_cluster_dns(client: Client) -> Result<Vec<String>, Box<dyn std::error::Error>> {
     let namespace = "kube-system";
     let mut servers = HashSet::new();
 
-    // Scoperta delle risorse per oggetti dinamici
-    let discovery = discovery::Discovery::new(client.get_client().clone());
+    info!("Running DNS service detection...");
 
-    // Crea un GroupVersionKind per "Service"
-    let gvk = kube::api::GroupVersionKind {
-        group: "".to_string(),
-        version: "v1".to_string(),
-        kind: "Service".to_string(),
-    };
-
-    // Risolve la risorsa "Service"
-    let service_resource = match discovery.resolve_gvk(&gvk) {
-        Some((resource, _capabilities)) => resource, // Estrai solo ApiResource
-        None => {
-            error!("Failed to resolve Service resource: Service resource not found");
-            return Vec::new(); // Nessuna risorsa trovata
-        }
-    };
-
-    let services: Api<DynamicObject> =
-        Api::namespaced_with(client.get_client().clone(), namespace, &service_resource);
-
-    if let std::result::Result::Ok(coredns) = services.get("coredns").await {
-        if let Some(cluster_ip) = coredns.data["spec"]["clusterIP"].as_str() {
-            if cluster_ip != "None" {
-                servers.insert(cluster_ip.to_string());
-            }
-        }
-    }
-
-    if let std::result::Result::Ok(kubedns) = services.get("kube-dns").await {
-        if let Some(cluster_ip) = kubedns.data["spec"]["clusterIP"].as_str() {
-            if cluster_ip != "None" {
-                servers.insert(cluster_ip.to_string());
-            }
-        }
-    }
+    let services: Api<Service> = Api::namespaced(client.get_client().clone(), namespace);
+    info!("Initialized API for services in namespace: {}", namespace);
 
     let label_selector = ListParams::default().labels("k8s-app=kube-dns");
-    if let std::result::Result::Ok(kube_dns_list) = services.list(&label_selector).await {
-        for item in kube_dns_list.items {
-            if let Some(cluster_ip) = item.data["spec"]["clusterIP"].as_str() {
+    info!("Using label selector: k8s-app=kube-dns");
+
+    let service_list = match services.list(&label_selector).await {
+        Ok(list) => {
+            info!("Successfully retrieved list of services with label k8s-app=kube-dns");
+            list
+        }
+        Err(e) => {
+            error!("Failed to retrieve services: {}", e);
+            return Err(e.into());
+        }
+    };
+
+    info!("Processing {} services...", service_list.items.len());
+    for service in service_list.items {
+        let service_name = service.metadata.name.clone().unwrap_or_else(|| "unnamed".to_string());
+        info!("Processing service: {}", service_name);
+
+        if let Some(spec) = service.spec {
+            if let Some(cluster_ip) = spec.cluster_ip {
                 if cluster_ip != "None" {
-                    servers.insert(cluster_ip.to_string());
+                    info!("Found valid ClusterIP: {} for service: {}", cluster_ip, service_name);
+                    servers.insert(cluster_ip);
+                } else {
+                    info!("Service {} has ClusterIP set to 'None', skipping", service_name);
                 }
+            } else {
+                info!("Service {} has no ClusterIP, skipping", service_name);
             }
+        } else {
+            info!("Service {} has no spec, skipping", service_name);
         }
     }
 
-    let mut servers: Vec<String> = servers.into_iter().collect();
-    servers = remove_duplicates(servers);
+    let servers: Vec<String> = servers.into_iter().collect();
+    info!("Detected unique DNS servers: {:?}", servers);
 
     if servers.is_empty() {
         error!("Unable to automatically detect cluster DNS. Do you have CoreDNS or kube-dns installed in your cluster?");
+        Err("No DNS service detected".into())
     } else {
         info!("Automatically detected cluster DNS: {:?}", servers);
+        Ok(servers)
     }
-
-    return servers;
 }
-
 // return the interface ip
 fn get_interface_ip(interface: &str) -> Result<IpAddr, Error> {
     /*
@@ -227,7 +176,7 @@ fn get_interface_ip(interface: &str) -> Result<IpAddr, Error> {
             }
         }
     }
-    let _itfc = get_interfaces();
+    get_interfaces();
     Err(anyhow!(
         "Failed to find interface with name: {:?}",
         interface
@@ -235,15 +184,14 @@ fn get_interface_ip(interface: &str) -> Result<IpAddr, Error> {
 }
 
 //update corefile function
+#[instrument(skip(kube_client))]
 pub async fn update_corefile(cfg: EdgeDNSConfig, kube_client: &Client) -> Result<(), Error> {
-    info!("Updating the EdgeDNS corefile configuration");
-    println!("Updating the EdgeDNS corefile configuration");
-    println!("\n\n");
-    println!("Retrieving the corefile current configuration");
+    info!("Updating the EdgeDNS corefile configuration\n\n");
+    info!("Retrieving the corefile current configuration");
     let configmaps: Api<ConfigMap> =
         Api::namespaced(kube_client.get_client().clone(), "kube-system");
     let mut corefile_configmap = configmaps.get("coredns").await?;
-    println!("{:?}\n\n", corefile_configmap);
+    info!("{:?}\n\n", corefile_configmap);
 
     //TODO: inject in the kubernetes corefile the modified parameters
 
@@ -251,23 +199,19 @@ pub async fn update_corefile(cfg: EdgeDNSConfig, kube_client: &Client) -> Result
     let listen_ip = get_interface_ip(&cfg.listen_interface)?;
 
     info!("listener ip {}", listen_ip);
-    println!("listener ip {}", listen_ip);
 
     // Set default values for cacheTTL and upstreamServers
     let mut cache_ttl = DEFAULT_TTL;
     let mut upstream_servers = vec![DEFAULT_UPSTREAM_SERVER.to_string()];
 
     info!("Cache ttl {}", cache_ttl);
-    println!("Cache ttl {}", cache_ttl);
 
     info!("upstream server {:?}", upstream_servers);
-    println!("upstream server {:?}", upstream_servers);
 
     // Get the Kubernetes plugin configuration string
     let kubernetes_plugin = get_kubernetes_plugin_str(cfg.clone())?;
 
     info!("kubernetes plugin string: {}", kubernetes_plugin);
-    println!("kubernetes plugin string: {}", kubernetes_plugin);
 
     if let Some(cache_dns_config) = cfg.cache_dns {
         if cache_dns_config.enable {
@@ -275,10 +219,20 @@ pub async fn update_corefile(cfg: EdgeDNSConfig, kube_client: &Client) -> Result
 
             // Automatic detection of upstream servers from the cluster
             if cache_dns_config.auto_detect {
-                let detected_servers = detect_cluster_dns(kube_client.clone()).await;
-                upstream_servers.extend(detected_servers);
+                info!("\nAuto detecting servers");
+                match detect_cluster_dns(kube_client.clone()).await {
+                    Ok(detected_servers) => {
+                        // Aggiungi i server rilevati alla lista upstream_servers
+                        upstream_servers.extend(detected_servers);
+                        info!("Auto detected servers: {:?}\n", upstream_servers);
+                    }
+                    Err(e) => {
+                        // Gestisci l'errore se il rilevamento fallisce
+                        error!("Failed to auto-detect servers: {}", e);
+                    }
+                }
             }
-
+            
             // Aggiungi gli upstream servers configurati
             for server in &cache_dns_config.upstream_servers {
                 let server = server.trim();
@@ -305,7 +259,7 @@ pub async fn update_corefile(cfg: EdgeDNSConfig, kube_client: &Client) -> Result
 
     // Crea la stringa di configurazione per il dominio stub
     let stub_domain_str = generate_stub_domain_block(StubDomainInfo {
-        domain_name: ".".to_string(),
+        domain_name: "cortexflow-edge.dns".to_string(),
         local_ip: listen_ip.to_string(),
         port: cfg.listen_port.to_string(),
         cache_ttl,
@@ -342,19 +296,17 @@ pub async fn update_corefile(cfg: EdgeDNSConfig, kube_client: &Client) -> Result
             )?;
 
             info!("CoreDNS updated successfully at {}", temp_coredns_patch);
-            println!("CoreDNS updated successfully at {}", temp_coredns_patch);
 
             //apply the corefile patched file after user decision
-            //TODO: remember to send the patch to the cluster
-            if corefile.contains(".::50") {
-                println!("Configuration block already present, skipping update.");
+            if corefile.contains("cortexflow-edge.dns:53") {
+                error!("Configuration block already present, skipping update.");
             } else {
-                println!("Do you want to patch the coredns configuration? Yes[Y] No[N]");
+                warn!("Do you want to patch the coredns configuration? Yes[Y] No[N]");
                 let mut input = String::new();
                 std::io::stdin().read_line(&mut input)?;
                 if input.trim().eq_ignore_ascii_case("Y") {
-                    println!("\nInserting patch:");
-                    println!("{:?}\n",stub_domain_str_copy);
+                    info!("\nInserting patch:");
+                    info!("{:?}\n",stub_domain_str_copy);
                     *corefile = format!("{}{}", corefile, stub_domain_str_copy);
                     
 
@@ -375,12 +327,11 @@ pub async fn update_corefile(cfg: EdgeDNSConfig, kube_client: &Client) -> Result
                     //TODO: add error handler
 
                     //logging
-                    println!("Patched corefile successfully:\n");
-                    println!("{:?}", corefile);
+                    info!("Patched corefile successfully:\n");
+                    info!("{:?}", corefile);
                 } else {
                     //logging
-                    info!("Corefile not patched");
-                    println!("Corefile not patched");
+                    error!("Corefile not patched");
                 }
             }
         }
@@ -402,8 +353,7 @@ fn get_kubernetes_plugin_str(cfg: EdgeDNSConfig) -> Result<String, Error> {
 
             ttl: cfg
                 .cache_dns
-                .as_ref()
-                .and_then(|cache| Some(cache.cache_ttl))
+                .as_ref().map(|cache| cache.cache_ttl)
                 .unwrap_or(DEFAULT_TTL),
         };
         generate_kubernetes_plugin_block(plugin_config)

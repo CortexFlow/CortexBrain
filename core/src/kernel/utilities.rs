@@ -2,7 +2,7 @@
     UTILITIES: support functions used in the kernel crate
 
 */
-#[warn(unused_imports)]
+#[allow(unused_imports)]
 use std::net::Ipv4Addr;
 use itertools::Itertools;
 use pnet::datalink::interfaces;
@@ -20,12 +20,7 @@ pub fn is_valid_port(port: &str) -> bool {
             - Err: return false + error status
      */
     let port_enum = port.parse::<i32>().unwrap();
-    if 0 < port_enum && port_enum < 65536 {
-        return true;
-    }
-    else {
-        return false;
-    }
+    0 < port_enum && port_enum < 65536
 }
 pub fn remove_duplicates(ss: Vec<String>)->Vec<String> {
     /* 
@@ -49,3 +44,4 @@ pub fn get_interfaces(){
         println!("interface:{}",iface.name);
     }
 }
+

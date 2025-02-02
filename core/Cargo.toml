@@ -45,6 +45,7 @@ bytes = "1.9.0"
 prost = "0.13.4"
 rdkafka = "0.37.0"
 trust-dns-server = "0.23.2"
+dirs = "6.0.0"
 
 [dev-dependencies]
 wiremock = "0.6.0"  # Dipendenza per il mocking delle richieste HTTP in test

@@ -31,6 +31,7 @@
     This module is essential for initializing and managing configurations in
     distributed systems with complex edge and cloud operations.
 */
+#[allow(unused_imports)]
 
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
@@ -46,7 +47,7 @@ pub enum ConfigType {
     V1,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize,Debug)]
 pub struct ApiConfig {
     pub base_dir: String,
     pub config_file: String,

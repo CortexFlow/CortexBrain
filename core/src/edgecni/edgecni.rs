@@ -9,7 +9,7 @@ use std::sync::Arc;
 use tracing::{error, info}; //logging
 
 use crate::client::client::Client; //custom Client
-use crate::client::default_api_config::{ApiConfig,ConfigType};
+use crate::client::default_api_config::ApiConfig;
 
 pub struct EdgeCni<'a> {
     config: Arc<ApiConfig>,
@@ -85,7 +85,7 @@ impl<'a> EdgeCni<'a> {
         let mesh_adapter = MeshAdapter::new_mesh_adapter(&config, &client).unwrap();
         EdgeCni {
             config,
-            client: client,
+            client,
             mesh_adapter,
         }
     }
@@ -95,7 +95,7 @@ impl<'a> EdgeCni<'a> {
         //Execute the command to add a route
 
         let output = std::process::Command::new("ip")
-            .args(&["route", "add", cidr, "dev", tun_dev_name])
+            .args(["route", "add", cidr, "dev", tun_dev_name])
             .output()
             .map_err(|e| Error::msg(format!("Error executing ip route add {}", e)))?;
 
@@ -246,7 +246,7 @@ impl<'a> MeshAdapter<'a> {
 
         */
         for cidr in cidrs {
-            if !cidr.parse::<std::net::IpAddr>().is_ok() {
+            if cidr.parse::<std::net::IpAddr>().is_err() {
                 error!("Invalid CIDR format: {}", cidr);
             }
         }
@@ -323,9 +323,9 @@ impl<'a> MeshAdapter<'a> {
         }
 
         if mesh_network.prefix_len() == outer_network.prefix_len() {
-            return Ok(true);
+            Ok(true)
         } else {
-            return Err(Error::msg("Network masks do not match"));
+            Err(Error::msg("Network masks do not match"))
         }
     }
 

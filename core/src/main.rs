@@ -6,19 +6,31 @@ mod kernel;
 
 use anyhow::Result;
 use client::{client::Client, default_api_config::ApiConfig};
+use core::fmt;
 use std::sync::Arc;
 
 use crate::client::apiconfig::EdgeDNSConfig;
 use crate::developers_msg::developers_msg::info;
 use client::default_api_config::ConfigType;
 use kernel::kernel::EdgeDNS;
-use kernel::kafka::test_kafka;
+//use kernel::kafka::test_kafka;
+
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
 
+
+    //tracing subscriber for logging purpouses
+    tracing_subscriber::fmt()
+    .with_max_level(tracing::Level::INFO)
+    .with_target(false)
+    .with_level(true)
+    .init();
+
+
     //Development message for all the developers
     info();
+
 
     //TODO: general: clean unused or useless code in EdgeDNSConfig
     //let edge_cni_config = EdgeCniConfig { enable: true };

@@ -6,17 +6,16 @@ https://github.com/EmilHernvall/dnsguide/blob/master/chapter1.md
 /* Kubernetes in rust:
     https://www.shuttle.dev/blog/2024/10/22/using-kubernetes-with-rust
 */
+#[allow(unused_imports)]
 use crate::client::client::Client;
 use anyhow::{Error, Result};
 use libloading::{Library, Symbol};
 use std::ffi::{CStr, CString};
-#[warn(unused_imports)]
 use std::sync::Arc;
-use tracing::info;
 
 use std::net::SocketAddr;
 use tokio::net::UdpSocket;
-use tracing::error;
+use tracing::{error,info,warn,instrument};
 use trust_dns_server::authority::{AuthorityObject, Catalog};
 use trust_dns_server::proto::rr::{Name,Record,RecordType,RData};
 use trust_dns_server::authority::ZoneType;
@@ -27,13 +26,12 @@ use std::net::Ipv4Addr;
 
 use std::fs;
 use tokio::signal;
-use tokio::time::{self, Duration};
-
 
 use crate::client::apiconfig::EdgeDNSConfig;
 use crate::client::default_api_config::ApiConfig;
 use crate::kernel::corefile::update_corefile;
 
+#[derive(Debug)]
 pub struct EdgeDNS {
     config: Arc<ApiConfig>,
     edgednsconfig: Arc<EdgeDNSConfig>,
@@ -50,41 +48,35 @@ impl EdgeDNS {
         self.config.edge_mode_enable
     }
     pub fn get_kernel_info(&self) {
-        println!("----------- K E R N E L   I N F O ---------------");
-        println!("Kernel info:\n");
-        println!("name: {}", self.name());
-        println!("group: {}", self.group());
-        println!("enabled: {}\n", self.enable());
-        println!("------------------------------------------------");
+        info!("Kernel info:\n");
+        info!("name: {}", self.name());
+        info!("group: {}", self.group());
+        info!("enabled: {}\n", self.enable());
     }
+    #[instrument]
     pub async fn start(&self) {
-        if self.enable() == true {
+        if self.enable() {
             self.run().await;
         } else {
-            println!("kernel is disabled ");
-            info!("kernel is disabled");
+            warn!("kernel is disabled");
         }
     }
-
+    #[instrument]
     pub async fn run(&self) {
         // creates the proxy server using tokio crate
         info!("EdgeDNS is running ");
-        println!("----------- K E R N E L   L O G---------------");
-        println!("EdgeDNS is running");
-    
-        //TODO: Implement the EdgeDNS run function
-    
+        
         //cache_dns_enable
         if self.edgednsconfig.cache_dns.clone().unwrap().enable {
             info!("Running TrustDNS as a cache DNS server");
-            println!("Running TrustDNS as a cache DNS server")
         } else {
             info!("Running TrustDNS as a local DNS server");
-            println!("Running TrustDNS as a local DNS server");
         }
     
-        let addr: SocketAddr = "0.0.0.0:8081".parse().unwrap();
+        let addr: SocketAddr = "127.0.0.1:5053".parse().unwrap(); 
     
+        // TODO: automatic select address
+        //TODO: add support for recursion
         //TODO: add auto port recognition if the port is not available
     
         let socket = UdpSocket::bind(addr).await.unwrap();
@@ -106,14 +98,14 @@ impl EdgeDNS {
             self.edgednsconfig.cache_dns.clone().unwrap().cache_ttl,
         );
     
-        record.set_data(Some(RData::A(A(Ipv4Addr::new(192, 168, 0, 1)))));  // Correzione qui
+        record.set_data(Some(RData::A(A(Ipv4Addr::new(192, 168, 0, 1))))); 
     
         // Aggiungi il record all'autorità
         authority.upsert(record, 0).await;
     
         let mut catalog = Catalog::new();
         catalog.upsert(
-            Name::parse(&local_name, Some(&origin))
+            Name::parse(local_name, Some(&origin))
                 .expect("Failed to parse domain name").into(),
             Box::new(authority) as Box<dyn AuthorityObject + Send + Sync>,  // Correzione qui
         );
@@ -126,13 +118,11 @@ impl EdgeDNS {
         let server_result:Result<(), anyhow::Error> = tokio::select! {
             _ = server.block_until_done() => {
                 info!("Server stopped gracefully");
-                println!("Server stopped gracefully");
-                Ok(()) // Usa Ok() per il risultato positivo con anyhow
+                Ok(())  
             },
             _ = self.wait_for_shutdown() => {
                 info!("Shutdown command received");
-                println!("Shutdown command received");
-                Err(anyhow::anyhow!("Shutting down the server").into()) // Errore con anyhow::Error
+                Err(anyhow::anyhow!("Shutting down the server")) // Errore con anyhow::Error
             }
         };
 
@@ -140,11 +130,9 @@ impl EdgeDNS {
         match server_result {
             Ok(_) => {
                 info!("Server stopped gracefully");
-                println!("Server stopped gracefully");
             }
             Err(err) => {
                 error!("Server encountered an error: {}", err);
-                println!("Server encountered an error: {}",err);
                 self.shutdown().await;  // Chiamata alla funzione di shutdown
             }
         }
@@ -156,7 +144,7 @@ impl EdgeDNS {
             signal::ctrl_c()
                 .await
                 .expect("Failed to listen for Ctrl + C signal");
-            println!("Ctrl + C received, shutting down...");
+            info!("Ctrl + C received, shutting down...");
         };
     
         // Usa `tokio::select!` per attendere il primo futuro che si completa
@@ -168,14 +156,14 @@ impl EdgeDNS {
         }
     }
         
-    
+    #[instrument]
     pub async fn shutdown(&self) {
         info!("Shutting down the EdgeDNS ");
-        //TODO: Implement the EdgeDNS shutdown function
+    
 
         // Operazioni di pulizia
         info!("Shutting down EdgeDNS server");
-        println!("Shutting down EdgeDNS server");
+        
 
         // Pulizia delle risorse (se necessario)
         if self.edgednsconfig.kube_api_config.clone().unwrap().delete_kube_config {
@@ -184,9 +172,7 @@ impl EdgeDNS {
             }
         }
 
-        // Chiudi eventuali altre risorse necessarie (es. file, connessioni, etc.)
         info!("EdgeDNS shutdown complete.");
-        println!("EdgeDNS shutdown complete.")
     }
 
     pub async fn new(
