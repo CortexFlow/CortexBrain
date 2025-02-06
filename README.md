@@ -1,4 +1,4 @@
-# CortexBrain © 2024 
+# CortexBrain © 2025 
 
 [![Release](https://img.shields.io/badge/Release-Currently%20under%20development-red?style=flat-square&logo=github)](https://github.com/CortexFlow/CortexBrain/releases) 
 ![Auto Assign](https://img.shields.io/github/actions/workflow/status/CortexFlow/CortexBrain/auto-assign.yml?style=flat-square&logo=github&logoColor=white)
@@ -21,66 +21,39 @@
 
 - **Lorenzo Bradanini**  [📧 lorenzolollobrada@gmail.com](mailto:lorenzolollobrada@gmail.com)
 
-## 🧑‍💻What is CortexBrain?
+# 🧑‍💻What is CortexBrain?
+**CortexBrain** is an ambitious open source project aimed at creating an intelligent, lightweight, and efficient architecture to seamlessly connect cloud and edge devices.  
 
-CortexBrain is a cutting-edge data simulation and big data analysis framework developed by CortexFlow, designed to simplify the simulation and analysis of IoT (Internet of Things) devices. CortexBrain enables you to model and train various IoT sensor properties, including smart lights, accelerometers, gyroscopes, and temperature sensors. With CortexBrain, you can simulate IoT sensors, position them on a geolocalized map, monitor key metrics, and simulate specific scenarios.
+# ⚛️ **Current Development Focus**  
+The current development efforts are focused on the following improvements:
 
-## ⚛️Currently Development Focus
-
-Currently working on:
-
-- creating examples
-- writing documentation
-- working on predictive mantainance
-- expanding actual features
-- creating new frameworks
-- integrating big data analysis tools
-
-# 🧪Features
-
-CortexBrain provides a range of powerful features, including:
-
-- **IoT Sensor Simulation**: Simulate a variety of IoT sensors, such as temperature, humidity, and light sensors.
-- **Geolocalized Map**: Position simulated sensors on a geolocalized map.
-- **Scenario Simulation**: Create and test various scenarios with simulated sensors.
--  **Advanced data analysis**: Leverage big data tools for in-depth analysis and seamless visualization of simulated data.
--  **Machine Learning Integration**: Implement and test machine learning models on your simulated data to uncover patterns and make predictions.
--  **Predictive Maintenance**: Utilize the simulated data for predictive maintenance, identifying potential issues before they occur.
--  **Real-time Data Streams**: Integrate real-time data streams to enhance the accuracy and responsiveness of your simulations.  
+- 🔧 **Optimizing the DNS Server:** Enhance dns features for greater network efficiency.  
+- 🌐 **Adding a Custom Proxy:** Provide flexible routing for device communications.  
+- 📊 **Implementing Load Balancing Techniques:** Optimize traffic distribution to improve scalability and performance.  
+- 📡 **Integrating a Container Network Interface (CNI):** Enable advanced container networking for better interoperability.  
 
 # 🤖 Getting Started
-## 🐋 Install with Docker
+
+CortexBrain is still in its development stages, so you can expect some bugs. Contributions and feedback are highly appreciated to help improve the project! 🚀  
+Below there's a guide to get started
+
 ## 🥷 Install from source
 To get started with CortexBrain, follow these steps:
 
-1. **Clone the Repository**: First, clone the repository to your local machine.
+- **Clone the Repository**: First, clone the repository to your local machine.
 
    ```bash
    git clone https://github.com/CortexFlow/CortexBrain.git
     ```
 
-2. **Install required packages**:
+- **Install required packages**:
 
-   ```bash
-   cd CortexBrain
-   pip install -r requirements.txt
-
-3. **Test Library**:
-
-   ```bash
-   python .\checkLibs.py
-
-4. **Create a simple program**:
+   | **Feature**              | **Requirements**                                                                 |
+   | ------------------------- | -------------------------------------------------------------------------------- |
+   | **CortexBrain Core**      | - Kubernetes or Minikube v1.34.0  <br> - Linux Ubuntu system (preferred for development)  <br> - Rust programming language (rustc >= 1.83.0)|
+   | **CortexBrain Dashboard** | - npm v10.7.0  <br> - React v18.2.0  <br> - Electron v33.2.0                      |
 
 
-
-Check all the examples in the [Examples](./Examples/) folder
-Explore all the features in the [documentation](doc.md).
-
-# Documentation
-
-
-# Future Developments
 
 # 🖥️ Contributing
 
