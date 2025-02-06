@@ -73,7 +73,7 @@ impl EdgeDNS {
             info!("Running TrustDNS as a local DNS server");
         }
     
-        let addr: SocketAddr = "127.0.0.1:53".parse().unwrap(); 
+        let addr: SocketAddr = "127.0.0.1:5000".parse().unwrap(); //changed the port from 53-->5000 5353 is the alternative port for the dns 
     
         // TODO: automatic select address
         //TODO: add support for recursion
