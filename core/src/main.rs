@@ -1,83 +1,54 @@
 // module imports
 mod client;
+mod developers_msg;
 mod edgecni;
+mod kernel;
 
-use client::client::Client;
-use edgecni::edgecni::{EdgeCni, EdgeCniConfig, MeshAdapter, MeshCIDRConfig};
-use std::error::Error;
+use anyhow::Result;
+use client::{client::Client, default_api_config::ApiConfig};
+use tracing_subscriber::fmt::format::FmtSpan;
+use tracing_subscriber::EnvFilter;
 use std::sync::Arc;
+use crate::client::apiconfig::EdgeDNSConfig;
+use crate::developers_msg::developers_msg::info;
+use client::default_api_config::ConfigType;
+use kernel::kernel::EdgeDNS;
+//use kernel::kafka::test_kafka;
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn Error>> {
-    // Configuration files
-    let client_config = "config_string".to_string();
-    let edge_cni_config = EdgeCniConfig { enable: true };
-
-    // Set the cloud and edge cidrs
-    let cidr_config = MeshCIDRConfig {
-        cloud_cidr: vec!["10.244.0.0/24".to_string()],
-        edge_cidr: vec!["10.244.0.0/24".to_string()],
-    };
+async fn main() -> Result<(), anyhow::Error> {
     
+    //tracing subscriber for logging purpouses
+    tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::INFO)
+        .with_target(false)
+        .with_level(true)
+        .with_span_events(FmtSpan::NONE)
+        .without_time()
+        .with_target(false)
+        .with_file(false)
+        .pretty()
+        .with_env_filter(EnvFilter::new("info"))
+        .with_line_number(false)
+        .init();
+    //Development message for all the developers
+    info();
+
+    //TODO: general: clean unused or useless code in EdgeDNSConfig
+    //let edge_cni_config = EdgeCniConfig { enable: true };
+    let configuration = ApiConfig::load_from_file("./src/client/config.yaml", ConfigType::Default)?; /* the "?" operand return a "Result" type. Necessary */
+    let edgecfg = EdgeDNSConfig::load_from_file("./src/client/config.yaml", ConfigType::Default)?; /* the "?" operand return a "Result" type. Necessary */
+    let edgecnicfg = EdgeDNSConfig::load_from_file("./src/client/config.yaml", ConfigType::Default);
+
     // Create your client instance using the custom Client struct
-    let client = Arc::new(Client::new_client(&client_config).await?); // Use Arc for shared reference
+    let client = Arc::new(Client::new_client(Some(ConfigType::Default)).await?); // Use Arc for shared reference
 
-    // Create EdgeCni instance with the new client, passing a reference to edge_cni_config
-    let edge_cni = EdgeCni::new((edge_cni_config).clone().into(), (*client).clone().into()); // Deference and clone client
-    edge_cni.print_info();
-    // Create a MeshAdapter using the new_mesh_adapter method, passing a reference to edge_cni_config
-    let mesh_adapter = MeshAdapter::new_mesh_adapter(&edge_cni_config, &client)?;
+    Client::print_config(&client); //return the client config
+    let edgedns = EdgeDNS::new(configuration, edgecfg, client.clone()).await?;
+    edgedns.get_kernel_info();
+    edgedns.start().await;
 
-    // Use the mesh_adapter to call get_cidr
-    match mesh_adapter.get_cidr(&cidr_config) {
-        Ok((cloud, edge)) => {
-            println!("Cloud CIDRs: {:?}", cloud);
-            println!("Edge CIDRs: {:?}", edge);
-        }
-        Err(e) => {
-            println!("\n");
-            println!("Error in the CIDR configuration:\n {}\n", e);
-        }
-    }
+    //test_kafka();
 
-    // Start the services
-    edge_cni.start().await;
-
-    // Retrieve and print the local CIDR for the node
-    match MeshAdapter::find_local_cidr(&client).await {
-        Ok(local_cidr) => {
-            println!("Local CIDR for the node: {}", local_cidr);
-        }
-        Err(e) => {
-            println!("Error retrieving local CIDR: {}", e);
-        }
-    }
-
-    let outer_cidr = "192.168.1.0/24";
-    let host_cidr = "192.168.1.0/24";
-    match MeshAdapter::check_tunnel_cidr(outer_cidr, host_cidr).await {
-        Ok(result) => {
-            if result {
-                println!("The outer ip match with the inner host");
-            } else {
-                println!("The outer ip does not match with the inner host");
-            }
-        }
-        Err(e) => {
-            println!("Error checking tunnel CIDR: {}", e);
-        }
-    }
-    // Call the watch_route function to monitor network routes
-    edge_cni.mesh_adapter.watch_route().await?;
-    
-    // Actions
-    // Retrieve and print the list of pods in the "default" namespace
-    let pods = client.list_pods("default").await?; // This now uses your custom list_pods method
-    for pod in pods {
-        println!("Found pod: {:?}", pod.metadata.name);
-    }
-
-    // Shutdown
-    edge_cni.shutdown().await;
     Ok(())
 }

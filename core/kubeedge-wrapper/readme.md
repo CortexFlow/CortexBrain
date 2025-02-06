@@ -3,6 +3,6 @@ This folder contains a KubeEdge wrapper designed to facilitate seamless interact
 Commands:  
 Reference: https://go.dev/doc/tutorial/compile-install  
     - go mod tidy  
-    - go build  
+    - go build -o libkubeedge.so -buildmode=c-shared kubeedge.go  
     - go run _filename_
     - go get _libname_  

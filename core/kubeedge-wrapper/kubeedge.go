@@ -42,7 +42,8 @@ func getDefaultEdgeCoreConfig() *EdgeDNS {
 	}
 }
 
-func InitKubeEdge(configPath *C.char) *C.char {
+//export Register
+func Register(configPath *C.char) *C.char {
 
 	/* Workflow: inizialize KubeEdge interface with default config files 
 		1. inizialize the GoconfigPath
@@ -55,7 +56,7 @@ func InitKubeEdge(configPath *C.char) *C.char {
 	//log message
 	fmt.Println("Initializing KubeEdge with config path:", goConfigPath)
 
-	// load the default config
+	// load the config-->default in this case
 	config := getDefaultEdgeCoreConfig()
 
 	// log message

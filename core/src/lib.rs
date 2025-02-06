@@ -1,5 +1,5 @@
 pub mod client;
-pub mod dns;
+pub mod kernel;
 pub mod edgecni;
-pub mod utilities;
 pub mod loadbalancer;
+pub mod developers_msg;

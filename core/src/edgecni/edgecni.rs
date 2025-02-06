@@ -4,24 +4,18 @@ use anyhow::{anyhow, Error, Ok, Result};
 use ipnet::IpNet;
 use k8s_openapi::api::core::v1::Node;
 use kube::Api;
-use std::sync::Arc;
 use std::env;
-use tracing::{error, info}; //used for logging
+use std::sync::Arc;
+use tracing::{error, info}; //logging
 
 use crate::client::client::Client; //custom Client
+use crate::client::default_api_config::ApiConfig;
 
 pub struct EdgeCni<'a> {
-    config: Arc<EdgeCniConfig>,
+    config: Arc<ApiConfig>,
     client: Arc<Client>,
     pub mesh_adapter: MeshAdapter<'a>,
 }
-
-#[derive(Clone)]
-pub struct EdgeCniConfig {
-    pub enable: bool,
-    // ... other fields
-}
-
 pub trait IpTableInterface {
     fn ensure_rule(&self, args: &[&str]) -> Result<String, Error>;
 }
@@ -87,11 +81,11 @@ pub struct MeshCIDRConfig {
 
 impl<'a> EdgeCni<'a> {
     // Acts as a constructor. Accepts a config file and a Kubernetes client
-    pub fn new(config: Arc<EdgeCniConfig>, client: Arc<Client>) -> Self {
+    pub fn new(config: Arc<ApiConfig>, client: Arc<Client>) -> Self {
         let mesh_adapter = MeshAdapter::new_mesh_adapter(&config, &client).unwrap();
         EdgeCni {
             config,
-            client: client,
+            client,
             mesh_adapter,
         }
     }
@@ -101,7 +95,7 @@ impl<'a> EdgeCni<'a> {
         //Execute the command to add a route
 
         let output = std::process::Command::new("ip")
-            .args(&["route", "add", cidr, "dev", tun_dev_name])
+            .args(["route", "add", cidr, "dev", tun_dev_name])
             .output()
             .map_err(|e| Error::msg(format!("Error executing ip route add {}", e)))?;
 
@@ -117,27 +111,26 @@ impl<'a> EdgeCni<'a> {
     }
 
     pub fn name(&self) -> &str {
-        "EdgeCni"
+        &self.config.edgemesh_cni_module_name
     }
 
     pub fn group(&self) -> &str {
-        "EdgeNetworking"
+        &self.config.edge_mode
     }
 
     pub fn enable(&self) -> bool {
         //enables the config
-        self.config.enable
+        self.config.edge_mode_enable
     }
-    pub fn print_info(&self) {
+   /*  pub fn print_info(&self) {
         //user output
-        print!("------- E D G E M E S H  N E T W O R K -------\n");
         println!("Info:");
         let name = self.name();
         let group = self.group();
         println!("Name: {}", name);
-        print!("Group {}\n",group);
-        print!("--------------------------------\n");
-    }
+        print!("Group {}\n", group);
+        
+    } */
     pub async fn start(&self) {
         if self.enable() {
             info!("Starting the CNI...");
@@ -184,7 +177,7 @@ impl<'a> EdgeCni<'a> {
 }
 
 impl<'a> MeshAdapter<'a> {
-    pub fn new_mesh_adapter(_config: &EdgeCniConfig, client: &Client) -> Result<Self, Error> {
+    pub fn new_mesh_adapter(_config: &ApiConfig, client: &Client) -> Result<Self, Error> {
         let ipt_interface: Box<dyn IpTableInterface> = Box::new(IPTables);
 
         Ok(MeshAdapter {
@@ -253,7 +246,7 @@ impl<'a> MeshAdapter<'a> {
 
         */
         for cidr in cidrs {
-            if !cidr.parse::<std::net::IpAddr>().is_ok() {
+            if cidr.parse::<std::net::IpAddr>().is_err() {
                 error!("Invalid CIDR format: {}", cidr);
             }
         }
@@ -330,9 +323,9 @@ impl<'a> MeshAdapter<'a> {
         }
 
         if mesh_network.prefix_len() == outer_network.prefix_len() {
-            return Ok(true);
+            Ok(true)
         } else {
-            return Err(Error::msg("Network masks do not match"));
+            Err(Error::msg("Network masks do not match"))
         }
     }
 
