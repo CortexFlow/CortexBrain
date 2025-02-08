@@ -670,6 +670,46 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1462739cb27611015575c0c11df5df7601141071f07518d56fcc1be504cbec97"
 
 [[package]]
+name = "client"
+version = "0.1.0"
+dependencies = [
+ "actix-web",
+ "anyhow",
+ "bytes",
+ "clap",
+ "containerd-shim-wasm",
+ "dirs",
+ "futures",
+ "hyper-util",
+ "ipnet",
+ "iptables",
+ "itertools 0.13.0",
+ "k8s-openapi",
+ "kube",
+ "libc",
+ "libloading",
+ "libp2p",
+ "pnet",
+ "prost 0.13.4",
+ "rdkafka",
+ "reqwest",
+ "schemas",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "shared",
+ "tokio",
+ "tokio-stream",
+ "tokio-util",
+ "tower 0.5.1",
+ "tracing",
+ "tracing-subscriber",
+ "trust-dns-server",
+ "wasmtime",
+ "yaml-rust2",
+]
+
+[[package]]
 name = "cobs"
 version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1376,6 +1416,10 @@ dependencies = [
  "subtle",
  "zeroize",
 ]
+
+[[package]]
+name = "edgecni"
+version = "0.1.0"
 
 [[package]]
 name = "educe"
@@ -2384,6 +2428,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "kernel"
+version = "0.1.0"
+
+[[package]]
 name = "kube"
 version = "0.96.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2749,6 +2797,10 @@ name = "linux-raw-sys"
 version = "0.4.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "78b3ae25bc7c8c38cec158d1f2757ee79e9b3740fbc7ccf0e59e4b08d793fa89"
+
+[[package]]
+name = "loadbalancer"
+version = "0.1.0"
 
 [[package]]
 name = "local-channel"
@@ -4441,6 +4493,45 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f40ca3c46823713e0d4209592e8d6e826aa57e928f09752619fc696c499637f6"
 dependencies = [
  "lazy_static",
+]
+
+[[package]]
+name = "shared"
+version = "0.1.0"
+dependencies = [
+ "actix-web",
+ "anyhow",
+ "bytes",
+ "clap",
+ "containerd-shim-wasm",
+ "dirs",
+ "futures",
+ "hyper-util",
+ "ipnet",
+ "iptables",
+ "itertools 0.13.0",
+ "k8s-openapi",
+ "kube",
+ "libc",
+ "libloading",
+ "libp2p",
+ "pnet",
+ "prost 0.13.4",
+ "rdkafka",
+ "reqwest",
+ "schemas",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "tokio",
+ "tokio-stream",
+ "tokio-util",
+ "tower 0.5.1",
+ "tracing",
+ "tracing-subscriber",
+ "trust-dns-server",
+ "wasmtime",
+ "yaml-rust2",
 ]
 
 [[package]]

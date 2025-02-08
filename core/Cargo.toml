@@ -8,9 +8,9 @@ members = [
     "src/components/edgecni",
     "src/components/kernel",
     "src/components/loadbalancer",
-    "client",
-    "shared"
-, "src/client"]
+    "src/client",
+    "src/shared"
+]
 
 [dependencies]
 actix-web = "4.9.0"  
@@ -48,8 +48,7 @@ trust-dns-server = "0.23.2"
 dirs = "6.0.0"
 
 [dev-dependencies]
-wiremock = "0.6.0" 
+wiremock = "0.6.0"
 
 [build-dependencies]
 prost-build = "0.13.4"
-
