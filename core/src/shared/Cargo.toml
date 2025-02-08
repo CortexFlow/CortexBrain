@@ -1,16 +1,11 @@
 [package]
-name = "core"  
-version = "0.1.0"  
-edition = "2021"  # Rust edition, don't change
+name = "shared"
+version = "0.1.0"
+edition = "2021"
 
-[workspace]
-members = [
-    "src/components/edgecni",
-    "src/components/kernel",
-    "src/components/loadbalancer",
-    "client",
-    "shared"
-, "src/client"]
+[lib]
+path = "src/lib.rs"
+
 
 [dependencies]
 actix-web = "4.9.0"  
@@ -46,10 +41,3 @@ prost = "0.13.4"
 rdkafka = "0.37.0"
 trust-dns-server = "0.23.2"
 dirs = "6.0.0"
-
-[dev-dependencies]
-wiremock = "0.6.0" 
-
-[build-dependencies]
-prost-build = "0.13.4"
-
