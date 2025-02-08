@@ -32,14 +32,13 @@
     distributed systems with complex edge and cloud operations.
 */
 #[allow(unused_imports)]
-
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use serde_yaml;
 use std::fs::File;
 
-use crate::client::apiconfig::{EdgeCNIConfig, EdgeDNSConfig,CommonConfig,EdgeMeshAgentConfig,AgentModules};
-use crate::client::params::{DiscoveryType, LoadBalancerCaller, ServiceFilterMode};
+use crate::apiconfig::{EdgeCNIConfig, EdgeDNSConfig, CommonConfig, EdgeMeshAgentConfig, AgentModules};
+use crate::params::{DiscoveryType, LoadBalancerCaller, ServiceFilterMode};
 
 #[derive(Debug)]
 pub enum ConfigType {

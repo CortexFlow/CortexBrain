@@ -7,10 +7,8 @@ use kube::api::ListParams;
 use kube::{Api, Client as KubeClient};
 
 
-use default_api_config::{ApiConfig, ConfigType};
-
-use super::default_api_config;
-use tracing::{info,instrument};
+use crate::default_api_config::{ApiConfig, ConfigType};
+use tracing::info;
 
 
 #[derive(Clone)]
