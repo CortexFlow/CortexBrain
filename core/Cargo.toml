@@ -1,24 +1,24 @@
 [package]
-name = "core"  # Nome del pacchetto
-version = "0.1.0"  # Versione del pacchetto
-edition = "2021"  # Edizione di Rust
+name = "core"  
+version = "0.1.0"  
+edition = "2021"  # rust edition. Don't change
 
 [lib]
 name = "corelibs"  
 path = "src/lib.rs"  
 
 [[bin]]
-name = "core"  # Nome del binario, assicurati che sia uguale al nome del pacchetto
-path = "src/main.rs"  # Percorso del file principale del binario
+name = "core"  
+path = "src/main.rs"  
 
 
 [dependencies]
-actix-web = "4.9.0"  # Dipendenza per il framework web Actix
-clap = "4.5.21"  # Dipendenza per il parsing dei comandi
-containerd-shim-wasm = "0.7.0"  # Dipendenza per l'integrazione con containerd
-reqwest = { version = "0.12.9", features = ["json"] }  # Dipendenza per HTTP client
-wasmtime = "26.0.1"  # Dipendenza per WebAssembly
-tokio = { version = "1", features = ["full"] }  # Dipendenza per il runtime async
+actix-web = "4.9.0"  
+clap = "4.5.21"  
+containerd-shim-wasm = "0.7.0"  
+reqwest = { version = "0.12.9", features = ["json"] }  
+wasmtime = "26.0.1"  
+tokio = { version = "1", features = ["full"] }  
 tracing = "0.1.40"
 futures = "0.3.31"
 anyhow = "1.0.93"
@@ -48,7 +48,7 @@ trust-dns-server = "0.23.2"
 dirs = "6.0.0"
 
 [dev-dependencies]
-wiremock = "0.6.0"  # Dipendenza per il mocking delle richieste HTTP in test
+wiremock = "0.6.0" 
 
 [build-dependencies]
 prost-build = "0.13.4"
