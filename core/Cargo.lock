@@ -2649,6 +2649,39 @@ dependencies = [
 [[package]]
 name = "kernel"
 version = "0.1.0"
+dependencies = [
+ "actix-web",
+ "anyhow",
+ "bytes",
+ "clap",
+ "dirs",
+ "futures",
+ "hyper-util",
+ "ipnet",
+ "iptables",
+ "itertools 0.13.0",
+ "k8s-openapi 0.24.0",
+ "kube 0.98.0",
+ "libc",
+ "libloading",
+ "libp2p",
+ "pnet",
+ "prost 0.13.4",
+ "rdkafka",
+ "schemas",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "shared",
+ "tokio",
+ "tokio-stream",
+ "tokio-util",
+ "tower 0.5.2",
+ "tracing",
+ "tracing-subscriber",
+ "trust-dns-server",
+ "yaml-rust2",
+]
 
 [[package]]
 name = "kube"

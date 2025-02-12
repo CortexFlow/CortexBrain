@@ -5,11 +5,10 @@ use anyhow::{anyhow, Error, Result};
 use k8s_openapi::api::core::v1::Pod;
 use kube::api::ListParams;
 use kube::{Api, Client as KubeClient};
+use shared::default_api_config::{ApiConfig,ConfigType};
 
 
-use crate::default_api_config::{ApiConfig, ConfigType};
 use tracing::info;
-
 
 #[derive(Clone)]
 pub struct Client {

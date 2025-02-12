@@ -1,14 +1,12 @@
 // module imports
-mod apiconfig;
 mod client;
-mod default_api_config;
-mod params;
 
-use crate::apiconfig::EdgeDNSConfig;
+
+use shared::apiconfig::EdgeDNSConfig;
 use crate::client::Client;
-use crate::default_api_config::ConfigType;
+use shared::default_api_config::ConfigType;
 use anyhow::{Context, Result};
-use default_api_config::ApiConfig;
+use shared::default_api_config::ApiConfig;
 use std::sync::Arc;
 use tracing::info;
 use tracing_subscriber::fmt::format::FmtSpan;
