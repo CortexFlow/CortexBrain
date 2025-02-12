@@ -19,9 +19,9 @@ pub struct Client {
 
 impl Client {
     //default config_type (ConfigType::Default)
-    pub async fn new_client(config_type: Option<ConfigType>) -> Result<Self, Error> {
+    pub async fn new_client(config_path: &str,config_type: Option<ConfigType>) -> Result<Self, Error> {
         let config_type = config_type.unwrap_or(ConfigType::Default); //use default if config_type ==none
-        let config_path = "./src/client/config.yaml";
+        //let config_path = "./src/client/config.yaml";
         let api_config = ApiConfig::load_from_file(config_path, config_type)?;
         let kube_client = KubeClient::try_default().await?;
         Ok(Client {

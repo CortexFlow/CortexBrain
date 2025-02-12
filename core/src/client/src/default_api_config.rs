@@ -35,6 +35,7 @@
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use serde_yaml;
+use tracing_subscriber::fmt::format;
 use std::fs::File;
 
 use crate::apiconfig::{EdgeCNIConfig, EdgeDNSConfig, CommonConfig, EdgeMeshAgentConfig, AgentModules};
@@ -82,15 +83,12 @@ impl ApiConfig {
         path: P,
         config_type: ConfigType,
     ) -> Result<Self> {
-        let cfg_file = File::open(path);
-
-        let file = match cfg_file {
-            Ok(file) => file,
-            Err(error) => panic!("Problem opening the file: {error:?}"),
-        };
-
+        let cur_path = std::env::current_dir()?;
+        println!("The current directory is {}", cur_path.display());
+        println!("Trying to load configuration from path: {}", path.as_ref().display());
+        let cfg_file = File::open(&path).with_context(|| format!("Problem opening config file in path {}",path.as_ref().display()))?;
         let config_map: serde_yaml::Value =
-            serde_yaml::from_reader(file).context("Failed to parse YAML")?;
+            serde_yaml::from_reader(cfg_file).context("Failed to parse YAML")?;
 
         let config_section = match config_type {
             ConfigType::Default => &config_map["default"],

@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cortexflow-client
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: client
+  template:
+    metadata:
+      labels:
+        app: client
+    spec:
+      containers:
+      - name: client
+        image: lorenzotettamanti/cortexflow-client:latest
+        command: [ "tail", "-f", "/dev/null" ]
+        env:
+        - name: CONFIG_PATH
+          value: "/usr/src/cortexbrain-client/config.yaml"
+        volumeMounts:
+        - name: config-volume
+          mountPath: /etc/config
+      volumes:
+      - name: config-volume
+        configMap:
+          name: cortexbrain-client-config
