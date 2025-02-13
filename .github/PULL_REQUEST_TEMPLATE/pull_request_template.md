@@ -1,35 +1,36 @@
+---
+name: Pull Request
+about: Submit a Pull Request
+title: '[Feature/Fix] Short description'
+labels: ''
+assignees: ''
+
+---
+
 ## Description
 
+<!-- Provide a clear and concise description of the change. -->
 
 ## Type of Change
 
-- [ ] Bug fix
-- [ ] New feature
-- [ ] Documentation update
-- [ ] Code refactoring
-- [ ] Other (please specify):
+- [ ] 🐞 Bug fix (fixes an issue)
+- [ ] ✨ New feature (adds functionality)
+- [ ] 📝 Documentation update (improves docs)
+- [ ] 🔄 Code refactoring (improves code structure)
+- [ ] ❓ Other (please specify): ___________________
 
 ## Checklist
 
-- [ ] Change has been tested locally.
-- [ ] Documentation has been updated (if necessary).
-- [ ] New tests have been added (if necessary).
-- [ ] Project build passes without errors.
+- [ ] ✅ Code has been tested locally.
+- [ ] 📝 Documentation has been updated (if needed).
+- [ ] 🧪 New tests have been added (if needed).
+- [ ] 🔧 Project builds successfully without errors.
 
 ## Related Issues
 
-<!-- If applicable, mention related issues with `Closes #issue_number`. -->
+<!-- Mention related issues with `Closes #issue_number` or `Fixes #issue_number`. -->
 
-## Label Selection
+## Screenshots (if applicable)
 
-**Please add a label to this pull request to specify its type:**
-
-- `bug`
-- `enhancement`
-- `documentation`
-- `refactoring`
-
-> **Tip:** To add a label, click on the "Labels" section on the right side of this pull request page.
-
-## Screenshots (optional)
+<!-- Add screenshots or GIFs to illustrate your changes. -->
 
