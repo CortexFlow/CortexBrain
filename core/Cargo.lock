@@ -4235,6 +4235,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "proxy"
+version = "0.1.0"
+dependencies = [
+ "shared",
+ "tokio",
+]
+
+[[package]]
 name = "psm"
 version = "0.1.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"

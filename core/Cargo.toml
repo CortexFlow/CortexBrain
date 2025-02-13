@@ -10,7 +10,7 @@ members = [
     "src/components/loadbalancer",
     "src/client",
     "src/shared"
-]
+, "src/components/proxy"]
 
 [dependencies]
 actix-web = "4.9.0"  
