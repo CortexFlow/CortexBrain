@@ -4,8 +4,8 @@ FROM rust:1.83 AS builder
 # Set working directory
 WORKDIR /usr/src/app
 
-# First, create the shared project structure
-WORKDIR /usr/src/app/shared
+# Copy the shared library in the correct location
+WORKDIR /usr/src/shared
 COPY .shared/Cargo.toml .
 COPY .shared/src ./src
 
@@ -13,8 +13,9 @@ COPY .shared/src ./src
 WORKDIR /usr/src/app/kernel
 COPY Cargo.toml .
 COPY src ./src
-COPY config.yaml .
 
+# Ensure Cargo recognizes the shared dependency
+RUN cargo fetch
 
 # Build the project
 RUN cargo build --release
@@ -27,17 +28,11 @@ RUN apt-get update && apt-get install -y \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Create directory for the 
+# Create directory for the kernel
 WORKDIR /usr/src/cortexbrain-kernel
 
 # Copy the binary from builder
 COPY --from=builder /usr/src/app/kernel/target/release/kernel /usr/local/bin/cortexflow-kernel
-
-# Copy config file
-COPY config.yaml /usr/src/cortexbrain-kernel/config.yaml
-
-# Set config path environment variable
-ENV CONFIG_PATH="/usr/src/cortexbrain-kernel/config.yaml"
 
 # Set the kernel execution command
 CMD ["cortexflow-kernel"]

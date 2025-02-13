@@ -160,6 +160,8 @@ pub struct MeshCIDRConfig {
 #[derive(Clone, Serialize, Deserialize,Debug)]
 pub struct EdgeDNSConfig {
     pub enable: bool,
+    pub module_name: String,
+    pub edge_mode: String,
     pub listen_interface: String,
     pub listen_port: i32,
     pub kube_api_config: Option<KubeApiConfig>,

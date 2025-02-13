@@ -56,10 +56,6 @@ impl Client {
             self.config.edgemesh_gateway_config_name
         );
         info!(
-            "Edgemesh Dns Module Name: {}",
-            self.config.edgemesh_dns_module_name
-        );
-        info!(
             "Edgemesh Proxy Module Name: {}",
             self.config.edgemesh_proxy_module_name
         );
@@ -87,7 +83,6 @@ impl Client {
             self.config.meta_server_cert_file
         );
         info!("Meta Server Key File: {}", self.config.meta_server_key_file);
-        info!("Edge Mode: {}", self.config.edge_mode);
         info!("Cloud Mode: {}", self.config.cloud_mode);
         info!("Manual Mode: {}", self.config.manual_mode);
         info!("Empty Node Name: {}", self.config.empty_node_name);

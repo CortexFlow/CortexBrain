@@ -3,4 +3,3 @@ pub mod corefile;
 pub mod utilities;
 pub mod kafka;
 pub mod proxy_msg;
-pub mod client;

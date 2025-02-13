@@ -31,14 +31,19 @@
     This module is essential for initializing and managing configurations in
     distributed systems with complex edge and cloud operations.
 */
+use anyhow::anyhow;
 #[allow(unused_imports)]
 use anyhow::{Context, Result};
+use k8s_openapi::api::core::v1::ConfigMap;
+use kube::Api;
 use serde::{Deserialize, Serialize};
 use serde_yaml;
-use tracing_subscriber::fmt::format;
 use std::fs::File;
+use tracing_subscriber::fmt::format;
 
-use crate::apiconfig::{EdgeCNIConfig, EdgeDNSConfig, CommonConfig, EdgeMeshAgentConfig, AgentModules};
+use crate::apiconfig::{
+    AgentModules, CommonConfig, EdgeCNIConfig, EdgeDNSConfig, EdgeMeshAgentConfig,
+};
 use crate::params::{DiscoveryType, LoadBalancerCaller, ServiceFilterMode};
 
 #[derive(Debug)]
@@ -47,13 +52,12 @@ pub enum ConfigType {
     V1,
 }
 
-#[derive(Clone, Serialize, Deserialize,Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct ApiConfig {
     pub base_dir: String,
     pub config_file: String,
     pub edgemesh_agent_config_name: String,
     pub edgemesh_gateway_config_name: String,
-    pub edgemesh_dns_module_name: String,
     pub edgemesh_proxy_module_name: String,
     pub edgemesh_tunnel_module_name: String,
     pub edgemesh_cni_module_name: String,
@@ -67,8 +71,6 @@ pub struct ApiConfig {
     pub meta_server_ca_file: String,
     pub meta_server_cert_file: String,
     pub meta_server_key_file: String,
-    pub edge_mode: String,
-    pub edge_mode_enable: bool,
     pub cloud_mode: String,
     pub manual_mode: String,
     pub empty_node_name: String,
@@ -85,8 +87,16 @@ impl ApiConfig {
     ) -> Result<Self> {
         let cur_path = std::env::current_dir()?;
         println!("The current directory is {}", cur_path.display());
-        println!("Trying to load configuration from path: {}", path.as_ref().display());
-        let cfg_file = File::open(&path).with_context(|| format!("Problem opening config file in path {}",path.as_ref().display()))?;
+        println!(
+            "Trying to load configuration from path: {}",
+            path.as_ref().display()
+        );
+        let cfg_file = File::open(&path).with_context(|| {
+            format!(
+                "Problem opening config file in path {}",
+                path.as_ref().display()
+            )
+        })?;
         let config_map: serde_yaml::Value =
             serde_yaml::from_reader(cfg_file).context("Failed to parse YAML")?;
 
@@ -148,25 +158,38 @@ impl EdgeCNIConfig {
     }
 }
 impl EdgeDNSConfig {
-    pub fn load_from_file<P: AsRef<std::path::Path>>(
-        path: P,
-        config_type: ConfigType,
-    ) -> Result<Self> {
-        let cfg_file = File::open(path).context("Errore nell'aprire il file di configurazione")?;
+    pub async fn load_from_configmap(configmap: Api<ConfigMap>, config_type: ConfigType) -> Result<Self> {
+        // Get the content of config.yaml from Kubernetes ConfigMap
+        let cm = configmap.get("cortexbrain-client-config").await.context("Failed to get ConfigMap")?;
+        
+        let config_data = cm.data.ok_or_else(|| anyhow::anyhow!("No data in ConfigMap"))?;
 
-        // Analizza il file YAML
-        let config_map: serde_yaml::Value =
-            serde_yaml::from_reader(cfg_file).context("Errore nella lettura del file YAML")?;
+        let config_yaml = config_data.get("config.yaml")
+            .ok_or_else(|| anyhow::anyhow!("Missing 'config.yaml' in ConfigMap data"))?
+            .clone();
 
-        // Seleziona la sezione corretta del file di configurazione
+        // Now parse the YAML content
+        let config_map: serde_yaml::Value = serde_yaml::from_str(&config_yaml)
+            .context("Error reading the yaml file from Kubernetes")?;
+
+        // Extract the relevant config section
+        let configs_yaml = config_map
+            .get("data")
+            .and_then(|data| data.get("config.yaml"))
+            .and_then(|values| values.as_str())
+            .ok_or_else(|| anyhow::anyhow!("Error reading data.config.yaml from the configmap file"))?;
+
+        let configs: serde_yaml::Value = serde_yaml::from_str(configs_yaml).context("Error parsing 'config.yaml' content")?;
+
+        // Select the correct version
         let config_section = match config_type {
-            ConfigType::Default => &config_map["default"],
-            ConfigType::V1 => &config_map["v1"],
+            ConfigType::Default => &configs["default"],
+            ConfigType::V1 => &configs["v1"],
         };
 
         // Edge DNS Section
         let edge_dns_section = config_section.get("edge_dns").ok_or_else(|| {
-            anyhow::anyhow!("'edge_dns' section doesn not exists in the config file")
+            anyhow::anyhow!("'edge_dns' section does not exist in the config file")
         })?;
 
         let edge_dns_config: EdgeDNSConfig = serde_yaml::from_value(edge_dns_section.clone())
@@ -178,7 +201,7 @@ impl EdgeDNSConfig {
         let cache_dns_config = if let Some(cache_dns_section) = cache_dns_section {
             Some(
                 serde_yaml::from_value(cache_dns_section.clone())
-                    .context("Error parsing 'edge_dns' section")?,
+                    .context("Error parsing 'cache dns' section")?,
             )
         } else {
             None
@@ -204,7 +227,7 @@ impl EdgeDNSConfig {
         })
     }
 }
-impl CommonConfig{
+impl CommonConfig {
     pub fn load_from_file<P: AsRef<std::path::Path>>(
         path: P,
         config_type: ConfigType,
@@ -227,11 +250,10 @@ impl CommonConfig{
         let common_config: CommonConfig = serde_yaml::from_value(config_section.clone())
             .context("Failed to extract config section")?;
 
-        
         // Return the CommonConfig configuration
         Ok(CommonConfig {
-            bridge_device_name : common_config.bridge_device_name,
-            bridge_device_ip : common_config.bridge_device_ip
+            bridge_device_name: common_config.bridge_device_name,
+            bridge_device_ip: common_config.bridge_device_ip,
         })
     }
 }

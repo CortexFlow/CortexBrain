@@ -1,8 +1,6 @@
 // module imports
 mod client;
 
-
-use shared::apiconfig::EdgeDNSConfig;
 use crate::client::Client;
 use shared::default_api_config::ConfigType;
 use anyhow::{Context, Result};
@@ -38,7 +36,6 @@ async fn main() -> Result<(), anyhow::Error> {
 
     info!("Using CONFIG_PATH = {}", &config_path);
     let configuration = ApiConfig::load_from_file(&config_path, ConfigType::Default).context("Failed to load the API Configuration")?;
-    let edgecfg = EdgeDNSConfig::load_from_file(&config_path, ConfigType::Default).context("Failed to load the DNS configuration")?;
 
     // Create your client instance using the custom Client struct
     let client = Arc::new(Client::new_client(&config_path,Some(ConfigType::Default)).await?);

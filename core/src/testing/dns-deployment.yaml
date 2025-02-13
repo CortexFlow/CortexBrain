@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cortexflow-dns
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: custom-dns
+  template:
+    metadata:
+      labels:
+        app: custom-dns
+    spec:
+      containers:
+      - name: dns-server
+        image: lorenzotettamanti/cortexflow-kernel:latest
+        command: [ "tail", "-f", "/dev/null" ]
+        ports:
+        - containerPort: 53
+          protocol: UDP
+        - containerPort: 8080
+          protocol: TCP
+        volumeMounts:
+        - name: dns-config
+          mountPath: /etc/dns
+      volumes:
+      - name: dns-config
+        configMap:
+          name: cortexbrain-client-config

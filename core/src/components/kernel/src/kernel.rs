@@ -7,12 +7,10 @@ https://github.com/EmilHernvall/dnsguide/blob/master/chapter1.md
     https://www.shuttle.dev/blog/2024/10/22/using-kubernetes-with-rust
 */
 #[allow(unused_imports)]
-use crate::client::client::Client;
-use anyhow::{Error, Result};
-use libloading::{Library, Symbol};
-use std::ffi::{CStr, CString};
-use std::sync::Arc;
 
+use anyhow::{Error, Result};
+use std::sync::Arc;
+use kube::Client;
 use std::net::SocketAddr;
 use tokio::net::UdpSocket;
 use tracing::{error,info,warn,instrument};
@@ -26,26 +24,24 @@ use std::net::Ipv4Addr;
 
 use std::fs;
 use tokio::signal;
+use shared::apiconfig::EdgeDNSConfig;
 
-use crate::client::apiconfig::EdgeDNSConfig;
-use crate::client::default_api_config::ApiConfig;
-use crate::kernel::corefile::update_corefile;
+use crate::corefile::update_corefile;
 
 #[derive(Debug)]
 pub struct EdgeDNS {
-    config: Arc<ApiConfig>,
     edgednsconfig: Arc<EdgeDNSConfig>,
 }
 
 impl EdgeDNS {
     pub fn name(&self) -> &str {
-        &self.config.edgemesh_dns_module_name
+        &self.edgednsconfig.module_name
     }
     pub fn group(&self) -> &str {
-        &self.config.edge_mode
+        &self.edgednsconfig.edge_mode
     }
     pub fn enable(&self) -> bool {
-        self.config.edge_mode_enable
+        self.edgednsconfig.enable
     }
     pub fn get_kernel_info(&self) {
         info!("Kernel info:\n");
@@ -63,7 +59,10 @@ impl EdgeDNS {
     }
     #[instrument]
     pub async fn run(&self) {
-        // creates the proxy server using tokio crate
+
+        if !self.enable(){
+            error!("EdgeDNS is not enabled");
+        }
         info!("EdgeDNS is running ");
         
         //cache_dns_enable
@@ -175,32 +174,24 @@ impl EdgeDNS {
     }
 
     pub async fn new(
-        config: ApiConfig,
         edgednscfg: EdgeDNSConfig,
-        client: Arc<Client>,
+        client: Client,
     ) -> Result<Self, Error> {
-        if !config.edge_mode_enable {
-            return Ok(EdgeDNS {
-                config: Arc::new(config),
-                edgednsconfig: Arc::new(edgednscfg),
-            });
-        }
-
         // Update Corefile if EdgeDNS is enabled
-        update_corefile(edgednscfg.clone(), &client.as_ref().clone()).await?; // Dereferenziamento dell'Arc<Client> e passaggio as_ref
+        update_corefile(edgednscfg.clone(), &client.clone()).await?; 
 
         /* Reference as_ref:
            https://doc.rust-lang.org/std/convert/trait.AsRef.html
         */
         Ok(EdgeDNS {
-            config: Arc::new(config),
             edgednsconfig: Arc::new(edgednscfg),
         })
     }
 
     //registers a service
 
-    pub fn register(config: ApiConfig, client: Client) -> Result<(), Error> {
+    //TODO: delete this part
+    /* pub fn register(config: ApiConfig, client: Client) -> Result<(), Error> {
         // Load the KubeEdge shared library
         let library_path = "../../core/kubeedge-wrapper/libkubeedge.so";
         let library = unsafe {
@@ -224,5 +215,5 @@ impl EdgeDNS {
             println!("Result from InitKubeEdge: {}", result_str);
         }
         Ok(())
-    }
+    } */
 }

@@ -4,7 +4,6 @@ default:
   edgemesh_agent_config_name: "edgemesh-agent.yaml"
   edgemesh_gateway_config_name: "edgemesh-gateway.yaml"
 
-  edgemesh_dns_module_name: "EdgeDNS"
   edgemesh_proxy_module_name: "EdgeProxy"
   edgemesh_gateway_module_name: "EdgeGateway"
   edgemesh_tunnel_module_name: "EdgeTunnel"
@@ -22,8 +21,6 @@ default:
   meta_server_cert_file: "/etc/edgemesh/metaserver/server.crt"
   meta_server_key_file: "/etc/edgemesh/metaserver/server.key"
 
-  edge_mode: "EdgeMode"
-  edge_mode_enable: true
   cloud_mode: "CloudMode"
   manual_mode: "ManualMode"
   kubeapi:
@@ -35,6 +32,9 @@ default:
     meta_server: null
     delete_kube_config: false
   edge_dns:
+    edge_mode: "EdgeMode"
+    edge_mode_enable: true
+    edgemesh_dns_module_name: "EdgeDNS"
     enable: true
     listen_interface: "lo"
     listen_port: 53
@@ -67,14 +67,13 @@ v1:
   edgemesh_agent_config_name: "edgemesh-agent.yaml"
   edgemesh_gateway_config_name: "edgemesh-gateway.yaml"
 
-  edgemesh_dns_module_name: "EdgeDNS"
   edgemesh_proxy_module_name: "EdgeProxy"
   edgemesh_gateway_module_name: "EdgeGateway"
   edgemesh_tunnel_module_name: "EdgeTunnel"
   edgemesh_cni_module_name: "EdgeCNI"
 
   bridge_device_name: "edgemesh0"
-  bridge_device_ip: ""
+  bridge_device_ip: "169.254.96.16"
   tun_device_name: "edge_tun0"
 
   temp_kube_config_path: "kubeconfig"
@@ -85,11 +84,33 @@ v1:
   meta_server_cert_file: "/etc/edgemesh/metaserver/server.crt"
   meta_server_key_file: "/etc/edgemesh/metaserver/server.key"
 
-  edge_mode: "EdgeModev1"
-  edge_mode_enable: true
-  cloud_mode: "CloudModev1"
-  manual_mode: "ManualModev1"
-  kubernetes_plugin_enable: true
+  cloud_mode: "CloudMode"
+  manual_mode: "ManualMode"
+  kubeapi:
+    master: "127.0.0.1:54616"
+    content_type: "application/vnd.kubernetes.protobuf"
+    qps: 50
+    burst: 100
+    kube_config: "~/.kube/config"
+    meta_server: null
+    delete_kube_config: false
+  edge_dns:
+    edge_mode: "EdgeMode"
+    edge_mode_enable: true
+    edgemesh_dns_module_name: "EdgeDNS"
+    enable: true
+    listen_interface: "lo"
+    listen_port: 53
+  cache_dns:
+    enable: true
+    auto_detect: true
+    upstream_servers: #will be delete in the next update
+    cache_ttl: 20
+  edgeCNI:
+    enable: true
+    encap_ip: "192.168.1.1"
+    tun_mode: 0
+    mesh_cidr_config: null
 
   empty_node_name: "EMPTY_NODE_NAME"
   empty_pod_name: "EMPTY_POD_NAME"

@@ -19,14 +19,13 @@ Provides functionality to integrate CoreDNS with Kubernetes clusters, such as co
 
 */
 #[allow(unused_imports)]
-use crate::client::apiconfig::EdgeDNSConfig;
-use crate::client::client::Client;
-use crate::kernel::utilities::{get_interfaces, is_valid_ip, remove_duplicates};
+use shared::apiconfig::EdgeDNSConfig;
+use kube::Client;
+use crate::utilities::{get_interfaces, is_valid_ip, remove_duplicates};
 use anyhow::{anyhow, Error, Result};
-use k8s_openapi::api::core::v1::{Capabilities, ConfigMap};
+use k8s_openapi::api::core::v1::ConfigMap;
 use kube::api::{Patch, PatchParams};
-use kube::api::{Api, DynamicObject, ListParams};
-use kube::discovery;
+use kube::api::{Api, ListParams};
 use k8s_openapi::api::core::v1::Service; 
 use serde::Serialize;
 use serde_json::json;
@@ -110,7 +109,7 @@ pub async fn detect_cluster_dns(client: Client) -> Result<Vec<String>, Box<dyn s
 
     info!("Running DNS service detection...");
 
-    let services: Api<Service> = Api::namespaced(client.get_client().clone(), namespace);
+    let services: Api<Service> = Api::namespaced(client.clone(), namespace);
     info!("Initialized API for services in namespace: {}", namespace);
 
     let label_selector = ListParams::default().labels("k8s-app=kube-dns");
@@ -188,7 +187,7 @@ pub async fn update_corefile(cfg: EdgeDNSConfig, kube_client: &Client) -> Result
     info!("Updating the EdgeDNS corefile configuration\n\n");
     info!("Retrieving the corefile current configuration");
     let configmaps: Api<ConfigMap> =
-        Api::namespaced(kube_client.get_client().clone(), "kube-system");
+        Api::namespaced(kube_client.clone(), "kube-system");
     let mut corefile_configmap = configmaps.get("coredns").await?;
     info!("{:?}\n\n", corefile_configmap);
 
