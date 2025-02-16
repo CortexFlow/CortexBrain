@@ -1,6 +1,6 @@
 # 💪🏻 Contributing
 
-If you have knowledges in DevOps/Kubernetes or Networks and want to help us please write and email to lorenzotettamanti5@gmail.com  
+If you have knowledges in DevOps/Kubernetes or Networks and want to help us please write an email to lorenzotettamanti5@gmail.com  
    | **Looking for**              | **Skills**                                                                 |
    | ------------------------- | -------------------------------------------------------------------------------- |
    | **CortexBrain Core Developer**      | - Kubernetes  <br> - Networks  <br> - Rust programming language |
