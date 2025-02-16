@@ -1,0 +1,24 @@
+[package]
+name = "proxy"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0.95"
+dashmap = "6.1.0"
+hyper = "1.6.0"
+k8s-openapi = "0.24.0"
+kube = "0.98.0"
+lazy_static = "1.5.0"
+prometheus = "0.13.4"
+tokio = "1.43.0"
+tracing = "0.1.41"
+warp = "0.3.7"
+
+[dependencies.shared]    
+path = "../../shared"      
+
+[[bin]]
+name = "proxy"
+path = "src/main.rs"
+

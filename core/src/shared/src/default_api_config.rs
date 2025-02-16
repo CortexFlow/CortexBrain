@@ -31,18 +31,19 @@
     This module is essential for initializing and managing configurations in
     distributed systems with complex edge and cloud operations.
 */
-use anyhow::anyhow;
 #[allow(unused_imports)]
+use anyhow::anyhow;
 use anyhow::{Context, Result};
 use k8s_openapi::api::core::v1::ConfigMap;
 use kube::Api;
 use serde::{Deserialize, Serialize};
 use serde_yaml;
 use std::fs::File;
+use std::result::Result::Ok;
 use tracing_subscriber::fmt::format;
 
 use crate::apiconfig::{
-    AgentModules, CommonConfig, EdgeCNIConfig, EdgeDNSConfig, EdgeMeshAgentConfig,
+    AgentModules, CommonConfig, EdgeCNIConfig, EdgeDNSConfig, EdgeMeshAgentConfig, EdgeProxyConfig,
 };
 use crate::params::{DiscoveryType, LoadBalancerCaller, ServiceFilterMode};
 
@@ -158,13 +159,22 @@ impl EdgeCNIConfig {
     }
 }
 impl EdgeDNSConfig {
-    pub async fn load_from_configmap(configmap: Api<ConfigMap>, config_type: ConfigType) -> Result<Self> {
+    pub async fn load_from_configmap(
+        configmap: Api<ConfigMap>,
+        config_type: ConfigType,
+    ) -> Result<Self> {
         // Get the content of config.yaml from Kubernetes ConfigMap
-        let cm = configmap.get("cortexbrain-client-config").await.context("Failed to get ConfigMap")?;
-        
-        let config_data = cm.data.ok_or_else(|| anyhow::anyhow!("No data in ConfigMap"))?;
+        let cm = configmap
+            .get("cortexbrain-client-config")
+            .await
+            .context("Failed to get ConfigMap")?;
 
-        let config_yaml = config_data.get("config.yaml")
+        let config_data = cm
+            .data
+            .ok_or_else(|| anyhow::anyhow!("No data in ConfigMap"))?;
+
+        let config_yaml = config_data
+            .get("config.yaml")
             .ok_or_else(|| anyhow::anyhow!("Missing 'config.yaml' in ConfigMap data"))?
             .clone();
 
@@ -177,9 +187,12 @@ impl EdgeDNSConfig {
             .get("data")
             .and_then(|data| data.get("config.yaml"))
             .and_then(|values| values.as_str())
-            .ok_or_else(|| anyhow::anyhow!("Error reading data.config.yaml from the configmap file"))?;
+            .ok_or_else(|| {
+                anyhow::anyhow!("Error reading data.config.yaml from the configmap file")
+            })?;
 
-        let configs: serde_yaml::Value = serde_yaml::from_str(configs_yaml).context("Error parsing 'config.yaml' content")?;
+        let configs: serde_yaml::Value =
+            serde_yaml::from_str(configs_yaml).context("Error parsing 'config.yaml' content")?;
 
         // Select the correct version
         let config_section = match config_type {
@@ -257,5 +270,61 @@ impl CommonConfig {
         })
     }
 }
+
+impl EdgeProxyConfig {
+    pub async fn load_from_configmap(configmap: Api<ConfigMap>, config_type: ConfigType)->Result<Self> {
+        // Get the content of config.yaml from Kubernetes ConfigMap
+        let cm = configmap
+            .get("cortexbrain-client-config")
+            .await
+            .context("Failed to get ConfigMap")?;
+
+        let config_data = cm
+            .data
+            .ok_or_else(|| anyhow::anyhow!("No data in ConfigMap"))?;
+
+        let config_yaml = config_data
+            .get("config.yaml")
+            .ok_or_else(|| anyhow::anyhow!("Missing 'config.yaml' in ConfigMap data"))?
+            .clone();
+
+        // Now parse the YAML content
+        let config_map: serde_yaml::Value = serde_yaml::from_str(&config_yaml)
+            .context("Error reading the yaml file from Kubernetes")?;
+
+        // Extract the relevant config section
+        let configs_yaml = config_map
+            .get("data")
+            .and_then(|data| data.get("config.yaml"))
+            .and_then(|values| values.as_str())
+            .ok_or_else(|| {
+                anyhow::anyhow!("Error reading data.config.yaml from the configmap file")
+            })?;
+
+        let configs: serde_yaml::Value =
+            serde_yaml::from_str(configs_yaml).context("Error parsing 'config.yaml' content")?;
+
+        // Select the correct version
+        let config_section = match config_type {
+            ConfigType::Default => &configs["default"],
+            ConfigType::V1 => &configs["v1"],
+        };
+
+        //read the proxy section
+        let proxy_section = config_section
+            .get("proxy")
+            .ok_or_else(|| anyhow::anyhow!("'Proxy section does not exists in the config file"))?;
+
+        let proxy_config: EdgeProxyConfig = serde_yaml::from_value(proxy_section.clone())?;
+
+
+        //return the Proxy configuration
+        Ok(EdgeProxyConfig{
+            ..proxy_config
+        })
+    }
+
+}
+
 impl EdgeMeshAgentConfig {}
 impl AgentModules {}

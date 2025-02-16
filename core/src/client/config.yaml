@@ -43,14 +43,9 @@ default:
     auto_detect: true
     upstream_servers: #will be delete in the next update
     cache_ttl: 20
-  edgeCNI:
+  proxy:
     enable: true
-    encap_ip: "192.168.1.1"
-    tun_mode: 0
-    mesh_cidr_config: null
-
-  empty_node_name: "EMPTY_NODE_NAME"
-  empty_pod_name: "EMPTY_POD_NAME"
+    listen_interface: "lo"
   service_filter_mode:
     filter_if_label_exists_mode: "FilterIfLabelExists"
     filter_if_label_doesn_not_exists_mode: "FilterIfLabelDoesNotExists"
@@ -60,9 +55,17 @@ default:
   discovery_type:
     mdns_discovery: "MDNS"
     dht_discovery: "DHT"
+  edgeCNI:
+    enable: true
+    encap_ip: "192.168.1.1"
+    tun_mode: 0
+    mesh_cidr_config: null
+
+  empty_node_name: "EMPTY_NODE_NAME"
+  empty_pod_name: "EMPTY_POD_NAME"
 
 v1:
-  base_dir: "/etc/edgemesh"
+    base_dir: "/etc/edgemesh"
   config_file: "/etc/edgemesh/config-file"
   edgemesh_agent_config_name: "edgemesh-agent.yaml"
   edgemesh_gateway_config_name: "edgemesh-gateway.yaml"
@@ -106,14 +109,9 @@ v1:
     auto_detect: true
     upstream_servers: #will be delete in the next update
     cache_ttl: 20
-  edgeCNI:
+  proxy:
     enable: true
-    encap_ip: "192.168.1.1"
-    tun_mode: 0
-    mesh_cidr_config: null
-
-  empty_node_name: "EMPTY_NODE_NAME"
-  empty_pod_name: "EMPTY_POD_NAME"
+    listen_interface: "lo"
   service_filter_mode:
     filter_if_label_exists_mode: "FilterIfLabelExists"
     filter_if_label_doesn_not_exists_mode: "FilterIfLabelDoesNotExists"
@@ -123,3 +121,11 @@ v1:
   discovery_type:
     mdns_discovery: "MDNS"
     dht_discovery: "DHT"
+  edgeCNI:
+    enable: true
+    encap_ip: "192.168.1.1"
+    tun_mode: 0
+    mesh_cidr_config: null
+
+  empty_node_name: "EMPTY_NODE_NAME"
+  empty_pod_name: "EMPTY_POD_NAME"

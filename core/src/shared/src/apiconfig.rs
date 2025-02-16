@@ -118,15 +118,15 @@ pub struct MetaServerSecurity {}
 // ======================== Proxy Section ===========================
 // ==================================================================
 
-#[derive(Serialize,Deserialize,Clone)]
+#[derive(Serialize,Deserialize,Clone,Debug)]
 pub struct EdgeProxyConfig {
     pub enable: bool,
     pub listen_interface: String,
-    pub loadbalancer: Option<LoadBalancer>,
-    pub socks5proxy: Option<Socks5Proxy>,
-    pub service_filter_mode: String,
+    //pub loadbalancer: Option<LoadBalancer>, 
+    //pub socks5proxy: Option<Socks5Proxy>,
+    //pub service_filter_mode: String,
 }
-#[derive(Serialize,Deserialize,Clone)]
+#[derive(Serialize,Deserialize,Clone,Debug)]
 pub struct Socks5Proxy {
     pub enable: bool,
     pub listen_port: i32,
@@ -180,7 +180,7 @@ pub struct CacheDNS {
 // ====================== LoadBalancer Section ======================
 // ==================================================================
 
-#[derive(Serialize,Deserialize,Clone)]
+#[derive(Serialize,Deserialize,Clone,Debug)]
 pub struct LoadBalancer {
     pub caller: String,
     pub nodename: String,
