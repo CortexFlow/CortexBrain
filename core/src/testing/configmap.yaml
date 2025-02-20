@@ -71,7 +71,7 @@ data:
       empty_pod_name: "EMPTY_POD_NAME"
 
     v1:
-        base_dir: "/etc/edgemesh"
+      base_dir: "/etc/edgemesh"
       config_file: "/etc/edgemesh/config-file"
       edgemesh_agent_config_name: "edgemesh-agent.yaml"
       edgemesh_gateway_config_name: "edgemesh-gateway.yaml"

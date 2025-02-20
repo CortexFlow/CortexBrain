@@ -1,17 +1,8 @@
-# 💪🏻 Contributing
-
-If you have knowledges in DevOps/Kubernetes or Networks and want to help us please write an email to lorenzotettamanti5@gmail.com  
-   | **Looking for**              | **Skills**                                                                 |
-   | ------------------------- | -------------------------------------------------------------------------------- |
-   | **CortexBrain Core Developer**      | - Kubernetes  <br> - Networks  <br> - Rust programming language |
-   | **CortexBrain Dashboard Developer** | - React  <br> - Frontend Development <br> - Javascript/TypeScript                 |
-   | **General Mantainers** | - Github  <br> - Pratical organition  <br> - Documentation  |
-   | **Code Reviewers/Testers** | - Rust  <br> - Javascript/TypeScript  <br> - Kubernetes <br> - Docker     |
-
-
-## 🤖 How to Contribute?
-We welcome contributions from the community! To contribute to the project, please follow these steps:
-
-1. Fork the repository.
-2. Create a new branch for your feature (`git checkout -b feature/feature-name`).
-3. Submit a Pull Request with a detailed explanation of your changes.
+# Contributing Best Pratictes
+- Write a clear and concise commit/Pull Request message
+- ⚠️ always tag the related issue in a commit message
+- Open an issue or a discussion before submitting a Pull Request
+- Make focused changes
+- Do not submit very large pull requests (>5k lines of code changed) unless it's necessary
+- Create a new branch for your changes
+- Respect the work of others

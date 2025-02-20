@@ -53,25 +53,51 @@ To get started with CortexBrain, follow these steps:
    | **CortexBrain Core**      | - Kubernetes or Minikube v1.34.0  <br> - Linux Ubuntu system (preferred for development)  <br> - Rust programming language (rustc >= 1.83.0)|
    | **CortexBrain Dashboard** | - npm v10.7.0  <br> - React v18.2.0  <br> - Electron v33.2.0                      |
 
+- ## **Core Development:**  
+   1. Install Rust using RustUp tools : 
+      ```bash
+      curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+      ```  
+   2. Install [Docker](https://www.docker.com/get-started/):  
+      ```bash
+      https://www.docker.com/get-started/
+      ```  
+   3. Install [Minikube](https://minikube.sigs.k8s.io/docs/start/?arch=%2Fwindows%2Fx86-64%2Fstable%2F.exe+download)  
+   4. Run minikube
+      ```bash
+      minikube start
+      ```
+- ## **Dashboard Development:**  
+   1. Install [Node.jss](https://nodejs.org/en/download)
+   2. Open the dashboard folder and install the required packages 
+      ```bash
+         cd dashboard
+         npm install 
+      ```  
+   3. Run the local development server
+      ```bash
+         npm start 
+      ```
 
 
 # 💪🏻 Contributing
 
-If you have knowledges in DevOps/Kubernetes or Networks and want to help us please write an email to lorenzotettamanti5@gmail.com  
-   | **Looking for**              | **Skills**                                                                 |
-   | ------------------------- | -------------------------------------------------------------------------------- |
-   | **CortexBrain Core Developer**      | - Kubernetes  <br> - Networks  <br> - Rust programming language |
-   | **CortexBrain Dashboard Developer** | - React  <br> - Frontend Development <br> - Javascript/TypeScript                 |
-   | **General Mantainers** | - Github  <br> - Pratical organition  <br> - Documentation  |
-   | **Code Reviewers/Testers** | - Rust  <br> - Javascript/TypeScript  <br> - Kubernetes <br> - Docker     |
-
+If you have knowledge in DevOps/Kubernetes or Networks please write an email to lorenzotettamanti5@gmail.com  
+   | **Role**              | **Skills** | **Tasks** | **Related Issues and Milestones** |
+   | ------------------------- | ------------------------------------------------------------------------- | --------------- |--------|
+   | **CortexBrain Core Developer**      | - Kubernetes  <br> - Networks  <br> - Rust programming language | - Work alongside us to build and optimize the core functionalities (Client,DNS,Proxy,Telemetry,etc..) <br>                | - [Rust](https://github.com/CortexFlow/CortexBrain/labels/rust) <br> - [Core](https://github.com/CortexFlow/CortexBrain/milestone/1)
+   | **CortexBrain Dashboard Developer** | - React  <br> - Frontend Development <br> - Javascript/TypeScript | - Work alongside us to design and improve the dashboard  <br>            | [Javascript](https://github.com/CortexFlow/CortexBrain/labels/javascript)
+   | **General Mantainers** | - Github  <br> - Practical organition  <br> - Documentation                   | - Keep the repository organized and clean <br> - Write/Update documentation <br> - Spot typos in the repository     | - [Documentation](https://github.com/CortexFlow/CortexBrain/labels/documentation) <br> - [question](https://github.com/CortexFlow/CortexBrain/labels/question)
+   | **Code Reviewers/Testers** | - Rust  <br> - Javascript/TypeScript  <br> - Kubernetes <br> - Docker    | - Review code and suggest changes/optimizations <br> - Write tests for CI/CD  | [Code refactoring](https://github.com/CortexFlow/CortexBrain/labels/code%20refactoring)
+ 
 
 ## 🤖 How to Contribute?
 We welcome contributions from the community! To contribute to the project, please follow these steps:
 
 1. Fork the repository.
-2. Create a new branch for your feature (`git checkout -b feature/feature-name`).
-3. Submit a Pull Request with a detailed explanation of your changes.
+2. Check out [Contributing Best Practices](https://github.com/CortexFlow/CortexBrain/blob/main/CONTRIBUTING.md) 
+3. Create a new branch for your feature (`git checkout -b feature/feature-name`).
+4. Submit a Pull Request with a detailed explanation of your changes.
 
 ## 🙋**Proposing New Features**
 

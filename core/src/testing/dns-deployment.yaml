@@ -29,3 +29,22 @@ spec:
       - name: dns-config
         configMap:
           name: cortexbrain-client-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cortexflow-dns-service
+  namespace: default
+spec:
+  selector:
+    app: custom-dns
+  ports:
+  - name: dns-udp
+    protocol: UDP
+    port: 53
+    targetPort: 53
+  - name: api-tcp
+    protocol: TCP
+    port: 8080
+    targetPort: 8080
+  type: ClusterIP
