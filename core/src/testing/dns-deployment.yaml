@@ -16,19 +16,22 @@ spec:
       containers:
       - name: dns-server
         image: lorenzotettamanti/cortexflow-kernel:latest
-        command: [ "tail", "-f", "/dev/null" ]
         ports:
-        - containerPort: 53
+        - containerPort: 5000
           protocol: UDP
         - containerPort: 8080
           protocol: TCP
         volumeMounts:
         - name: dns-config
-          mountPath: /etc/dns
+          mountPath: /etc/dns/config.yaml
+          subPath: config.yaml
       volumes:
       - name: dns-config
         configMap:
           name: cortexbrain-client-config
+          items:
+          - key: config.yaml
+            path: config.yaml
 ---
 apiVersion: v1
 kind: Service
@@ -41,8 +44,8 @@ spec:
   ports:
   - name: dns-udp
     protocol: UDP
-    port: 53
-    targetPort: 53
+    port: 5000
+    targetPort: 5000
   - name: api-tcp
     protocol: TCP
     port: 8080

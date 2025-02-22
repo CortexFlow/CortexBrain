@@ -15,7 +15,6 @@ spec:
       containers:
       - name: client
         image: lorenzotettamanti/cortexflow-client:latest
-        command: [ "tail", "-f", "/dev/null" ]
         env:
         - name: CONFIG_PATH
           value: "/usr/src/cortexbrain-client/config.yaml"

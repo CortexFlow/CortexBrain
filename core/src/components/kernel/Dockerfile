@@ -1,5 +1,5 @@
 # Phase 1: Build image
-FROM rust:1.83 AS builder
+FROM rust:1.85 AS builder
 
 # Set working directory
 WORKDIR /usr/src/app
@@ -31,8 +31,14 @@ RUN apt-get update && apt-get install -y \
 # Create directory for the kernel
 WORKDIR /usr/src/cortexbrain-kernel
 
+# Create the /etc/dns directory
+RUN mkdir -p /etc/dns
+
 # Copy the binary from builder
 COPY --from=builder /usr/src/app/kernel/target/release/kernel /usr/local/bin/cortexflow-kernel
+
+# Copy the config.yaml file into /etc/dns
+COPY config.yaml /etc/dns/config.yaml
 
 # Set the kernel execution command
 CMD ["cortexflow-kernel"]

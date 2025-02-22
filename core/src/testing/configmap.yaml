@@ -2,6 +2,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: cortexbrain-client-config
+  namespace: default
 data:
   config.yaml: |
     default:
@@ -40,7 +41,7 @@ data:
       edge_dns:
         edge_mode: "EdgeMode"
         edge_mode_enable: true
-        edgemesh_dns_module_name: "EdgeDNS"
+        module_name: "EdgeDNS"
         enable: true
         listen_interface: "lo"
         listen_port: 53
@@ -52,6 +53,10 @@ data:
       proxy:
         enable: true
         listen_interface: "lo"
+        log_level: "info"
+        metrics_path: "/metrics"
+        listen_address: "0.0.0.0"
+        listen_port: 9090
       service_filter_mode:
         filter_if_label_exists_mode: "FilterIfLabelExists"
         filter_if_label_doesn_not_exists_mode: "FilterIfLabelDoesNotExists"
@@ -106,7 +111,7 @@ data:
       edge_dns:
         edge_mode: "EdgeMode"
         edge_mode_enable: true
-        edgemesh_dns_module_name: "EdgeDNS"
+        module_name: "EdgeDNS"
         enable: true
         listen_interface: "lo"
         listen_port: 53

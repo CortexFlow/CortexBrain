@@ -34,7 +34,7 @@ default:
   edge_dns:
     edge_mode: "EdgeMode"
     edge_mode_enable: true
-    edgemesh_dns_module_name: "EdgeDNS"
+    module_name: "EdgeDNS"
     enable: true
     listen_interface: "lo"
     listen_port: 53
@@ -100,7 +100,7 @@ v1:
   edge_dns:
     edge_mode: "EdgeMode"
     edge_mode_enable: true
-    edgemesh_dns_module_name: "EdgeDNS"
+    module_name: "EdgeDNS"
     enable: true
     listen_interface: "lo"
     listen_port: 53

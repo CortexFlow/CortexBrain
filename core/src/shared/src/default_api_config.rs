@@ -168,49 +168,31 @@ impl EdgeDNSConfig {
             .get("cortexbrain-client-config")
             .await
             .context("Failed to get ConfigMap")?;
-
         let config_data = cm
             .data
             .ok_or_else(|| anyhow::anyhow!("No data in ConfigMap"))?;
-
         let config_yaml = config_data
             .get("config.yaml")
             .ok_or_else(|| anyhow::anyhow!("Missing 'config.yaml' in ConfigMap data"))?
             .clone();
-
         // Now parse the YAML content
         let config_map: serde_yaml::Value = serde_yaml::from_str(&config_yaml)
             .context("Error reading the yaml file from Kubernetes")?;
-
         // Extract the relevant config section
-        let configs_yaml = config_map
-            .get("data")
-            .and_then(|data| data.get("config.yaml"))
-            .and_then(|values| values.as_str())
-            .ok_or_else(|| {
-                anyhow::anyhow!("Error reading data.config.yaml from the configmap file")
-            })?;
-
-        let configs: serde_yaml::Value =
-            serde_yaml::from_str(configs_yaml).context("Error parsing 'config.yaml' content")?;
-
+        let configs = config_map;
         // Select the correct version
         let config_section = match config_type {
             ConfigType::Default => &configs["default"],
             ConfigType::V1 => &configs["v1"],
         };
-
         // Edge DNS Section
         let edge_dns_section = config_section.get("edge_dns").ok_or_else(|| {
             anyhow::anyhow!("'edge_dns' section does not exist in the config file")
         })?;
-
         let edge_dns_config: EdgeDNSConfig = serde_yaml::from_value(edge_dns_section.clone())
             .context("Error parsing 'edge_dns' section")?;
-
         // Cache DNS section
         let cache_dns_section = config_section.get("cache_dns");
-
         let cache_dns_config = if let Some(cache_dns_section) = cache_dns_section {
             Some(
                 serde_yaml::from_value(cache_dns_section.clone())
@@ -219,10 +201,8 @@ impl EdgeDNSConfig {
         } else {
             None
         };
-
         // KubeAPI section
         let kubeapi_section = config_section.get("kubeapi");
-
         let kubeapi_config = if let Some(kubeapi_section) = kubeapi_section {
             Some(
                 serde_yaml::from_value(kubeapi_section.clone())
@@ -231,7 +211,6 @@ impl EdgeDNSConfig {
         } else {
             None
         };
-
         // Return the EdgeDNS configuration
         Ok(EdgeDNSConfig {
             cache_dns: cache_dns_config,
@@ -293,17 +272,7 @@ impl EdgeProxyConfig {
             .context("Error reading the yaml file from Kubernetes")?;
 
         // Extract the relevant config section
-        let configs_yaml = config_map
-            .get("data")
-            .and_then(|data| data.get("config.yaml"))
-            .and_then(|values| values.as_str())
-            .ok_or_else(|| {
-                anyhow::anyhow!("Error reading data.config.yaml from the configmap file")
-            })?;
-
-        let configs: serde_yaml::Value =
-            serde_yaml::from_str(configs_yaml).context("Error parsing 'config.yaml' content")?;
-
+        let configs = config_map;
         // Select the correct version
         let config_section = match config_type {
             ConfigType::Default => &configs["default"],
@@ -315,7 +284,7 @@ impl EdgeProxyConfig {
             .get("proxy")
             .ok_or_else(|| anyhow::anyhow!("'Proxy section does not exists in the config file"))?;
 
-        let proxy_config: EdgeProxyConfig = serde_yaml::from_value(proxy_section.clone())?;
+        let proxy_config: EdgeProxyConfig = serde_yaml::from_value(proxy_section.clone()).context("Error parsing the 'proxy' section")?;
 
 
         //return the Proxy configuration
