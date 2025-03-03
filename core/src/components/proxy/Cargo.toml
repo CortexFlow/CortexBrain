@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-anyhow = "1.0.95"
+anyhow = "1.0.97"
 dashmap = "6.1.0"
 hyper = "1.6.0"
 k8s-openapi = "0.24.0"
