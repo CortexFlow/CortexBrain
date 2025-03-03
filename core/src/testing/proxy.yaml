@@ -22,7 +22,7 @@ spec:
         - containerPort: 9090
         env:
         - name: DNS_SERVER_HOST
-          value: "dns-service.default.svc.cluster.local:5000"
+          value: "cortexflow-dns-service.cortexflow.svc.cluster.local:5000"
         volumeMounts:
         - name: proxy-config
           mountPath: /etc/proxy/config.yaml
@@ -45,8 +45,13 @@ metadata:
 spec:
   type: ClusterIP
   ports:
-  - port: 9090
+  - name: metrics
+    port: 9090
     targetPort: 9090
     protocol: TCP
+  - name: dns
+    port: 5353
+    targetPort: 5353
+    protocol: UDP
   selector:
     app: cortexflow-proxy
