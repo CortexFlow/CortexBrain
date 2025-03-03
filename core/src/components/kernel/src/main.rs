@@ -46,7 +46,7 @@ async fn main() -> Result<(), anyhow::Error> {
     */
 
     let client = Client::try_default().await?;
-    let configmap: Api<ConfigMap> = Api::namespaced(client.clone(), "default");
+    let configmap: Api<ConfigMap> = Api::namespaced(client.clone(), "cortexflow");
 
     let edgecfg = EdgeDNSConfig::load_from_configmap(configmap, ConfigType::Default).await?;
 

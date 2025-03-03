@@ -2,21 +2,21 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: configmap-reader
-  namespace: default
+  namespace: cortexflow
 rules:
-  - apiGroups: [""]
-    resources: ["configmaps","services"]
-    verbs: ["get", "list","watch"]
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["get", "list"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: configmap-reader-binding
-  namespace: default
+  namespace: cortexflow
 subjects:
-  - kind: ServiceAccount
-    name: default
-    namespace: cortexflow
+- kind: ServiceAccount
+  name: default
+  namespace: cortexflow
 roleRef:
   kind: Role
   name: configmap-reader

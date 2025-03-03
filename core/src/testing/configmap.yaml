@@ -2,7 +2,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: cortexbrain-client-config
-  namespace: default
+  namespace: cortexflow
 data:
   config.yaml: |
     default:

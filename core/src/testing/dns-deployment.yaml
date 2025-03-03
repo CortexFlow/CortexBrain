@@ -2,16 +2,18 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: cortexflow-dns
-  namespace: default
+  namespace: cortexflow
+  labels:
+    app: cortexflow-dns
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: custom-dns
+      app: cortexflow-dns
   template:
     metadata:
       labels:
-        app: custom-dns
+        app: cortexflow-dns
     spec:
       containers:
       - name: dns-server
@@ -37,10 +39,12 @@ apiVersion: v1
 kind: Service
 metadata:
   name: cortexflow-dns-service
-  namespace: default
+  namespace: cortexflow
+  labels:
+    app: cortexflow-dns
 spec:
   selector:
-    app: custom-dns
+    app: cortexflow-dns
   ports:
   - name: dns-udp
     protocol: UDP
