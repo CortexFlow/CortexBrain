@@ -7,6 +7,7 @@ cp ../core/src/testing/proxy.yaml proxy.yaml
 cp ../core/src/testing/cortexflow-rolebinding.yaml cortexflow-rolebinding.yaml
 cp ../core/src/testing/coredns-rolebinding.yaml coredns-rolebinding.yaml
 cp ../core/src/testing/coredns-clusterrole.yaml coredns-clusterrole.yaml
+cp ../core/src/testing/coredns-config.yaml coredns-config.yaml
 
 
 echo "creating Cortexflow namespace"
@@ -19,7 +20,7 @@ kubectl apply -f rolebinding.yaml -n kube-system
 kubectl apply -f cortexflow-rolebinding.yaml -n cortexflow
 kubectl apply -f coredns-clusterrole.yaml
 kubectl apply -f coredns-rolebinding.yaml -n cortexflow
-kubectl apply -f dns-deployment.yaml -n cortexflow
+kubectl apply -f coredns-config.yaml -n kube-system
 kubectl apply -f proxy.yaml -n cortexflow
 
 echo "Removing temporary files"
@@ -31,6 +32,7 @@ rm -rf dns-deployment.yaml
 rm -rf proxy.yaml
 rm -rf coredns-rolebinding.yaml
 rm -rf coredns-clusterrole.yaml
+rm -rf coredns-config.yaml
 
 sleep 5
 

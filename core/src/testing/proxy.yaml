@@ -22,7 +22,7 @@ spec:
         - containerPort: 9090
         env:
         - name: DNS_SERVER_HOST
-          value: "cortexflow-dns-service.cortexflow.svc.cluster.local:5000"
+          value: "kube-dns.kube-system.svc.cluster.local:53"
         volumeMounts:
         - name: proxy-config
           mountPath: /etc/proxy/config.yaml
@@ -50,8 +50,8 @@ spec:
     targetPort: 9090
     protocol: TCP
   - name: dns
-    port: 5353
-    targetPort: 5353
+    port: 5053
+    targetPort: 5053
     protocol: UDP
   selector:
     app: cortexflow-proxy

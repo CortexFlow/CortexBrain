@@ -32,7 +32,7 @@ async fn main()-> Result<(),anyhow::Error> {
     let configmap: Api<ConfigMap> = Api::namespaced(client.clone(), "cortexflow");
 
     let proxycfg= EdgeProxyConfig::load_from_configmap(configmap,ConfigType::Default).await?;
-    let proxy = Proxy::new(proxycfg,client.clone()).await?;
+    let proxy = Proxy::new(proxycfg).await?;
 
     proxy.start().await;
     proxy.get_info().await;

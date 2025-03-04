@@ -36,7 +36,7 @@ default:
     edge_mode_enable: true
     module_name: "EdgeDNS"
     enable: true
-    listen_interface: "lo"
+    listen_interface: 
     listen_port: 5353
   cache_dns:
     enable: true
@@ -45,7 +45,7 @@ default:
     cache_ttl: 20
   proxy:
     enable: true
-    listen_interface: "lo"
+    listen_interface: 
   service_filter_mode:
     filter_if_label_exists_mode: "FilterIfLabelExists"
     filter_if_label_doesn_not_exists_mode: "FilterIfLabelDoesNotExists"
