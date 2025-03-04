@@ -13,6 +13,7 @@ lazy_static = "1.5.0"
 prometheus = "0.13.4"
 tokio = "1.43.0"
 tracing = "0.1.41"
+tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 warp = "0.3.7"
 
 [dependencies.shared]    

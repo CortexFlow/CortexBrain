@@ -37,7 +37,7 @@ default:
     module_name: "EdgeDNS"
     enable: true
     listen_interface: "lo"
-    listen_port: 53
+    listen_port: 5353
   cache_dns:
     enable: true
     auto_detect: true
@@ -65,7 +65,7 @@ default:
   empty_pod_name: "EMPTY_POD_NAME"
 
 v1:
-    base_dir: "/etc/edgemesh"
+  base_dir: "/etc/edgemesh"
   config_file: "/etc/edgemesh/config-file"
   edgemesh_agent_config_name: "edgemesh-agent.yaml"
   edgemesh_gateway_config_name: "edgemesh-gateway.yaml"
@@ -102,7 +102,7 @@ v1:
     edge_mode_enable: true
     module_name: "EdgeDNS"
     enable: true
-    listen_interface: "lo"
+    listen_interface: 
     listen_port: 53
   cache_dns:
     enable: true

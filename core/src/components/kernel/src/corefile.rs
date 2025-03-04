@@ -298,39 +298,38 @@ pub async fn update_corefile(cfg: EdgeDNSConfig, kube_client: &Client) -> Result
             if corefile.contains("cortexflow-edge.dns:53") {
                 error!("Configuration block already present, skipping update.");
             } else {
-                warn!("Do you want to patch the coredns configuration? Yes[Y] No[N]");
+                /* warn!("Do you want to patch the coredns configuration? Yes[Y] No[N]");
                 let mut input = String::new();
                 std::io::stdin().read_line(&mut input)?;
-                if input.trim().eq_ignore_ascii_case("Y") {
-                    info!("\nInserting patch:");
-                    info!("{:?}\n",stub_domain_str_copy);
-                    *corefile = format!("{}{}", corefile, stub_domain_str_copy);
-                    
+                 *///if input.trim().eq_ignore_ascii_case("Y") {
+                info!("\nInserting patch:");
+                info!("{:?}\n",stub_domain_str_copy);
+                *corefile = format!("{}{}", corefile, stub_domain_str_copy);
+                
 
-                    //send the patch to the cluster
-                    let patch_data = json!({
-                        "data": {
-                            "Corefile": corefile.clone()
-                        }
-                    });
-                    
-                    let patch_new = Patch::Merge(patch_data);
-                    
-                    configmaps
-                        .patch("coredns", &PatchParams::default(), &patch_new)
-                        .await?;
-                    
+                //send the patch to the cluster
+                let patch_data = json!({
+                    "data": {
+                        "Corefile": corefile.clone()
+                    }
+                });
+                
+                let patch_new = Patch::Merge(patch_data);
+                
+                configmaps
+                    .patch("coredns", &PatchParams::default(), &patch_new)
+                    .await?;
+                
 
-                    //TODO: add error handler
+                //TODO: add error handler
 
+                //logging
+                info!("Patched corefile successfully:\n");
+                info!("{:?}", corefile);
+                } //else {
                     //logging
-                    info!("Patched corefile successfully:\n");
-                    info!("{:?}", corefile);
-                } else {
-                    //logging
-                    error!("Corefile not patched");
-                }
-            }
+                   // error!("Corefile not patched");
+                //}
         }
     }
 

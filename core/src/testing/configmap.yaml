@@ -44,7 +44,7 @@ data:
         module_name: "EdgeDNS"
         enable: true
         listen_interface: "lo"
-        listen_port: 53
+        listen_port: 5353
       cache_dns:
         enable: true
         auto_detect: true
@@ -53,10 +53,6 @@ data:
       proxy:
         enable: true
         listen_interface: "lo"
-        log_level: "info"
-        metrics_path: "/metrics"
-        listen_address: "0.0.0.0"
-        listen_port: 9090
       service_filter_mode:
         filter_if_label_exists_mode: "FilterIfLabelExists"
         filter_if_label_doesn_not_exists_mode: "FilterIfLabelDoesNotExists"

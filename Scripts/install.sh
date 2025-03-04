@@ -5,6 +5,8 @@ cp ../core/src/testing/rolebinding.yaml rolebinding.yaml
 cp ../core/src/testing/dns-deployment.yaml dns-deployment.yaml
 cp ../core/src/testing/proxy.yaml proxy.yaml
 cp ../core/src/testing/cortexflow-rolebinding.yaml cortexflow-rolebinding.yaml
+cp ../core/src/testing/coredns-rolebinding.yaml coredns-rolebinding.yaml
+cp ../core/src/testing/coredns-clusterrole.yaml coredns-clusterrole.yaml
 
 
 echo "creating Cortexflow namespace"
@@ -15,6 +17,8 @@ kubectl apply -f configmap.yaml -n cortexflow
 kubectl apply -f configmap-role.yaml -n default
 kubectl apply -f rolebinding.yaml -n kube-system
 kubectl apply -f cortexflow-rolebinding.yaml -n cortexflow
+kubectl apply -f coredns-clusterrole.yaml
+kubectl apply -f coredns-rolebinding.yaml -n cortexflow
 kubectl apply -f dns-deployment.yaml -n cortexflow
 kubectl apply -f proxy.yaml -n cortexflow
 
@@ -25,6 +29,8 @@ rm -rf rolebinding.yaml
 rm -rf cortexflow-rolebinding.yaml
 rm -rf dns-deployment.yaml
 rm -rf proxy.yaml
+rm -rf coredns-rolebinding.yaml
+rm -rf coredns-clusterrole.yaml
 
 sleep 5
 

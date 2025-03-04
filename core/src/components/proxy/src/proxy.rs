@@ -8,7 +8,7 @@ Cortexflow proxy is the main proxy in cortexbrain. Features:
 
 use anyhow::{Error, Ok};
 use kube::Client;
-use tracing::{info,error};
+use tracing::{info,error,instrument};
 use dashmap::DashMap;
 
 
@@ -34,10 +34,12 @@ impl Proxy {
             proxy_config: Arc::new(proxycfg)
         })
     }
+    #[instrument]
     pub async fn get_info(&self){
         info!("Enable: {:?}",self.proxy_config.enable);
         info!("Listen interface {:?}",self.proxy_config.listen_interface);
     }
+    #[instrument]
     pub async fn start(&self){
         if !self.proxy_config.enable{
             error!("Proxy is not running")
@@ -45,6 +47,7 @@ impl Proxy {
             self.run().await;   
         }
     }
+    #[instrument]
     pub async fn run(&self){
         info!("Cortexflow Proxy is running");
         let dns_server = env::var("DNS_SERVER_HOST").unwrap_or_else(|_| "dns-service.default.svc.cluster.local:53".to_string());
