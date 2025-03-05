@@ -20,6 +20,9 @@ spec:
         image: lorenzotettamanti/cortexflow-proxy:latest
         ports:
         - containerPort: 9090
+          protocol: TCP
+        - containerPort: 5053
+          protocol: UDP
         env:
         - name: DNS_SERVER_HOST
           value: "kube-dns.kube-system.svc.cluster.local:53"

@@ -1,44 +1,45 @@
+#!/bin/bash
+
 proxy_pod_name=$(kubectl get pods -n cortexflow --no-headers -o custom-columns=":metadata.name" | grep cortexflow-proxy)
-echo "Checking cortexflow proxy inside the pod"
+echo "Checking cortexflow proxy inside the proxy pod: $proxy_pod_name"
 
 sleep 1.5
 echo "🔨 checking env variables"
-kubectl exec -it -n cortexflow $proxy_pod_name -- env
+kubectl exec -n cortexflow $proxy_pod_name -- env
 
 sleep 1.5
 
-if ! kubectl exec -it -n cortexflow $proxy_pod_name -- which netstat >/dev/null 2>&1; then
+if ! kubectl exec -n cortexflow $proxy_pod_name -- which netstat >/dev/null 2>&1; then
     echo "🔨 installing netstat"
-    kubectl exec -it -n cortexflow $proxy_pod_name -- apt update
-    kubectl exec -it -n cortexflow $proxy_pod_name -- apt install net-tools
+    kubectl exec -n cortexflow $proxy_pod_name -- apt update
+    kubectl exec -n cortexflow $proxy_pod_name -- apt install -y net-tools
 else
     echo "✅ Netstat is installed."
 fi
 
 sleep 1.5
 
-if ! kubectl exec -it -n cortexflow $proxy_pod_name -- which netcat-traditional >/dev/null 2>&1; then
+if ! kubectl exec -n cortexflow $proxy_pod_name -- which nc >/dev/null 2>&1; then
     echo "🔨 installing netcat"
-    kubectl exec -it -n cortexflow $proxy_pod_name -- apt install netcat-traditional
+    kubectl exec -n cortexflow $proxy_pod_name -- apt install -y netcat
 else
     echo "✅ Netcat is installed."
 fi
-echo 
+
 sleep 1.5
 
-echo
-if ! kubectl exec -it -n cortexflow $proxy_pod_name -- which curl >/dev/null 2>&1; then
-    echo "🔨 installing curl"   
-    kubectl exec -it -n cortexflow $proxy_pod_name -- apt install curl
+if ! kubectl exec -n cortexflow $proxy_pod_name -- which curl >/dev/null 2>&1; then
+    echo "🔨 installing curl"
+    kubectl exec -n cortexflow $proxy_pod_name -- apt install -y curl
 else
     echo "✅ Curl is installed."
 fi
 
 sleep 1.5
-echo
-if ! kubectl exec -it -n cortexflow $proxy_pod_name -- which dnsutils >/dev/null 2>&1; then
-    echo "🔨 installing nslookup"   
-    kubectl exec -it -n cortexflow $proxy_pod_name -- apt install dnsutils
+
+if ! kubectl exec -n cortexflow $proxy_pod_name -- which nslookup >/dev/null 2>&1; then
+    echo "🔨 installing dnsutils"
+    kubectl exec -n cortexflow $proxy_pod_name -- apt install -y dnsutils
 else
     echo "✅ Nslookup is installed."
 fi
@@ -47,43 +48,40 @@ sleep 1.5
 
 echo
 echo "🔨 Testing netstat command"
-kubectl exec -it -n cortexflow $proxy_pod_name -- netstat -tulnp | grep 9090
+kubectl exec -n cortexflow $proxy_pod_name -- netstat -tulnp | grep 9090
 
 sleep 1.5
 
 echo
 echo "🔨 testing if the process is in execution"
-kubectl exec -it -n cortexflow $proxy_pod_name -- ps aux | grep cortexflow-proxy
+kubectl exec -n cortexflow $proxy_pod_name -- ps aux | grep cortexflow-proxy
 
 echo "🔨 testing using netcat"
-kubectl exec -it -n cortexflow $proxy_pod_name -- nc -zv proxy-service.cortexflow.svc.cluster.local 9090
-
+kubectl exec -n cortexflow $proxy_pod_name -- nc -zv proxy-service.cortexflow.svc.cluster.local 9090
 
 sleep 1.5
 echo "🔨 Checking if the proxy is listening in the 5053 port"
-kubectl exec -it -n cortexflow $proxy_pod_name -- netstat -ulnp
+kubectl exec -n cortexflow $proxy_pod_name -- netstat -ulnp
 
 echo
 sleep 1.5
-echo "🔨 Sending a test package"
-kubectl exec -it -n cortexflow $proxy_pod_name -- echo "test" | nc -u -w1 proxy-service.cortexflow.svc.cluster.local 5053
+echo "🔨 Sending a test package with netcat"
+kubectl exec -n cortexflow $proxy_pod_name -- sh -c "echo 'test message' | nc -u 127.0.0.1 5053"
 
-echo 
+echo
 sleep 1.5
-echo "🔨 Testing the DNS resolution manually"
-kubectl exec -it -n cortexflow $proxy_pod_name -- nslookup proxy-service.cortexflow.svc.cluster.local
-
+echo "🔨 Testing the DNS resolution manually with nslookup"
+kubectl exec -n cortexflow $proxy_pod_name -- nslookup proxy-service.cortexflow.svc.cluster.local
 
 sleep 1.5
 
 echo
 echo "🔨 Testing curl command"
-response=$(kubectl exec -it -n cortexflow $proxy_pod_name -- curl -s -o /dev/null -w "%{http_code}" http://localhost:9090/)
+response=$(kubectl exec -n cortexflow $proxy_pod_name -- curl -s -o /dev/null -w "%{http_code}" http://localhost:9090/)
 if [ "$response" -eq 200 ]; then
   echo "✅ Server is working"
   echo " Checking / endpoint"
-  kubectl exec -it -n cortexflow $proxy_pod_name -- curl -v http://localhost:9090/
-
+  kubectl exec -n cortexflow $proxy_pod_name -- curl -v http://localhost:9090/
 else
   echo "❌ Error in http response ERROR: $response"
   echo "❌ Service does not exists or is not exposed"
@@ -92,12 +90,11 @@ fi
 echo
 sleep 1.5
 echo "🔨 Testing /health endpoint"
-response=$(kubectl exec -it -n cortexflow $proxy_pod_name -- curl -s -o /dev/null -w "%{http_code}" http://localhost:9090/health)
+response=$(kubectl exec -n cortexflow $proxy_pod_name -- curl -s -o /dev/null -w "%{http_code}" http://localhost:9090/health)
 if [ "$response" -eq 200 ]; then
   echo "✅ Server is working"
   echo " Checking /health endpoint"
-  kubectl exec -it -n cortexflow $proxy_pod_name -- curl -o -v http://localhost:9090/health
-
+  kubectl exec -n cortexflow $proxy_pod_name -- curl -v http://localhost:9090/health
 else
   echo "❌ Error in http response ERROR: $response"
   echo "❌ Service does not exists or is not exposed"
@@ -106,11 +103,11 @@ fi
 echo
 sleep 1.5
 echo "🔨 Testing /metrics endpoint"
-response=$(kubectl exec -it -n cortexflow $proxy_pod_name -- curl -s -o /dev/null -w "%{http_code}" http://localhost:9090/metrics)
+response=$(kubectl exec -n cortexflow $proxy_pod_name -- curl -s -o /dev/null -w "%{http_code}" http://localhost:9090/metrics)
 if [ "$response" -eq 200 ]; then
   echo "✅ Server is working"
   echo " Checking /metrics endpoint"
-  kubectl exec -it -n cortexflow $proxy_pod_name -- curl -o -v http://localhost:9090/metrics
+  kubectl exec -n cortexflow $proxy_pod_name -- curl -v http://localhost:9090/metrics
 else
   echo "❌ Error in http response ERROR: $response"
   echo "❌ Service does not exists or is not exposed"
@@ -119,13 +116,25 @@ fi
 echo
 sleep 1.5
 echo "🔨 Testing /status endpoint"
-response=$(kubectl exec -it -n cortexflow $proxy_pod_name -- curl -s -o /dev/null -w "%{http_code}" http://localhost:9090/status)
+response=$(kubectl exec -n cortexflow $proxy_pod_name -- curl -s -o /dev/null -w "%{http_code}" http://localhost:9090/status)
 if [ "$response" -eq 200 ]; then
   echo "✅ Server is working"
   echo " Checking /status endpoint"
-  kubectl exec -it -n cortexflow proxy_pod_name -- curl -o -v http://localhost:9090/status
-
+  kubectl exec -n cortexflow $proxy_pod_name -- curl -v http://localhost:9090/status
 else
   echo "❌ Error in http response ERROR: $response"
   echo "❌ Service does not exists or is not exposed"
 fi
+
+echo
+echo
+echo "Testing outside the proxy pod"
+echo "🔨 Testing using a temporary test pod and nslookup"
+kubectl run -it --rm --image=busybox test-pod --restart=Never -n cortexflow -- nslookup proxy-service.cortexflow.svc.cluster.local
+kubectl delete pod test-pod -n cortexflow
+
+echo
+sleep 1.5
+echo "🔨 Sending a 'test' message using netcat and a temporary test pod"
+kubectl run -it --rm --image=busybox test-pod --restart=Never -n cortexflow -- sh -c "echo 'test message' | nc -u proxy-service.cortexflow.svc.cluster.local 5053"
+kubectl delete pod test-pod -n cortexflow
