@@ -1,7 +1,9 @@
 #!/bin/bash
 
 proxy_pod_name=$(kubectl get pods -n cortexflow --no-headers -o custom-columns=":metadata.name" | grep cortexflow-proxy)
-echo "Checking cortexflow proxy inside the proxy pod: $proxy_pod_name"
+proxy_ip=$(kubectl get -o template service/proxy-service -n cortexflow --template='{{.spec.clusterIP}}')
+
+echo "🧑🏻‍🔬 Checking cortexflow proxy inside the proxy pod: $proxy_pod_name"
 
 sleep 1.5
 echo "🔨 checking env variables"
@@ -46,6 +48,15 @@ fi
 
 sleep 1.5
 
+if ! kubectl exec -n cortexflow $proxy_pod_name -- which tcpdump >/dev/null 2>&1; then
+    echo "🔨 installing tcpdump"
+    kubectl exec -n cortexflow $proxy_pod_name -- apt install -y tcpdump
+else
+    echo "✅ tcpdump is installed."
+fi
+
+sleep 1.5
+
 echo
 echo "🔨 Testing netstat command"
 kubectl exec -n cortexflow $proxy_pod_name -- netstat -tulnp | grep 9090
@@ -66,7 +77,7 @@ kubectl exec -n cortexflow $proxy_pod_name -- netstat -ulnp
 echo
 sleep 1.5
 echo "🔨 Sending a test package with netcat"
-kubectl exec -n cortexflow $proxy_pod_name -- sh -c "echo 'test message' | nc -u 127.0.0.1 5053"
+kubectl exec -n cortexflow $proxy_pod_name -- sh -c echo b"Hi CortexFlow" | nc -u -w5 -v 127.0.0.1 5053 
 
 echo
 sleep 1.5
@@ -83,8 +94,7 @@ if [ "$response" -eq 200 ]; then
   echo " Checking / endpoint"
   kubectl exec -n cortexflow $proxy_pod_name -- curl -v http://localhost:9090/
 else
-  echo "❌ Error in http response ERROR: $response"
-  echo "❌ Service does not exists or is not exposed"
+  echo "❌ Error in http response ERROR: $response. Service does not exists or is not exposed"
 fi
 
 echo
@@ -96,8 +106,7 @@ if [ "$response" -eq 200 ]; then
   echo " Checking /health endpoint"
   kubectl exec -n cortexflow $proxy_pod_name -- curl -v http://localhost:9090/health
 else
-  echo "❌ Error in http response ERROR: $response"
-  echo "❌ Service does not exists or is not exposed"
+  echo "❌ Error in http response ERROR: $response. Service does not exists or is not exposed"
 fi
 
 echo
@@ -109,8 +118,7 @@ if [ "$response" -eq 200 ]; then
   echo " Checking /metrics endpoint"
   kubectl exec -n cortexflow $proxy_pod_name -- curl -v http://localhost:9090/metrics
 else
-  echo "❌ Error in http response ERROR: $response"
-  echo "❌ Service does not exists or is not exposed"
+  echo "❌ Error in http response ERROR: $response. Service does not exists or is not exposed"
 fi
 
 echo
@@ -122,19 +130,18 @@ if [ "$response" -eq 200 ]; then
   echo " Checking /status endpoint"
   kubectl exec -n cortexflow $proxy_pod_name -- curl -v http://localhost:9090/status
 else
-  echo "❌ Error in http response ERROR: $response"
-  echo "❌ Service does not exists or is not exposed"
+  echo "❌ Error in http response ERROR: $response. Service does not exists or is not exposed"
 fi
 
 echo
 echo
-echo "Testing outside the proxy pod"
-echo "🔨 Testing using a temporary test pod and nslookup"
-kubectl run -it --rm --image=busybox test-pod --restart=Never -n cortexflow -- nslookup proxy-service.cortexflow.svc.cluster.local
-kubectl delete pod test-pod -n cortexflow
+echo "🧑🏻‍🔬 Testing outside the proxy pod using a test pod"
+#echo "🔨 Testing using a temporary test pod and nslookup"
+#kubectl run -it --rm --image=busybox test-pod --restart=Never -n cortexflow -- nslookup proxy-service.cortexflow.svc.cluster.local
+#kubectl delete pod test-pod -n cortexflow
 
 echo
 sleep 1.5
-echo "🔨 Sending a 'test' message using netcat and a temporary test pod"
-kubectl run -it --rm --image=busybox test-pod --restart=Never -n cortexflow -- sh -c "echo 'test message' | nc -u proxy-service.cortexflow.svc.cluster.local 5053"
-kubectl delete pod test-pod -n cortexflow
+echo "🔨 Sending a test message using netcat and a temporary test pod"
+kubectl run -it --image=busybox test-pod --restart=Never -n cortexflow -- sh -c "echo -n Hi CortexFlow | nc -u -v 10.108.156.183 5053"
+kubectl delete pod -n cortexflow test-pod 

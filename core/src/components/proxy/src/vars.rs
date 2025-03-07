@@ -13,13 +13,13 @@ lazy_static!{
 
     pub static ref DNS_REQUEST: IntCounterVec = register_int_counter_vec!(
         "total_dns_requests",
-        "Total DNS Requests",
-        &["client-ip"]
+        "Total_DNS_Requests",
+        &["client_ip"]
     ).unwrap();
 
     pub  static ref DNS_RESPONSE_TIME: HistogramVec = register_histogram_vec!(
-        "dns response time",
-        "DNS response time",
+        "dns_response_time",
+        "DNS_response_time",
         &["server"]
     ).unwrap();
 }

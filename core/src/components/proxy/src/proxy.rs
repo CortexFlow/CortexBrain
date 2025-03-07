@@ -5,7 +5,7 @@ Cortexflow proxy is the main proxy in cortexbrain. Features:
 - Load balancing 
 - Service discovery
 */
-use anyhow::Error;
+use anyhow::{Error, Result};
 use kube::Client;
 use tracing::{info, error, instrument};
 use dashmap::DashMap;
@@ -34,20 +34,21 @@ impl Proxy {
     }
 
     #[instrument]
-    pub async fn start(&self) {
+    pub async fn start(&self) -> Result<(), Error> {
         if !self.proxy_config.enable {
             error!("Proxy is not running");
-        } else {
-            self.run().await;
+            return Ok(());
         }
+        self.run().await
     }
 
     #[instrument]
-    pub async fn run(&self) {
+    pub async fn run(&self) -> Result<(), Error> {
         info!("Cortexflow Proxy is running");
         let dns_server = env::var("DNS_SERVER_HOST").unwrap_or_else(|_| "dns-service.default.svc.cluster.local:53".to_string());
         
-        let socket = UdpSocket::bind("0.0.0.0:5053").expect("Error in socket bind");
+        let socket = UdpSocket::bind("0.0.0.0:5053")?;
+        info!("Socket bound to {}", socket.local_addr()?);
         let cache = Arc::new(DashMap::new());
 
         let metrics_route = warp::path!("metrics").map(|| {
@@ -67,33 +68,49 @@ impl Proxy {
         });
 
         let mut buffer = [0u8; 512];
-
         loop {
-            let (len, addr) = socket.recv_from(&mut buffer).expect("Error receiving packet");
-            let query = &buffer[..len];
-            
-            info!("Received {} bytes from {}", len, addr);
+            match socket.recv_from(&mut buffer) {
+                Ok((len, addr)) => {
+                    let query = &buffer[..len];
+                    info!("Received {} bytes from {}", len, addr);
 
-            // write in prometheus metrics
-            DNS_REQUEST.with_label_values(&[&addr.to_string()]).inc();
-            let start_time = Instant::now();
-            
-            let response = Proxy::handle_server_request(query, &dns_server, &cache, &socket).await;
-            let duration = start_time.elapsed().as_secs_f64();
-            DNS_RESPONSE_TIME.with_label_values(&["dns-server"]).observe(duration);
+                    DNS_REQUEST.with_label_values(&[&addr.to_string()]).inc();
+                    let start_time = Instant::now();
 
-            if let Err(e) = socket.send_to(&response, addr) {
-                error!("Error sending DNS request: {:?}", e);
+                    let response = self.handle_server_request(query, &dns_server, &cache, &socket, addr).await;
+                    let duration = start_time.elapsed().as_secs_f64();
+                    DNS_RESPONSE_TIME.with_label_values(&["dns-server"]).observe(duration);
+
+                    if let Err(e) = socket.send_to(&response, addr) {
+                        error!("Error sending response: {:?}", e);
+                    }
+                }
+                Err(e) => {
+                    error!("Error receiving packet: {}", e);
+                }
             }
         }
     }
 
     pub async fn handle_server_request(
+        &self,
         query: &[u8],
         dns_server: &str,
         cache: &Arc<DashMap<Vec<u8>, Vec<u8>>>,
         socket: &UdpSocket,
+        addr: std::net::SocketAddr,
     ) -> Vec<u8> {
+        // Reply only to test messages
+        if query == b"Hi CortexFlow" {
+            let response = b"Hi user!".to_vec();
+            info!("sending response...");
+            if let Err(e) = socket.send_to(&response, addr) {
+                error!("Error sending response: {:?}", e);
+            }
+            info!("if you can see this code the response sender is fine!");
+            return response;
+        }
+
         if let Some(response) = cache.get(query) {
             return response.clone();
         }
@@ -107,7 +124,7 @@ impl Proxy {
         let (len, _) = match socket.recv_from(&mut buf) {
             Ok(res) => res,
             Err(e) => {
-                error!("Error in receiving DNS response: {:?}", e);
+                error!("Error receiving DNS response: {:?}", e);
                 return Vec::new();
             }
         };
