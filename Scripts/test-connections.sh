@@ -67,16 +67,19 @@ echo
 echo "🔨 testing if the process is in execution"
 kubectl exec -n cortexflow $proxy_pod_name -- ps aux | grep cortexflow-proxy
 
+sleep 1.5
+echo
 echo "🔨 testing using netcat"
 kubectl exec -n cortexflow $proxy_pod_name -- nc -zv proxy-service.cortexflow.svc.cluster.local 9090
 
 sleep 1.5
+echo
 echo "🔨 Checking if the proxy is listening in the 5053 port"
 kubectl exec -n cortexflow $proxy_pod_name -- netstat -ulnp
 
 echo
 sleep 1.5
-echo "🔨 Sending a test package with netcat"
+echo "🔨 Sending a test package with netcat from proxy pod -> proxy pod"
 kubectl exec -n cortexflow $proxy_pod_name -- sh -c echo b"Hi CortexFlow" | nc -u -w5 -v 127.0.0.1 5053 
 
 echo
@@ -85,7 +88,6 @@ echo "🔨 Testing the DNS resolution manually with nslookup"
 kubectl exec -n cortexflow $proxy_pod_name -- nslookup proxy-service.cortexflow.svc.cluster.local
 
 sleep 1.5
-
 echo
 echo "🔨 Testing curl command"
 response=$(kubectl exec -n cortexflow $proxy_pod_name -- curl -s -o /dev/null -w "%{http_code}" http://localhost:9090/)
@@ -136,12 +138,10 @@ fi
 echo
 echo
 echo "🧑🏻‍🔬 Testing outside the proxy pod using a test pod"
-#echo "🔨 Testing using a temporary test pod and nslookup"
-#kubectl run -it --rm --image=busybox test-pod --restart=Never -n cortexflow -- nslookup proxy-service.cortexflow.svc.cluster.local
-#kubectl delete pod test-pod -n cortexflow
+echo "🔨 Testing using a temporary test pod and nslookup"
+kubectl run -it --rm --image=busybox test-pod --restart=Never -n cortexflow -- nslookup proxy-service.cortexflow.svc.cluster.local
 
 echo
 sleep 1.5
 echo "🔨 Sending a test message using netcat and a temporary test pod"
-kubectl run -it --image=busybox test-pod --restart=Never -n cortexflow -- sh -c "echo -n Hi CortexFlow | nc -u -v 10.108.156.183 5053"
-kubectl delete pod -n cortexflow test-pod 
+kubectl run -it --rm --image=busybox test-pod --restart=Never -n cortexflow -- sh -c "echo -n Hi CortexFlow | nc -u -w 3 -v $proxy_ip 5053"
