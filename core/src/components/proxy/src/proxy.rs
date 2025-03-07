@@ -14,6 +14,8 @@ use prometheus::{Encoder, TextEncoder};
 use warp::Filter;
 use crate::vars::{DNS_REQUEST, DNS_RESPONSE_TIME};
 use shared::apiconfig::EdgeProxyConfig;
+use tokio::net::{TcpListener, TcpStream};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 #[derive(Debug)]
 pub struct Proxy {
@@ -47,8 +49,17 @@ impl Proxy {
         info!("Cortexflow Proxy is running");
         let dns_server = env::var("DNS_SERVER_HOST").unwrap_or_else(|_| "dns-service.default.svc.cluster.local:53".to_string());
         
+        //start udpsocket
         let socket = UdpSocket::bind("0.0.0.0:5053")?;
         info!("Socket bound to {}", socket.local_addr()?);
+        
+        //start tcp_lister
+        let tcp_listener = TcpListener::bind("0.0.0.0:5054")?;
+        info!("Tcp listener bound to {}", tcp_listener.local_addr()?);
+
+
+
+
         let cache = Arc::new(DashMap::new());
 
         let metrics_route = warp::path!("metrics").map(|| {
@@ -90,6 +101,15 @@ impl Proxy {
                 }
             }
         }
+
+        tokio::spawn(async move {
+            while let Ok((stream, _)) = tcp_listener.accept().await {
+                let cache = cache.clone();
+                let dns_server = dns_server.clone();
+                tokio::spawn(handle_tcp_connection(stream, dns_server, cache));
+            }
+        });
+        
     }
 
     pub async fn handle_server_request(
@@ -133,4 +153,60 @@ impl Proxy {
         cache.insert(query.to_vec(), response.clone());
         response
     }
+
+    pub async fn handle_tcp_connection(
+        &self,
+        mut stream: TcpStream,
+        dns_server: &str,
+        cache : &Arc<DashMap<Vec<u8>, Vec<u8>>>,
+        ){
+            let mut buffer = [0u8,1024];
+
+            match stream.read(&mut buffer){
+                Ok(size) if size>0  =>{
+                    let query = &buffer[..size];
+                    
+                    //check dns request
+                    if let Some(response) = cache.get(query){
+                        let _ = stream.write_all(&response).await;
+                        return ;
+                    }
+                    //forward to dns server
+                    let response = send_dns_request(query,&dns_server,&cache).await;
+                    let _ = stream.write_all(&response).await;
+                }
+                Ok(_) = {}
+                Err(e)=>{
+                    error!("TCP Error: {}",e);
+                }
+            }
+
+        }
+
+    pub async fn send_tcp_request(
+        query: &[u8],
+        dns_server: &str,
+    )->Vec<u8>{
+        match TcpStream::connect(dns_server).await{
+            Ok(mut dns_server) => {
+                if let Err(e) = dns_stream.write_all(query).await{
+                    error!("Error sending tcp request: {}",e);
+                    return Vec::new();
+                }
+                let mut response = vec![0u8;1024];
+                match dns_stream(&mut response).await{
+                    Ok(size) => response[..size].to_vec().
+                    Err(e)=>{
+                        error!("Error reading tcp request: {}",e);
+                        Vec::new();
+                    }
+                }
+            }
+            Err(e)=>{
+                error!("Error sending TCP request to the DNS Server: {}",e);
+                Vec::new();
+            }
+        }
+    }
+
 }
