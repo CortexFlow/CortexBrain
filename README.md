@@ -31,6 +31,7 @@ The current development efforts are focused on the following improvements:
 - 🌐 **Adding a Custom Proxy:** Provide flexible routing for device communications.  
 - 📊 **Implementing Load Balancing Techniques:** Optimize traffic distribution to improve scalability and performance.  
 - 📡 **Integrating a Container Network Interface (CNI):** Enable advanced container networking for better interoperability.  
+![Architecture](Doc/architecture.gif "Cortexflow architecture")
 
 # 🤖 Getting Started
 
