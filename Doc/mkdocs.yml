@@ -8,6 +8,8 @@ repo_url: "https://github.com/CortexFlow/CortexBrain"
 
 theme:
   name: material
+  logo : /assets/logo512.png
+  favicon: /assets/logo512.png
   palette:
     - scheme: default
       primary: "#7D88EC"  #light mode
@@ -51,7 +53,5 @@ markdown_extensions:
 nav:
   - Home: index.md
   - About: about/about.md
-  - Installation: installation/installation.md
-  - User Guide:
-      - Getting Started: user-guide/getting-started.md
+  - Getting Started: installation/installation.md
   - Contact: contacts/contact.md
