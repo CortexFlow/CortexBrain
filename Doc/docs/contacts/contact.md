@@ -1,1 +1,11 @@
-# This is the contacts section
+## 📬 Contacts
+- **Tettamanti Lorenzo**  [📧 lorenzotettamanti5@gmail.com](mailto:lorenzotettamanti5@gmail.com)  
+- **Lorenzo Bradanini**  [📧 lorenzolollobrada@gmail.com](mailto:lorenzolollobrada@gmail.com)  
+Right now we're looking for contributors and collaborators. If you have knowledge in DevOps/Kubernetes or Networks please write an email to lorenzotettamanti5@gmail.com  
+
+| **Role**                         | **Skills**                                           | **Tasks**                                                                                 | **Related Issues and Milestones** |
+|-----------------------------------|-----------------------------------------------------|------------------------------------------------------------------------------------------|----------------------------------|
+| **CortexBrain Core Developer**    | - Kubernetes  <br> - Networks  <br> - Rust         | - Work alongside us to build and optimize the core functionalities (Client, DNS, Proxy, Telemetry, etc.) | - [Rust](https://github.com/CortexFlow/CortexBrain/labels/rust) <br> - [Core](https://github.com/CortexFlow/CortexBrain/milestone/1) |
+| **CortexBrain Dashboard Developer** | - React  <br> - Frontend Development <br> - JavaScript/TypeScript | - Work alongside us to design and improve the dashboard | - [JavaScript](https://github.com/CortexFlow/CortexBrain/labels/javascript) |
+| **General Maintainers**           | - GitHub  <br> - Practical organization  <br> - Documentation | - Keep the repository organized and clean <br> - Write/Update documentation <br> - Spot typos in the repository | - [Documentation](https://github.com/CortexFlow/CortexBrain/labels/documentation) <br> - [Question](https://github.com/CortexFlow/CortexBrain/labels/question) |
+| **Code Reviewers/Testers**        | - Rust  <br> - JavaScript/TypeScript  <br> - Kubernetes <br> - Docker | - Review code and suggest changes/optimizations <br> - Write tests for CI/CD | - [Code refactoring](https://github.com/CortexFlow/CortexBrain/labels/code%20refactoring) |
