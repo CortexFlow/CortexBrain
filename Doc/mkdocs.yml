@@ -1,0 +1,57 @@
+site_name: Documentation
+site_author: Cortexflow Team
+site_description: >-
+  Offical CortexFlow documentation
+
+repo_name: "CortexBrain"
+repo_url: "https://github.com/CortexFlow/CortexBrain"
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: "#7D88EC"  #light mode
+      accent: "#FF5733"  
+      toggle:
+        icon: material/toggle-switch-off-outline
+        name: Switch to dark mode
+    - scheme: slate
+      primary: "#7D88EC"  # Dark mode
+      accent: "#FF5733"
+      toggle:
+        icon: material/toggle-switch
+        name: Switch to light mode
+
+  features:
+    - navigation.instant
+    - navigation.tabs
+    - navigation.indexes
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - toc.integrate
+
+extra:
+  generator: false
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/CortexFlow/CortexBrain
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.keys
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+
+nav:
+  - Home: index.md
+  - About: about/about.md
+  - Installation: installation/installation.md
+  - User Guide:
+      - Getting Started: user-guide/getting-started.md
+  - Contact: contacts/contact.md
