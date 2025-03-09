@@ -1,1 +1,0 @@
-Cortexflow is an open source community founded in August 2024 by Lorenzo Tettamanti and Lorenzo Bradanini
