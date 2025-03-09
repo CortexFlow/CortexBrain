@@ -31,5 +31,5 @@ jobs:
           server: ${{ secrets.SFTP_SERVER }}
           user: ${{ secrets.SFTP_USERNAME }}
           password: ${{ secrets.SFTP_PSW }}
-          local_dir: './site'
+          local_dir: './Doc/site'
           remote_dir: ${{ secrets.CF_SITE_DIR }}
