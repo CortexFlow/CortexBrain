@@ -23,7 +23,7 @@ jobs:
 
       - name: Build documentation
         run: mkdocs build
-        working-directory: .\Doc\
+        working-directory: ./Doc
 
       - name: Deploy to site host
         uses: airvzxf/ftp-deployment-action@latest
