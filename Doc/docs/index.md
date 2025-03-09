@@ -9,10 +9,10 @@ You can see the development stage of every component here:
 
 | **Component**       | **Stage**                | **Latest Commit** | **Referring Branch**  |
 |---------------------|--------------------------|-------------------|-----------------------|
-| **Dashboard**       | 👨🏻‍🔬 Under development  | [![GitHub last commit](https://img.shields.io/github/last-commit/CortexFlow/CortexBrain?style=for-the-badge&logo=github&color=success)](https://github.com/CortexFlow/CortexBrain/commits/feature/frontend)                | `feature/frontend`    |
-| **Client**          | 👨🏻‍🔬 Under development  | [![GitHub last commit](https://img.shields.io/github/last-commit/CortexFlow/CortexBrain?style=for-the-badge&logo=github&color=success)](https://github.com/CortexFlow/CortexBrain/commits/core)                 | `feature/core`        |
-| **Proxy**           | 👨🏻‍🔬 Under development  | [![GitHub last commit](https://img.shields.io/github/last-commit/CortexFlow/CortexBrain?style=for-the-badge&logo=github&color=success)](https://github.com/CortexFlow/CortexBrain/commits/core)                 | `feature/core`        |
-| **Controller**      | 👨🏻‍🔬 Under development  |   [![GitHub last commit](https://img.shields.io/github/last-commit/CortexFlow/CortexBrain?style=for-the-badge&logo=github&color=success)](https://github.com/CortexFlow/CortexBrain/commits/core)               | `feature/core`        |
+| **Dashboard**       | Under development  | [![GitHub last commit](https://img.shields.io/github/last-commit/CortexFlow/CortexBrain?style=flat-square&logo=github&color=success)](https://github.com/CortexFlow/CortexBrain/commits/feature/frontend)                | `feature/frontend`    |
+| **Client**          |  Under development  | [![GitHub last commit](https://img.shields.io/github/last-commit/CortexFlow/CortexBrain?style=flat-square&logo=github&color=success)](https://github.com/CortexFlow/CortexBrain/commits/core)                 | `feature/core`        |
+| **Proxy**           |  Under development  | [![GitHub last commit](https://img.shields.io/github/last-commit/CortexFlow/CortexBrain?style=flat-square&logo=github&color=success)](https://github.com/CortexFlow/CortexBrain/commits/core)                 | `feature/core`        |
+| **Controller**      |  Under development  |   [![GitHub last commit](https://img.shields.io/github/last-commit/CortexFlow/CortexBrain?style=flat-square&logo=github&color=success)](https://github.com/CortexFlow/CortexBrain/commits/core)               | `feature/core`        |
 | **CLI**             | ❌ Not started yet       | ❌                | `feature/cli`         |
 | **Identity Service**             | ❌ Not started yet       | ❌                | ❌         |
 
@@ -29,7 +29,7 @@ The Cortexflow architecture is designed to ensure a robust, scalable, and fault-
 
 The architecture is divided into two main planes: the **Control Plane** and the **Data Plane**. The Control Plane is responsible for managing and orchestrating the system, while the Data Plane handles the actual data processing and traffic routing. This separation of concerns allows Cortexflow to maintain a high level of performance and reliability.
 
-
+---
 
 # Control Plane
 
@@ -59,20 +59,80 @@ Currently, Cortexflow collects a limited set of metrics, but the team is activel
 
 
 The Cortexflow architecture is designed to be modular and extensible, allowing new components and features to be added as the system evolves. By leveraging Kubernetes and modern monitoring tools like Prometheus, Cortexflow ensures that the system remains resilient, scalable, and easy to manage. This architecture provides a solid foundation for building and deploying distributed systems that can handle high traffic loads while maintaining high availability and performance.
+
+---
+
 # Data Plane
-The data plane handles the traffic between services. When a service wishes to communicate with another service, the sidecar proxy performs the following actions:
 
-1. The sidecar intercepts the request
-2. Encapsulates the request in a separate network connection
-3. Establishes a secure, encrypted channel between the source and destination proxies
+The **Data Plane** is the backbone of the Cortexflow service mesh, responsible for handling all traffic between services. It ensures secure, reliable, and efficient communication across the cluster. When a service needs to communicate with another service, the **sidecar proxy** plays a critical role in managing the interaction. Here's a detailed breakdown of how the Data Plane operates:
 
-Sidecar proxies handle low-level messaging between services. They also implement features, such as circuit interruption and request retries, to improve resiliency and prevent service degradation. Service mesh features, such as load balancing, service discovery, and traffic routing, are implemented in the data plane.
+1. **Request Interception**:  
+   The sidecar proxy intercepts all outgoing requests from the service. This interception happens transparently, without requiring any changes to the application code.
+
+2. **Request Encapsulation**:  
+   Once intercepted, the request is encapsulated into a separate network connection. This encapsulation ensures that the communication is isolated and secure.
+
+3. **Secure Channel Establishment**:  
+   The sidecar proxy establishes a secure, encrypted channel (e.g., using mTLS - mutual Transport Layer Security) between the source and destination proxies. This ensures that all communication is protected from eavesdropping or tampering.
+
+!!! note
+    At the moment of publishing this documentation we are working on the implementation of the security feature
+
+### Key Responsibilities of the Data Plane
+
+- **Low-Level Messaging**:  
+  Sidecar proxies handle all low-level communication between services, abstracting away the complexity from the application.
+
+- **Resiliency Features**:  
+  The Data Plane implements advanced features such as **circuit breaking** and **request retries** to improve system resiliency. These features prevent cascading failures and ensure graceful degradation during high load or service failures.
+
+- **Service Mesh Features**:  
+  The Data Plane is responsible for implementing core service mesh functionalities, including:
+  - **Load Balancing**: Distributing traffic evenly across service instances to optimize resource utilization.
+  - **Service Discovery**: Automatically detecting and connecting to available services within the cluster.
+  - **Traffic Routing**: Enabling advanced traffic management, such as canary deployments, A/B testing, and blue-green deployments.
+
+
 
 ## Cortexflow Proxy
-The Cortexflow proxy is an essential part of the Cortexbrain service mesh. It's responsible for the communication between your application and the cluster. Cortexflow proxy acts as an intermediary for inbound and outbound traffic of the associated service without letting requiring application-level modifications. Up to now cortexflow proxy support:
 
-- UDP/TCP traffic interception: cortexflow proxy service is able to intercept udp and tcp messages and forwards them to the kubernetes dns service. The default port for the udp traffic is the 5053 and the default part for the tcp traffic is the 5054
-- Observability and Logging: cortexflow sidecar proxy collects metrics and errors and sends them to Prometheus to let the user see real time metrics
+The **Cortexflow Proxy** is a critical component of the Cortexflow service mesh. It acts as a **sidecar proxy**, meaning it runs alongside each service instance in the cluster. The proxy is responsible for managing all inbound and outbound traffic for its associated service, ensuring secure and efficient communication without requiring any modifications to the application itself.
 
-Using a more technical language we can say that the cortexflow proxy take the ingress traffic and allows the application in your cluster to seamlessly connect together using different protocols. To summerize, this is what the proxy mesh looks like:
+### Key Features of Cortexflow Proxy
+
+1. **UDP/TCP Traffic Interception**:  
+   The Cortexflow Proxy is capable of intercepting both **UDP** and **TCP** traffic. It forwards these messages to the Kubernetes DNS service, ensuring seamless communication between services.  
+
+    - **Default UDP Port**: `5053`  
+    - **Default TCP Port**: `5054`  
+
+2. **Observability and Logging**:  
+   The Cortexflow Proxy collects detailed metrics and error logs from the traffic it handles. These metrics are sent to **Prometheus**, Cortexflow's monitoring system, allowing users to visualize and analyze real-time performance data. This observability is crucial for debugging, performance tuning, and ensuring system health.
+
+3. **Secure Communication**:  
+   By default, the Cortexflow Proxy establishes secure, encrypted channels (e.g., using mTLS) for all communication. This ensures that sensitive data is protected from unauthorized access.
+
+### How the Cortexflow Proxy Works
+
+- **Ingress Traffic**:  
+  The proxy intercepts incoming traffic (ingress) and routes it to the appropriate service within the cluster. It ensures that the traffic is validated, secure, and properly load-balanced.
+
+- **Egress Traffic**:  
+  For outgoing traffic (egress), the proxy encapsulates the request, establishes a secure connection, and forwards it to the destination service. It also handles retries and circuit breaking in case of failures.
+
+- **Transparent Integration**:  
+  The Cortexflow Proxy integrates seamlessly with your application, requiring no code changes. It operates at the network level, ensuring that your application remains unaware of the underlying service mesh.
+
+### Visualizing the Proxy Topology
+
+To better understand how the Cortexflow Proxy operates within the cluster, here's a visual representation of the sidecar proxy topology:
+
 ![ProxySidecarTopology](assets/cf_sidecar_proxy_topology.gif "Cortexflow Proxy Sidecar Topology")
+
+
+
+### Summary
+
+The **Cortexflow Proxy** is the workhorse of the Cortexflow service mesh, enabling secure, reliable, and efficient communication between services. By handling traffic interception, encapsulation, and secure channel establishment, it ensures that your applications can communicate seamlessly without requiring any modifications. Additionally, its support for observability and logging provides valuable insights into system performance, making it easier to monitor and troubleshoot your cluster.
+
+With features like UDP/TCP traffic interception, protocol-agnostic communication, and advanced resiliency mechanisms, the Cortexflow Proxy is an essential component for building robust and scalable distributed systems.
