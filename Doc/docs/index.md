@@ -1,5 +1,5 @@
 !!! note 
-    CortexBrain is currently in active development, so occasional bugs may occur. Your contributions and feedback are invaluable in refining and enhancing the project! 🚀  
+    CortexBrain is currently in active development so that occasional bugs may occur. Your contributions and feedback are invaluable in refining and enhancing the project! 🚀  
 
 **CortexBrain** is an ambitious open-source project aimed at creating an intelligent, lightweight, and efficient architecture to seamlessly connect cloud and edge devices.  
 
@@ -7,14 +7,14 @@
 
 You can see the development stage of every component here:
 
-| **Component**       | **Stage**                | **Latest Commit** | **Referring Branch**  |
-|---------------------|--------------------------|-------------------|-----------------------|
-| **Dashboard**       | Under development  | [![GitHub last commit](https://img.shields.io/github/last-commit/CortexFlow/CortexBrain?style=flat-square&logo=github&color=success)](https://github.com/CortexFlow/CortexBrain/commits/feature/frontend)                | `feature/frontend`    |
-| **Client**          |  Under development  | [![GitHub last commit](https://img.shields.io/github/last-commit/CortexFlow/CortexBrain?style=flat-square&logo=github&color=success)](https://github.com/CortexFlow/CortexBrain/commits/core)                 | `feature/core`        |
-| **Proxy**           |  Under development  | [![GitHub last commit](https://img.shields.io/github/last-commit/CortexFlow/CortexBrain?style=flat-square&logo=github&color=success)](https://github.com/CortexFlow/CortexBrain/commits/core)                 | `feature/core`        |
-| **Controller**      |  Under development  |   [![GitHub last commit](https://img.shields.io/github/last-commit/CortexFlow/CortexBrain?style=flat-square&logo=github&color=success)](https://github.com/CortexFlow/CortexBrain/commits/core)               | `feature/core`        |
-| **CLI**             | ❌ Not started yet       | ❌                | `feature/cli`         |
-| **Identity Service**             | ❌ Not started yet       | ❌                | ❌         |
+| **Component**       | **Stage**                | **Latest Commit** | **Referring Branch**  |**Related Milestone**
+|---------------------|--------------------------|-------------------|-----------------------|-----------------------|
+| **Dashboard**       | Under development  | [![GitHub last commit](https://img.shields.io/github/last-commit/CortexFlow/CortexBrain?style=flat-square&logo=github&color=success)](https://github.com/CortexFlow/CortexBrain/commits/feature/frontend)                | `feature frontend`    | CortexBrain v 0.1.0 Launch |
+| **Client**          |  Under development  | [![GitHub last commit](https://img.shields.io/github/last-commit/CortexFlow/CortexBrain?style=flat-square&logo=github&color=success)](https://github.com/CortexFlow/CortexBrain/commits/core)                 | `feature/core`        | CortexBrain core v 0.1.0 |
+| **Proxy**           |  Under development  | [![GitHub last commit](https://img.shields.io/github/last-commit/CortexFlow/CortexBrain?style=flat-square&logo=github&color=success)](https://github.com/CortexFlow/CortexBrain/commits/core)                 | `feature/core`        | CortexBrain core v 0.1.0 |
+| **Controller**      |  Under development  |   [![GitHub last commit](https://img.shields.io/github/last-commit/CortexFlow/CortexBrain?style=flat-square&logo=github&color=success)](https://github.com/CortexFlow/CortexBrain/commits/core)               | `feature/core`   | CortexBrain core v 0.1.0 |
+| **CLI**             | ❌ Not started yet       | ❌                | `feature/cli`         | CortexBrain CLI v .0.1 |
+| **Identity Service**             | ❌ Not started yet       | ❌                | ❌         | CortexBrain core v 0.1.0 |
 
 ## An Introduction to Service Mesh
 
@@ -46,8 +46,6 @@ The **Control Plane** is the core of the CortexFlow architecture. It is responsi
    Prometheus is configured to scrape metrics from various components within the cluster, including the injected proxies, Kubernetes nodes, and other services. These metrics are then made available for querying and visualization. By exposing the `9090` TCP port, users can directly access Prometheus to query metrics using its built-in query language (PromQL). Additionally, CortexFlow provides a user-friendly dashboard that aggregates and visualizes these metrics, making it easier for users to monitor the system's health and performance.
 
 #### Detected Metrics:  
-!!! note  
-    The list of detected metrics is currently limited, but the CortexFlow team is actively working on expanding the monitoring capabilities to include additional metrics and features. This will provide users with even greater visibility into the system's performance and health.
 Currently, CortexFlow collects a limited set of metrics, but the team is actively working on expanding the monitoring capabilities to include more features and metrics. Below is the list of metrics currently being collected:  
 
 1. **Total DNS Requests**:  
@@ -75,8 +73,8 @@ The **Data Plane** is the backbone of the CortexFlow service mesh, responsible f
 3. **Secure Channel Establishment**:  
    The sidecar proxy establishes a secure, encrypted channel (e.g., using mTLS - mutual Transport Layer Security) between the source and destination proxies. This ensures that all communication is protected from eavesdropping or tampering.
 
-!!! note
-    At the moment of publishing this documentation we are working on the implementation of the security feature
+!!! warning
+    At the moment of publishing this documentation we are working on the implementation of the security feature.
 
 ### Key Responsibilities of the Data Plane
 
@@ -88,10 +86,13 @@ The **Data Plane** is the backbone of the CortexFlow service mesh, responsible f
 
 - **Service Mesh Features**:  
   The Data Plane is responsible for implementing core service mesh functionalities, including:
-  - **Load Balancing**: Distributing traffic evenly across service instances to optimize resource utilization.
-  - **Service Discovery**: Automatically detecting and connecting to available services within the cluster.
-  - **Traffic Routing**: Enabling advanced traffic management, such as canary deployments, A/B testing, and blue-green deployments.
 
+      1. **Load Balancing**: Distributing traffic evenly across service instances to optimize resource utilization.
+      2. **Service Discovery**: Automatically detecting and connecting to available services within the cluster.
+      3. **Traffic Routing**: Enabling advanced traffic management, such as canary deployments, A/B testing, and blue-green deployments.
+
+!!! warning
+    At the moment of publishing this documentation we are working on the implementation of the load balancer. 
 
 
 ## CortexFlow Proxy
