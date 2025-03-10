@@ -12,8 +12,8 @@ theme:
   name: material
   font: 
     text: Poppins
-  logo : /assets/logo512.png
-  favicon: /assets/logo512.png
+  logo : ./assets/logo512.png
+  favicon: ./assets/logo512.png
   palette:
     - scheme: default
       primary: "#7D88EC"  #light mode
