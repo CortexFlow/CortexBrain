@@ -55,8 +55,7 @@ Currently, CortexFlow collects a limited set of metrics, but the team is activel
     This metric tracks the time taken for DNS queries to be resolved. It is a critical indicator of the performance of the DNS resolution process and helps ensure that the system is meeting its latency requirements.
 
 
-
-The CortexFlow architecture is designed to be modular and extensible, allowing new components and features to be added as the system evolves. By leveraging Kubernetes and modern monitoring tools like Prometheus, CortexFlow ensures that the system remains resilient, scalable, and easy to manage. This architecture provides a solid foundation for building and deploying distributed systems that can handle high traffic loads while maintaining high availability and performance.
+The CortexFlow architecture is designed to be modular and extensible, allowing new components and features to be added as the system evolves. By leveraging Kubernetes and modern monitoring tools like Prometheus, CortexFlow ensures that the system remains resilient, scalable, and easy to manage.
 
 ---
 
