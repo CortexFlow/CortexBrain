@@ -3,6 +3,7 @@
 proxy_pod_name=$(kubectl get pods -n cortexflow --no-headers -o custom-columns=":metadata.name" | grep cortexflow-proxy)
 proxy_ip=$(kubectl get -o template service/proxy-service -n cortexflow --template='{{.spec.clusterIP}}')
 proxy_udp_port=5053
+proxy_tcp_port=5054
 proxy_metrics_port=9090
 
 echo "🧑🏻‍🔬 Checking cortexflow proxy inside the proxy pod: $proxy_pod_name"
@@ -15,7 +16,7 @@ sleep 1.5
 
 ./install-debugging-tools.sh $proxy_pod_name
 echo
-./test-proxy-ports $proxy_pod_name $proxy_metrics_port
+./test-proxy-ports.sh $proxy_pod_name $proxy_metrics_port
 echo
 sleep 1.5
 echo "🔨 Sending a test package with netcat from proxy pod -> proxy pod"
@@ -39,3 +40,9 @@ echo
 sleep 1.5
 echo "🔨 Sending a test message using netcat and a temporary test pod"
 kubectl run -it --rm --image=busybox test-pod --restart=Never -n cortexflow -- sh -c "echo -n Hi CortexFlow | nc -u -w 3 -v $proxy_ip $proxy_udp_port"
+
+echo
+sleep 1.5
+echo "🔨 Testing the tcp port"
+echo "🔨 Sending a test message using netcat and a temporary test pod "
+kubectl run -it --rm --image=busybox test-pod --restart=Never -n cortexflow -- sh -c "echo -n Hi TCP | nc -w 3 -v $proxy_ip $proxy_tcp_port"
