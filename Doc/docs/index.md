@@ -33,19 +33,35 @@ The architecture is divided into two main planes: the **Control Plane** and the 
 
 # Control Plane
 
-The **Control Plane** is the core of the CortexFlow architecture. It is responsible for managing the overall system, including service discovery, configuration management, and monitoring. The Control Plane consists of a collection of services that run within a dedicated Kubernetes namespace named `CortexFlow`. These services work together to ensure the system operates smoothly and can dynamically adapt to changes in the environment.
+The **Control Plane** is the core of the CortexFlow architecture. It is responsible for managing the overall system, including service discovery, configuration management, and monitoring. The Control Plane consists of a collection of services that run within a dedicated Kubernetes namespace named `CortexFlow`. These services work together to ensure the system operates smoothly and can dynamically adapt to changes in the environment. Below you can see the key components of the control plane.
 
-### Key Components of the Control Plane:
+## Proxy Injector:  
 
-1. **Proxy Injector**:  
-   The Proxy Injector is a Kubernetes admission controller that plays a critical role in the CortexFlow architecture. It listens for webhook requests triggered whenever a new pod is created in the cluster. Upon receiving a request, the Proxy Injector automatically injects a sidecar proxy into the pod. This proxy is responsible for handling network traffic, enforcing security policies, and collecting metrics. The injection process is seamless and ensures that all pods within the cluster are automatically equipped with the necessary components to integrate with CortexFlow.
 
-2. **Monitoring System**:  
-   CortexFlow leverages **Prometheus** as its primary monitoring system. Prometheus is a powerful open-source tool designed for real-time monitoring and alerting. It collects and stores time-series data, enabling CortexFlow to capture a wide range of metrics that are critical for system health and performance.  
+The **Proxy Injector** is a Kubernetes admission controller that plays a critical role in the CortexFlow architecture. It listens for webhook requests triggered whenever a new pod is created in the cluster. Once a new pod is created, a mutating admission controller is triggered. This controller runs on an **HTTPS server with TLS encryption** and exposes a `/mutate` endpoint.
+This summarize the inject logic:
 
-   Prometheus is configured to scrape metrics from various components within the cluster, including the injected proxies, Kubernetes nodes, and other services. These metrics are then made available for querying and visualization. By exposing the `9090` TCP port, users can directly access Prometheus to query metrics using its built-in query language (PromQL). Additionally, CortexFlow provides a user-friendly dashboard that aggregates and visualizes these metrics, making it easier for users to monitor the system's health and performance.
+   1. A new pod is created in the cluster (e.g., a [test pod](https://github.com/CortexFlow/CortexBrain/blob/feature/core/core/src/testing/deploy-test-pod.yaml)).
+   2. The **mutating webhook** intercepts the `"CREATE"` request from the Kubernetes API server.
+   3. The **proxy-injector service** processes the request.
+   4. The **proxy-injector** use the `check_and_validate_pod` function to determine if the pod is eligible for injection.
+   5. If the validation succeeds, the **mutating webhook injects** the CortexFlow proxy as a sidecar by applying a **JSON patch encoded in Base64**.
 
-#### Detected Metrics:  
+This proxy is responsible for handling network traffic, enforcing security policies, and collecting metrics. The injection process is seamless and ensures that all pods within the cluster are automatically equipped with the necessary components to integrate with CortexFlow.
+
+### Security and Deployment
+
+- The **admission controller is secured via TLS**.
+- The webhook server **listens on port 9443** and serves requests over HTTPS.
+- The entire injection process is **seamless**, ensuring that all eligible pods within the cluster are automatically equipped with the necessary components to integrate with CortexFlow.
+
+## Monitoring System:  
+
+CortexFlow leverages **Prometheus** as its primary monitoring system. Prometheus is a powerful open-source tool designed for real-time monitoring and alerting. It collects and stores time-series data, enabling CortexFlow to capture a wide range of metrics that are critical for system health and performance.  
+
+Prometheus is configured to scrape metrics from various components within the cluster, including the injected proxies, Kubernetes nodes, and other services. These metrics are then made available for querying and visualization. By exposing the `9090` TCP port, users can directly access Prometheus to query metrics using its built-in query language (PromQL). Additionally, CortexFlow provides a user-friendly dashboard that aggregates and visualizes these metrics, making it easier for users to monitor the system's health and performance.
+
+### Detected Metrics:  
 Currently, CortexFlow collects a limited set of metrics, but the team is actively working on expanding the monitoring capabilities to include more features and metrics. Below is the list of metrics currently being collected:  
 
 1. **Total DNS Requests**:  
