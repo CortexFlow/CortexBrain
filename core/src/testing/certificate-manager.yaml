@@ -1,0 +1,35 @@
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: selfsigned-issuer
+  namespace: cortexflow
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: proxy-injector-cert
+  namespace: cortexflow
+spec:
+  secretName: proxy-injector-tls
+  duration: 8760h # 1 y
+  renewBefore: 720h # 30 days
+  subject:
+    organizations:
+    - cortexflow
+  isCA: false
+  privateKey:
+    algorithm: RSA
+    encoding: PKCS1
+    size: 2048
+  usages:
+  - server auth
+  dnsNames:
+  - proxy-injector
+  - proxy-injector.cortexflow
+  - proxy-injector.cortexflow.svc
+  - proxy-injector.cortexflow.svc.cluster.local
+  issuerRef:
+    name: selfsigned-issuer
+    kind: Issuer

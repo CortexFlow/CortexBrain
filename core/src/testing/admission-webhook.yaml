@@ -1,0 +1,30 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: proxy-injector
+webhooks:
+- name: "proxy-injector.cortexflow.svc"
+  admissionReviewVersions:
+  - v1
+  sideEffects: None
+  timeoutSeconds: 30
+  objectSelector:
+    matchLabels:
+      proxy-injection: enabled
+  clientConfig:
+    service:
+      name: proxy-injector
+      namespace: cortexflow
+      path: /mutate
+      port: 443
+    caBundle: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURYakNDQWthZ0F3SUJBZ0lRSmczL3pnbFVKcFVZU2FXOEM4S29uekFOQmdrcWhraUc5dzBCQVFzRkFEQVYKTVJNd0VRWURWUVFLRXdwamIzSjBaWGhtYkc5M01CNFhEVEkxTURNeE5URXpORGswTVZvWERUSTJNRE14TlRFegpORGswTVZvd0ZURVRNQkVHQTFVRUNoTUtZMjl5ZEdWNFpteHZkekNDQVNJd0RRWUpLb1pJaHZjTkFRRUJCUUFECmdnRVBBRENDQVFvQ2dnRUJBTUM2c0NBc1I3WnZSV2VTeHkwUVJma3NwWWt2Tm9EdElQWXBkcU1XMGl5MDNaWHkKYjBsUktkaWZnSnQwWGswTVk2Uk1CckRSdXRSL282K09zRmtkT0VuU1J3T2hPc0ZXdk4rSkxMNnAxRndZTnR2RQphOHI3SHpRNlRlbkQ4bXdYVTlhL2ozVCt5dktmY0hvYUdManpjeGFOTUhjVW5rN1IwWloxUk9TK0dCMDIyd2hSCmorL3lEZWFlVDRsWUVTNGYwbFdFaDQ1N0FJc1pNRlh1cUNPcjhkWlhncWtGcFUrWDFzaWsyYjBwYjZ3ZGE3bVcKNW5vNXRmQ0FrVkgzbnpCbGNKZWhGUDFueXpGNzJhSW5ZajRzVnFhMmdJVHIvRG1GVTZRRHZvdldsZFJiWXIySQpweit2M3pSUzZWUVI2MTNxNTdOM3RMZ21xRnZwcTQxRHYzb1VHeXNDQXdFQUFhT0JxVENCcGpBVEJnTlZIU1VFCkREQUtCZ2dyQmdFRkJRY0RBVEFNQmdOVkhSTUJBZjhFQWpBQU1JR0FCZ05WSFJFRWVUQjNnZzV3Y205NGVTMXAKYm1wbFkzUnZjb0laY0hKdmVIa3RhVzVxWldOMGIzSXVZMjl5ZEdWNFpteHZkNElkY0hKdmVIa3RhVzVxWldOMApiM0l1WTI5eWRHVjRabXh2ZHk1emRtT0NLM0J5YjNoNUxXbHVhbVZqZEc5eUxtTnZjblJsZUdac2IzY3VjM1pqCkxtTnNkWE4wWlhJdWJHOWpZV3d3RFFZSktvWklodmNOQVFFTEJRQURnZ0VCQUJmRGhmVFVpVFlTSWpxN280T2IKR3pGdW9iQzg3dkNDTk54VWE5NCtTcFhHOS9sQnJvWmc4Ukd2eUhpRUZtZHBuZ3dhMksycENZSDlKYzRnRWpOdApJa253eHhCSitkOHlVSUN3WlNJR0VudWx2T0R4V1NtRHJXR1JWbjVCZ0VuTURBb0sxWXBiVDkrSVcwYmFVb1I5Ck5ubW1veEUyRHE2MU05azVBRlY2NFpuSktLWHZ0NjR5Unh0WDJVSnBmNFdxVkV6aGprODFYTzVKaGtVdDJ1cGgKbS9oS3JXZjNIWjVPbDVNUXBvYnYrVGFEejdhbzVSdEtpVURyd2kwK09XMjBhc1NQMUJtV2NvdFBtQ3lnN0ZBTgpsakZ0TURxZ25zb2F3NGFmS0czeTlGNWhodzdvVFRMWlpuSkVFUWhuNWNoMkk3YnNSVkF1eTU4UThMb0lKSXlMCnRqND0KLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQo=
+  failurePolicy: Fail
+  rules:
+  - apiGroups:
+    - ""
+    apiVersions:
+    - v1
+    operations:
+    - CREATE
+    resources:
+    - pods
