@@ -21,15 +21,18 @@ To get started with CortexBrain, follow these steps:
       ```bash
       curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
       ```  
-   2. Install [Docker](https://www.docker.com/get-started/):  
-      ```bash
-      https://www.docker.com/get-started/
-      ```  
+   2. Install [Docker](https://www.docker.com/get-started/)
    3. Install [Minikube](https://minikube.sigs.k8s.io/docs/start/?arch=%2Fwindows%2Fx86-64%2Fstable%2F.exe+download)  
    4. Run minikube
       ```bash
       minikube start
       ```
+   5. Run the installation script:
+      ```bash
+         cd Scripts
+         ./install.sh
+      ```
+
 ## **Dashboard Development**  
    1.  Install [Node.js](https://nodejs.org/en/download)
    2.  Open the dashboard folder and install the required packages 
