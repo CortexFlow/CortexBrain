@@ -6,16 +6,16 @@ Cortexflow proxy is the main proxy in cortexbrain. Features:
 - Load balancing
 - Service discovery
 */
-use anyhow::{Error, Result};
-use tracing::{info, error, instrument};
-use dashmap::DashMap;
-use std::{env, net::UdpSocket, sync::Arc, time::Instant};
-use prometheus::{Encoder, TextEncoder};
-use warp::Filter;
 use crate::vars::{DNS_REQUEST, DNS_RESPONSE_TIME};
+use anyhow::{Error, Result};
+use dashmap::DashMap;
+use prometheus::{Encoder, TextEncoder};
 use shared::apiconfig::EdgeProxyConfig;
-use tokio::net::{TcpListener, TcpStream};
+use std::{env, net::UdpSocket, sync::Arc, time::Instant};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::{TcpListener, TcpStream};
+use tracing::{error, info, instrument};
+use warp::Filter;
 
 #[derive(Debug, Clone)]
 pub struct Proxy {
@@ -48,7 +48,7 @@ impl Proxy {
     pub async fn run(&self) -> Result<(), Error> {
         info!("Cortexflow Proxy is running");
         let dns_server = env::var("DNS_SERVER_HOST")
-            .unwrap_or_else(|_| "dns-service.default.svc.cluster.local:53".to_string());
+            .unwrap_or_else(|_| "kube-dns.kube-system.svc.cluster.local".to_string());
 
         // Start udpsocket
         let socket = UdpSocket::bind("0.0.0.0:5053")?;
