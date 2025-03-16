@@ -4,6 +4,7 @@ metadata:
   name: test-proxy
   namespace: cortexflow
   labels:
+    app: test-proxy 
     proxy-injection: enabled
   annotations:
     proxy-injection: enabled
@@ -11,3 +12,46 @@ spec:
   containers:
   - name: nginx
     image: nginx
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: test-proxy
+  namespace: cortexflow
+spec:
+  selector:
+    app: test-proxy 
+  ports:
+    - protocol: TCP
+      port: 5054
+      targetPort: 5054
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: test-proxy2
+  namespace: cortexflow
+  labels:
+    app: test-proxy2 
+    proxy-injection: enabled
+  annotations:
+    proxy-injection: enabled
+spec:
+  containers:
+  - name: nginx
+    image: nginx
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: test-proxy2
+  namespace: cortexflow
+spec:
+  selector:
+    app: test-proxy2  
+  ports:
+    - protocol: TCP
+      port: 5054
+      targetPort: 5054
+  type: ClusterIP
