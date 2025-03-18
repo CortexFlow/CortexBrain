@@ -5,6 +5,7 @@ proxy_ip=$(kubectl get -o template service/proxy-service -n cortexflow --templat
 proxy_udp_port=5053
 proxy_tcp_port=5054
 proxy_metrics_port=9090
+proxy_container=$(kubectl get pod $proxy_pod_name -n cortexflow -o jsonpath='{.spec.containers[*].name}')
 
 echo "🧑🏻‍🔬 Checking cortexflow proxy inside the proxy pod: $proxy_pod_name"
 
@@ -14,7 +15,7 @@ kubectl exec -n cortexflow $proxy_pod_name -- env
 
 sleep 1.5
 
-./install-debugging-tools.sh $proxy_pod_name
+./install-debugging-tools.sh $proxy_pod_name $proxy_container
 echo
 ./test-proxy-ports.sh $proxy_pod_name $proxy_metrics_port
 echo

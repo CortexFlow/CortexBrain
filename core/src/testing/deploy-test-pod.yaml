@@ -1,13 +1,92 @@
 apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: proxy-service-account
+  namespace: cortexflow
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: service-discovery-role
+  namespace: cortexflow
+rules:
+- apiGroups: [ "" ]
+  resources: [ "services" ]
+  verbs: [ "get", "list", "watch" ]
+- apiGroups: [ "" ]
+  resources: [ "configmaps" ]
+  verbs: [ "get", "list", "watch" ]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: service-discovery-role-binding
+  namespace: cortexflow
+subjects:
+- kind: ServiceAccount
+  name: proxy-service-account
+  namespace: cortexflow
+roleRef:
+  kind: Role
+  name: service-discovery-role
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: v1
 kind: Pod
 metadata:
   name: test-proxy
   namespace: cortexflow
   labels:
+    app: test-proxy
     proxy-injection: enabled
   annotations:
     proxy-injection: enabled
 spec:
+  serviceAccountName: proxy-service-account
   containers:
   - name: nginx
     image: nginx
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: test-proxy
+  namespace: cortexflow
+spec:
+  selector:
+    app: test-proxy
+  ports:
+  - protocol: TCP
+    port: 5054
+    targetPort: 5054
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: test-proxy2
+  namespace: cortexflow
+  labels:
+    app: test-proxy2
+    proxy-injection: enabled
+  annotations:
+    proxy-injection: enabled
+spec:
+  serviceAccountName: proxy-service-account
+  containers:
+  - name: nginx
+    image: nginx
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: test-proxy2
+  namespace: cortexflow
+spec:
+  selector:
+    app: test-proxy2
+  ports:
+  - protocol: TCP
+    port: 5054
+    targetPort: 5054
+  type: ClusterIP

@@ -224,3 +224,5 @@ test_config/
 #.idea/
 /node_modules
 docker-compose.yaml
+admission-webhook-with-cert.yaml
+proxy-injector-with-cert.yaml
