@@ -1,14 +1,13 @@
 # CortexBrain © 2025 
 
-[![Release](https://img.shields.io/badge/Release-Currently%20under%20development-red?style=flat-square&logo=github)](https://github.com/CortexFlow/CortexBrain/releases) 
-![Auto Assign](https://img.shields.io/github/actions/workflow/status/CortexFlow/CortexBrain/auto-assign.yml?style=flat-square&logo=github&logoColor=white)
-[![Docker](https://img.shields.io/badge/Docker-Containerized-%232496ED.svg?style=flat-square&logo=docker&logoColor=white)](https://www.docker.com)
-[![Trello](https://img.shields.io/badge/Trello-Project%20Management-%23026AA7.svg?style=flat-square&logo=Trello&logoColor=white)](https://trello.com/invite/b/66c731aab6030598aef7aed3/ATTIdfd7d08e42dca6f8b56a8b26f499ab8c95EB547E/cortexbrain)
-[![Documentation](https://img.shields.io/badge/Docs-In%20Progress-red?style=flat-square&logo=readthedocs&logoColor=white)](./doc.md)
+[![Release](https://img.shields.io/badge/Release-Currently%20under%20development-red?style=flat-square&logo=github)](https://github.com/CortexFlow/CortexBrain/releases)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg?style=flat-square&logo=open-source-initiative&logoColor=white)](./LICENSE)
+[![Documentation](https://img.shields.io/badge/Documentation-Available-brightgreen?style=flat-square&logo=readthedocs&logoColor=white)](https://www.cortexflow.org/doc/)
+[![Trello](https://img.shields.io/badge/Trello-Project%20Management-%23026AA7.svg?style=flat-square&logo=Trello&logoColor=white)](https://trello.com/invite/b/66c731aab6030598aef7aed3/ATTIdfd7d08e42dca6f8b56a8b26f499ab8c95EB547E/cortexbrain)
+[![Docker](https://img.shields.io/badge/Docker-Containerized-%232496ED.svg?style=flat-square&logo=docker&logoColor=white)](https://www.docker.com)
+[![Kubernetes](https://img.shields.io/badge/Kubernetes-Orchestrator-%23326CE5.svg?style=flat-square&logo=Kubernetes&logoColor=white)](https://kubernetes.io) 
 [![Discussions](https://img.shields.io/github/discussions/CortexFlow/CortexBrain?style=flat-square&logo=github-discussions&logoColor=white)](https://github.com/CortexFlow/CortexBrain/discussions)
 [![Contributors](https://img.shields.io/badge/Contributors-Welcome-brightgreen?style=flat-square&logo=github&logoColor=white)](https://github.com/CortexFlow/CortexBrain#contributing)
-[![Kubernetes](https://img.shields.io/badge/Kubernetes-Orchestrator-%23326CE5.svg?style=flat-square&logo=Kubernetes&logoColor=white)](https://kubernetes.io)  
 
 [![Dev.To](https://img.shields.io/badge/dev.to-Community-%23326CE5.svg?style=flat-square&logo=Dev.To&logoColor=white)](https://dev.to/cortexflow)
  
@@ -25,12 +24,15 @@
 **CortexBrain** is an ambitious open source project aimed at creating an intelligent, lightweight, and efficient architecture to seamlessly connect cloud and edge devices.  
 
 # ⚛️ **Current Development Focus**  
-The current development efforts are focused on the following improvements:
 
-- 🔧 **Optimizing the DNS Server:** Enhance dns features for greater network efficiency.  
-- 🌐 **Adding a Custom Proxy:** Provide flexible routing for device communications.  
-- 📊 **Implementing Load Balancing Techniques:** Optimize traffic distribution to improve scalability and performance.  
-- 📡 **Integrating a Container Network Interface (CNI):** Enable advanced container networking for better interoperability.  
+Our current development efforts are dedicated to the following key improvements:  
+
+- 🔧 **System Architecture:** Optimizing the actual [architecture](https://www.cortexflow.org/doc/#architecture) by eliminating sidecar proxies while maintaining scalability
+- 🌐 **Kernel-Level Observability with eBPF:** Enhancing system observability by leveraging eBPF to collect logs,metrics at the kernel level
+- 📊 **Expanded Metrics:** Extending the current [metrics](https://www.cortexflow.org/doc/#detected-metrics) landscape to provide deeper understanding  
+- 🖥️ **Integrating a Command Line Interface:** We're actually working on a CLI to let users interact with the cluster without any stress or frustation. You can track the progress of the CLI tool by referring to the [Milestone]
+- 📡 **Cloud-Edge Multi-Cluster Integration:** Enabling orchestration between cloud environments and edge devices
+
 ![Architecture](Doc/architecture.gif "Cortexflow architecture")
 
 # 🤖 Getting Started
@@ -38,7 +40,7 @@ The current development efforts are focused on the following improvements:
 CortexBrain is still in its development stages, so you can expect some bugs. Contributions and feedback are highly appreciated to help improve the project! 🚀  
 Below there's a guide to get started
 
-## 🥷 Install from source
+## 🥷 Installation
 To get started with CortexBrain, follow these steps:
 
 - **Clone the Repository**: First, clone the repository to your local machine.
@@ -59,17 +61,19 @@ To get started with CortexBrain, follow these steps:
       ```bash
       curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
       ```  
-   2. Install [Docker](https://www.docker.com/get-started/):  
-      ```bash
-      https://www.docker.com/get-started/
-      ```  
+   2. Install [Docker](https://www.docker.com/get-started/)
    3. Install [Minikube](https://minikube.sigs.k8s.io/docs/start/?arch=%2Fwindows%2Fx86-64%2Fstable%2F.exe+download)  
    4. Run minikube
       ```bash
       minikube start
       ```
+   5. Run the installation script:
+      ```bash
+         cd Scripts
+         ./install.sh
+      ```
 - ## **Dashboard Development:**  
-   1. Install [Node.jss](https://nodejs.org/en/download)
+   1. Install [Node.js](https://nodejs.org/en/download)
    2. Open the dashboard folder and install the required packages 
       ```bash
          cd dashboard
@@ -82,7 +86,7 @@ To get started with CortexBrain, follow these steps:
 
 
 # 💪🏻 Contributing
-
+Do you think the project is missing something? Contributing is the best way to show your skills and leave your mark in a project
 If you have knowledge in DevOps/Kubernetes or Networks please write an email to lorenzotettamanti5@gmail.com  
    | **Role**              | **Skills** | **Tasks** | **Related Issues and Milestones** |
    | ------------------------- | ------------------------------------------------------------------------- | --------------- |--------|
@@ -102,7 +106,7 @@ We welcome contributions from the community! To contribute to the project, pleas
 
 ## 🙋**Proposing New Features**
 
-If you would like to contribute a new feature to the project, we ask that you open a discussion before submitting a PR. This is to ensure that all new features align with the project's goals and to avoid overlapping work or conflicting views.
+If you would like to contribute a new feature, we ask you to open a discussion before submitting a PR. This is to ensure that all new features align with the project's goals and to avoid overlapping work or conflicting views.
 
 Please initiate a discussion in the [GitHub Discussions](https://github.com/CortexFlow/CortexBrain/discussions) section where we can collectively review, refine, and approve your idea before you begin implementation. Pull Requests for new features that have not been discussed beforehand may be declined to maintain project coherence and ensure alignment with the broader roadmap.
 
