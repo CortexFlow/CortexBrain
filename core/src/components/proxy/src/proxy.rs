@@ -7,7 +7,8 @@ Cortexflow proxy is the main proxy in cortexbrain. Features:
 - Service discovery ✅
 */
 use crate::discovery::ServiceDiscovery;
-use crate::vars::{DNS_REQUEST, DNS_RESPONSE_TIME};
+use crate::messaging;
+use crate::metrics::{DNS_REQUEST, DNS_RESPONSE_TIME};
 use anyhow::{Error, Result};
 use dashmap::DashMap;
 use prometheus::{Encoder, TextEncoder};
@@ -17,7 +18,6 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tracing::{error, info};
 use warp::Filter;
-
 #[derive(Clone)]
 pub struct Proxy {
     proxy_config: Arc<EdgeProxyConfig>,
@@ -105,7 +105,7 @@ impl Proxy {
                     DNS_REQUEST.with_label_values(&[&addr.to_string()]).inc();
                     let start_time = Instant::now();
 
-                    let response = self.handle_server_request(query, &socket_clone, addr).await;
+                    let response = self.handle_udp_connection(query, &socket_clone, addr).await;
                     let duration = start_time.elapsed().as_secs_f64();
                     //dns response time metrics export
                     DNS_RESPONSE_TIME
@@ -123,35 +123,7 @@ impl Proxy {
         }
     }
 
-    fn extract_service_name_and_payload(query: &[u8]) -> Option<(&str, &[u8])> {
-        // Convert the bytes in a UTF-8 String
-        let message = match std::str::from_utf8(query) {
-            Ok(msg) => {
-                info!("{:?}", msg);
-                msg
-            }
-            Err(e) => {
-                error!("Invalid byte sequence: {}", e);
-                return None;
-            } // return none for invalid byte sequence
-        };
-
-        // Seach for ':' delimiter
-        if let Some(colon_index) = message.find(':') {
-            let service_name_with_namespace = &message[..colon_index];
-            let payload = &query[colon_index + 1..];
-
-            // Extract only the name of the service (before the first ‘.’)
-            let service_name = service_name_with_namespace.split('.').next().unwrap_or("");
-            Some((service_name, payload))
-        } else {
-            error!("Delimiter ':' not found");
-            Some(("", query)) //if the delimiter is not found, consider the query as a full message 
-            //TODO: rework the logic to properly filter incoming messages and outcoming messages
-        }
-    }
-    //TODO: change to name from handle_server_request to handle_udp_connection
-    pub async fn handle_server_request(
+    pub async fn handle_udp_connection(
         &self,
         query: &[u8],
         socket: &UdpSocket,
@@ -168,8 +140,8 @@ impl Proxy {
             return response;
         }
 
-        // Estrai il nome del servizio e il payload dalla richiesta
-        let (service_name, payload) = match Self::extract_service_name_and_payload(query) {
+        // Extract the service and the payload from the incoming request
+        let (service_name, payload) = match messaging::extract_service_name_and_payload(query) {
             Some((name, payload)) => (name, payload),
             None => {
                 error!("Invalid request format");
@@ -206,13 +178,13 @@ impl Proxy {
                 info!("Received TCP message: {:?}", query);
 
                 // Extract the service and the payload from the incoming request
-                match Self::extract_service_name_and_payload(query) {
+                match messaging::extract_service_name_and_payload(query) {
                     Some((service_name, payload)) if !service_name.is_empty() => {
                         //use the service discovery to resolve the requests
                         let namespace = "cortexflow";
                         match proxy
                             .service_discovery
-                            .send_response(service_name, namespace, payload)
+                            .send_tcp_response(service_name, namespace, payload)
                             .await
                         {
                             Some(response) => {

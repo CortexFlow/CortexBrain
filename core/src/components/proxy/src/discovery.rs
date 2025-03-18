@@ -33,8 +33,19 @@ impl ServiceDiscovery {
         })
     }
 
-    //Destination resolver-->Main component for service discovery
-    pub async fn resolve_destination(&self, service_name: &str, namespace: &str) -> Option<String> {
+    /*
+        Destination resolver:
+        Args: service_name, namespace
+        Return: service endpoint
+
+
+    */
+    pub async fn resolve_service_destination(
+        &self,
+        service_name: &str,
+        namespace: &str,
+    ) -> Option<String> {
+        //
         if let Some(cached) = self.service_cache.get(service_name) {
             info!("Service {:?} found in cache: {:?}", service_name, cached);
             return Some(cached.clone());
@@ -46,73 +57,110 @@ impl ServiceDiscovery {
             service_name, namespace
         );
 
-        if let Ok(service) = services.get(service_name).await {
-            info!("Service {} found in namespace {}", service_name, namespace);
-            if let Some(spec) = service.spec {
-                if let Some(cluster_ip) = spec.cluster_ip {
-                    info!("Cluster IP for service {}: {}", service_name, cluster_ip);
-                    if let Some(ports) = spec.ports {
-                        if let Some(port) = ports.first() {
-                            let endpoint = format!("{}:{}", cluster_ip, port.port);
-                            info!(
-                                "Resolved endpoint for service {}: {}",
-                                service_name, endpoint
-                            );
-                            self.service_cache
-                                .insert(service_name.to_string(), endpoint.clone());
-                            return Some(endpoint);
+        self.fetch_service_endpoint_from_kubeapi(service_name, services, namespace)
+            .await
+    }
+
+    /*
+       Resolver function:
+       Args: service_name, namespace
+       Return: service address or None
+
+
+    */
+    async fn resolve_service_address(&self, service_name: &str, namespace: &str) -> Option<String> {
+        Some(
+            match self
+                .resolve_service_destination(service_name, namespace)
+                .await
+            {
+                Some(service_address) => service_address,
+                None => {
+                    error!(
+                        "Service {} not found in namespace {}",
+                        service_name, namespace
+                    );
+                    return None;
+                }
+            },
+        )
+    }
+
+    /*
+        fetch service endpoint from the KUBERNETES-API
+        Args: service name, service_api, namespace
+        Return: service endpoint
+    */
+    async fn fetch_service_endpoint_from_kubeapi(
+        &self,
+        service_name: &str,
+        service_api: Api<Service>,
+        namespace: &str,
+    ) -> Option<String> {
+        match service_api.get(service_name).await {
+            Ok(service) => {
+                info!("Service {} found in namespace {}", service_name, namespace);
+
+                if let Some(spec) = service.spec {
+                    if let Some(cluster_ip) = spec.cluster_ip {
+                        info!("Cluster IP for service {}: {}", service_name, cluster_ip);
+                        if let Some(ports) = spec.ports {
+                            if let Some(port) = ports.first() {
+                                let endpoint = format!("{}:{}", cluster_ip, port.port);
+                                info!(
+                                    "Resolved endpoint for service {}: {}",
+                                    service_name, endpoint
+                                );
+                                self.service_cache
+                                    .insert(service_name.to_string(), endpoint.clone());
+                                return Some(endpoint);
+                            } else {
+                                error!("No ports defined for service {}", service_name);
+                            }
                         } else {
                             error!("No ports defined for service {}", service_name);
                         }
                     } else {
-                        error!("No ports defined for service {}", service_name);
+                        error!("No cluster IP defined for service {}", service_name);
                     }
                 } else {
-                    error!("No cluster IP defined for service {}", service_name);
+                    error!("No spec defined for service {}", service_name);
                 }
-            } else {
-                error!("No spec defined for service {}", service_name);
             }
-        } else {
-            error!(
-                "Service {} not found in namespace {}",
-                service_name, namespace
-            );
+            Err(e) => {
+                error!(
+                    "Service {} not found in namespace {}:{:?}",
+                    service_name, namespace, e
+                );
+            }
         }
         None
     }
 
     //directly register a service in the cache
-    pub fn register_service(&self, id: String, endpoint: String) {
-        self.service_cache.insert(id, endpoint);
+    pub fn register_service(&self, service_id: String, endpoint: String) {
+        self.service_cache.insert(service_id, endpoint);
     }
 
     //directly get a service from the cache
-    pub fn get_service(&self, id: &str) -> Option<String> {
-        self.service_cache.get(id).map(|v| v.clone())
+    pub fn get_service(&self, service_id: &str) -> Option<String> {
+        self.service_cache.get(service_id).map(|v| v.clone())
     }
 
     //TCP RESPONSE
-    pub async fn send_response(
+    pub async fn send_tcp_response(
         &self,
         service_name: &str,
         namespace: &str,
         payload: &[u8],
     ) -> Option<Vec<u8>> {
         // Resolve the service name
-        let target = match self.resolve_destination(service_name, namespace).await {
-            Some(addr) => addr,
-            None => {
-                error!(
-                    "Service {} not found in namespace {}",
-                    service_name, namespace
-                );
-                return None;
-            }
-        };
+        let target_service = self
+            .resolve_service_address(service_name, namespace)
+            .await?;
 
         // tcp message forward to the resolved address
-        match TcpStream::connect(&target).await {
+        match TcpStream::connect(&target_service).await {
             Ok(mut stream) => {
                 if let Err(e) = stream.write_all(payload).await {
                     error!("Error sending TCP request: {}", e);
@@ -128,7 +176,7 @@ impl ServiceDiscovery {
                 }
             }
             Err(e) => {
-                error!("Error connecting to {} service: {}", target, e);
+                error!("Error connecting to {:?} service: {:?}", target_service, e);
                 None
             }
         }
@@ -142,7 +190,10 @@ impl ServiceDiscovery {
         payload: &[u8],
     ) -> Vec<u8> {
         // Resolve the service name
-        let target = match self.resolve_destination(service_name, namespace).await {
+        let target_service = match self
+            .resolve_service_destination(service_name, namespace)
+            .await
+        {
             Some(addr) => addr,
             None => {
                 error!(
@@ -154,10 +205,10 @@ impl ServiceDiscovery {
         };
 
         // initialize the udp socket
-        let socket = UdpSocket::bind("0.0.0.0:0").await.unwrap();
+        let socket = UdpSocket::bind("0.0.0.0:0").await.unwrap(); //bind to a random port 
 
         // Sends the payload to the destination service
-        if let Err(e) = socket.send_to(payload, &target).await {
+        if let Err(e) = socket.send_to(payload, &target_service).await {
             error!("Error sending UDP request: {}", e);
             return Vec::new(); //return an empty response if an error occured
         }
