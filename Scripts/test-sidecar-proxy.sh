@@ -52,7 +52,10 @@ sleep 2
 # Send a message from test-proxy to test-proxy2 using the 5054 TCP port
 # Use the format <service_name>:<payload>
 kubectl exec test-proxy -c proxy-sidecar -n cortexflow -- sh -c \
-  'printf "test-proxy2.cortexflow:Hello from proxy-sidecar" | nc test-proxy2 5054'
+ 'echo "{\"service\":\"test-proxy2.cortexflow\", \"direction\":\"Incoming\", \"payload\":\"SGVsbG8gZnJvbSBwcm94eS1zaWRlY2Fy\"}\r\n" | \
+  nc -w 1 test-proxy2 5054 && \
+  echo "\n✅ Test completato"'
+
 
 # Check the output from test proxy 2
 #kubectl exec test-proxy2 -c proxy-sidecar -n cortexflow -- sh -c \

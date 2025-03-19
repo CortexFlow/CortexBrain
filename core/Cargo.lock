@@ -4643,6 +4643,7 @@ name = "proxy"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "base64 0.22.1",
  "dashmap",
  "hyper 1.6.0",
  "k8s-openapi 0.24.0",
@@ -4650,6 +4651,8 @@ dependencies = [
  "kube-runtime 0.99.0",
  "lazy_static",
  "prometheus",
+ "serde",
+ "serde_json",
  "shared",
  "tokio",
  "tracing",

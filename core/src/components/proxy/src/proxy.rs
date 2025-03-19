@@ -8,16 +8,19 @@ Cortexflow proxy is the main proxy in cortexbrain. Features:
 */
 use crate::discovery::ServiceDiscovery;
 use crate::messaging;
+use crate::messaging::MexType;
 use crate::metrics::{DNS_REQUEST, DNS_RESPONSE_TIME};
 use anyhow::{Error, Result};
 use dashmap::DashMap;
 use prometheus::{Encoder, TextEncoder};
+use serde_json::json;
 use shared::apiconfig::EdgeProxyConfig;
 use std::{net::UdpSocket, sync::Arc, time::Instant};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
-use tracing::{error, info};
+use tracing::{error, info, warn};
 use warp::Filter;
+
 #[derive(Clone)]
 pub struct Proxy {
     proxy_config: Arc<EdgeProxyConfig>,
@@ -129,39 +132,68 @@ impl Proxy {
         socket: &UdpSocket,
         addr: std::net::SocketAddr,
     ) -> Vec<u8> {
-        // Reply only to test message
+        // Reply to the test message
         if query == b"Hi CortexFlow" {
             let response = b"Hi user!".to_vec();
-            info!("sending response...");
+            info!("Sending test response...");
             if let Err(e) = socket.send_to(&response, addr) {
                 error!("Error sending response: {:?}", e);
             }
-            info!("if you can see this code the response sender is fine!"); //logging message
             return response;
         }
 
-        // Extract the service and the payload from the incoming request
-        let (service_name, payload) = match messaging::extract_service_name_and_payload(query) {
-            Some((name, payload)) => (name, payload),
-            None => {
-                error!("Invalid request format");
-                return Vec::new(); // return a empty message 
-            }
-        };
+        // Extract service name, direction, and payload
+        let (direction, service_name, payload) =
+            match messaging::extract_service_name_and_payload(query) {
+                Some((direction, name, payload)) if !name.is_empty() => (direction, name, payload),
+                _ => {
+                    error!("Invalid UDP request format");
+                    return Vec::new(); // Return an empty response
+                }
+            };
 
-        // use service discovery to resolve the request
         let namespace = "cortexflow";
-        let response = self
-            .service_discovery
-            .send_udp_response(service_name, namespace, payload)
-            .await;
 
-        // send a response to the client
-        if let Err(e) = socket.send_to(&response, addr) {
-            error!("Error sending UDP response: {:?}", e);
+        match direction {
+            MexType::Incoming => {
+                info!(
+                    "Processing incoming UDP message for service: {}",
+                    service_name
+                );
+
+                // Use service discovery to resolve the request
+                let response = self
+                    .service_discovery
+                    .send_udp_response(&service_name, namespace, &payload)
+                    .await;
+
+                // Create a response message in JSON format
+                let response_message =
+                    messaging::create_message(&service_name, MexType::Outcoming, &response);
+
+                // Send the response
+                if let Err(e) = socket.send_to(&response_message, addr) {
+                    error!("Error sending UDP response: {:?}", e);
+                }
+
+                response_message
+            }
+            MexType::Outcoming => {
+                // Log outgoing messages
+                info!(
+                    "Processing outgoing UDP message for service: {}",
+                    service_name
+                );
+                Vec::new() // No direct response needed for outgoing messages
+            }
+            _ => {
+                info!(
+                    "Message with unknown direction for service: {}",
+                    service_name
+                );
+                Vec::new()
+            }
         }
-        //TODO: add checks for debugging purpouses
-        response
     }
 
     // handles the tcp connection
@@ -175,51 +207,82 @@ impl Proxy {
         match stream.read(&mut buffer).await {
             Ok(size) if size > 0 => {
                 let query = &buffer[..size];
-                info!("Received TCP message: {:?}", query);
-
-                // Extract the service and the payload from the incoming request
                 match messaging::extract_service_name_and_payload(query) {
-                    Some((service_name, payload)) if !service_name.is_empty() => {
-                        //use the service discovery to resolve the requests
-                        let namespace = "cortexflow";
-                        match proxy
-                            .service_discovery
-                            .send_tcp_response(service_name, namespace, payload)
-                            .await
-                        {
-                            Some(response) => {
-                                if let Err(e) = stream.write_all(&response).await {
-                                    error!("Error sending TCP response: {}", e);
+                    Some((direction, service_name, payload)) if !service_name.is_empty() => {
+                        if direction == MexType::Incoming {
+                            info!("Receiving incoming message from {}", service_name);
+                            let namespace = "cortexflow";
+
+                            match proxy
+                                .service_discovery
+                                .send_tcp_response(&service_name, namespace, &payload)
+                                .await
+                            {
+                                Some(response) => {
+                                    // return a status response
+                                    let response_json = json!({"status":"received"}).to_string();
+                                    info!(
+                                        "Sending TCP response back to {} with content {}",
+                                        service_name, response_json
+                                    );
+                                    let response_message = messaging::create_message(
+                                        &service_name,
+                                        MexType::Outcoming,
+                                        response_json.as_bytes(),
+                                    );
+
+                                    if let Err(e) = stream.write_all(&response_message).await {
+                                        error!(
+                                            "Error sending {:?} to {}",
+                                            response_message, service_name
+                                        );
+                                        error!("Error: {}", e);
+                                    }
+                                }
+                                None => {
+                                    error!(
+                                        "Service {} not found in namespace {}",
+                                        service_name, namespace
+                                    );
                                 }
                             }
-                            None => {
-                                error!(
-                                    "Service {} not found in namespace {}",
-                                    service_name, namespace
-                                );
+                        } else if direction == MexType::Outcoming {
+                            info!("Receiving outgoing message from: {}", service_name);
+
+                            // Send a response back
+                            let response_json = json!({ "status": "received" }).to_string();
+                            if let Err(e) = stream.write_all(response_json.as_bytes()).await {
+                                error!("Error sending JSON response to {}: {}", service_name, e);
                             }
+                        } else {
+                            warn!(
+                                "Receiving message with unknown direction from {}",
+                                service_name
+                            );
+                            warn!("Ignoring the message with unknown direction");
                         }
                     }
-                    Some((_, payload)) => {
-                        info!("Ignoring response message: {:?}", payload);
+                    Some((direction, _, payload)) => {
+                        info!(
+                            "Ignoring message with direction {:?}: {:?}",
+                            direction, payload
+                        );
                     }
                     None => {
                         error!("Invalid request format");
                     }
                 }
 
-                // ACK confirmation message
+                // ACK message
                 let ack_message = b"Message Received";
                 if let Err(e) = stream.write_all(ack_message).await {
                     error!("Error sending TCP acknowledgment: {}", e);
                 }
             }
             Ok(_) => {
-                //empty message fallback
                 info!("Received empty message");
             }
             Err(e) => {
-                //error message fallback
                 error!("TCP Error: {}", e);
             }
         }
