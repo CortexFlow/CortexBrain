@@ -9,16 +9,19 @@ Cortexflow proxy is the main proxy in cortexbrain. Features:
 use crate::discovery::ServiceDiscovery;
 use crate::messaging;
 use crate::messaging::MexType;
+use crate::messaging::{
+    ignore_message_with_no_service, produce_incoming_message, produce_unknown_message,
+    send_fail_ack_message, send_outcoming_message, send_success_ack_message,
+};
 use crate::metrics::{DNS_REQUEST, DNS_RESPONSE_TIME};
 use anyhow::{Error, Result};
 use dashmap::DashMap;
 use prometheus::{Encoder, TextEncoder};
-use serde_json::json;
 use shared::apiconfig::EdgeProxyConfig;
 use std::{net::UdpSocket, sync::Arc, time::Instant};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::io::AsyncReadExt;
 use tokio::net::{TcpListener, TcpStream};
-use tracing::{error, info, warn};
+use tracing::{error, info};
 use warp::Filter;
 
 #[derive(Clone)]
@@ -126,6 +129,7 @@ impl Proxy {
         }
     }
 
+    //TODO: this part needs code refactoring
     pub async fn handle_udp_connection(
         &self,
         query: &[u8],
@@ -210,6 +214,8 @@ impl Proxy {
                 match messaging::extract_service_name_and_payload(query) {
                     Some((direction, service_name, payload)) if !service_name.is_empty() => {
                         if direction == MexType::Incoming {
+                            //TODO: check this part MexType::incoming case. the logic seems to be redundant
+
                             info!("Receiving incoming message from {}", service_name);
                             let namespace = "cortexflow";
 
@@ -218,72 +224,43 @@ impl Proxy {
                                 .send_tcp_response(&service_name, namespace, &payload)
                                 .await
                             {
-                                Some(response) => {
-                                    // return a status response
-                                    let response_json = json!({"status":"received"}).to_string();
-                                    info!(
-                                        "Sending TCP response back to {} with content {}",
-                                        service_name, response_json
-                                    );
-                                    let response_message = messaging::create_message(
-                                        &service_name,
-                                        MexType::Outcoming,
-                                        response_json.as_bytes(),
-                                    );
-
-                                    if let Err(e) = stream.write_all(&response_message).await {
-                                        error!(
-                                            "Error sending {:?} to {}",
-                                            response_message, service_name
-                                        );
-                                        error!("Error: {}", e);
-                                    }
+                                Some(_) => {
+                                    produce_incoming_message(&mut stream, service_name).await;
+                                    send_success_ack_message(&mut stream).await;
                                 }
                                 None => {
                                     error!(
                                         "Service {} not found in namespace {}",
                                         service_name, namespace
                                     );
+                                    send_fail_ack_message(&mut stream).await;
                                 }
                             }
                         } else if direction == MexType::Outcoming {
-                            info!("Receiving outgoing message from: {}", service_name);
-
-                            // Send a response back
-                            let response_json = json!({ "status": "received" }).to_string();
-                            if let Err(e) = stream.write_all(response_json.as_bytes()).await {
-                                error!("Error sending JSON response to {}: {}", service_name, e);
-                            }
+                            send_outcoming_message(&mut stream, service_name).await;
+                            send_success_ack_message(&mut stream).await;
                         } else {
-                            warn!(
-                                "Receiving message with unknown direction from {}",
-                                service_name
-                            );
-                            warn!("Ignoring the message with unknown direction");
+                            produce_unknown_message(&mut stream, service_name).await;
+                            send_success_ack_message(&mut stream).await;
                         }
                     }
                     Some((direction, _, payload)) => {
-                        info!(
-                            "Ignoring message with direction {:?}: {:?}",
-                            direction, payload
-                        );
+                        ignore_message_with_no_service(direction, &payload);
+                        send_fail_ack_message(&mut stream).await;
                     }
                     None => {
                         error!("Invalid request format");
+                        send_fail_ack_message(&mut stream).await;
                     }
-                }
-
-                // ACK message
-                let ack_message = b"Message Received";
-                if let Err(e) = stream.write_all(ack_message).await {
-                    error!("Error sending TCP acknowledgment: {}", e);
                 }
             }
             Ok(_) => {
-                info!("Received empty message");
+                info!("Received empty message"); //log empty message if the message has no bytes
+                send_success_ack_message(&mut stream).await;
             }
             Err(e) => {
-                error!("TCP Error: {}", e);
+                error!("Error: {}", e); //return error if the first match fails
+                send_fail_ack_message(&mut stream).await;
             }
         }
     }

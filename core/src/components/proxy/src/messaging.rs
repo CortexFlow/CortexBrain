@@ -1,7 +1,9 @@
 /* Contains all the functions used to communicate between services */
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use serde::{Deserialize, Serialize};
-use tracing::{error, info};
+use serde_json::json;
+use tokio::{io::AsyncWriteExt, net::TcpStream};
+use tracing::{error, info, warn};
 
 /*
 Extract the service name and the payload from this format:
@@ -108,4 +110,62 @@ pub fn create_message(service: &str, direction: MexType, payload: &[u8]) -> Vec<
             Vec::new() // Empty vector in case of error
         }
     }
+}
+
+pub async fn send_outcoming_message(stream: &mut TcpStream, service_name: String) {
+    info!("Receiving outgoing message from: {}", service_name);
+
+    // Send a response back
+    let response_json = json!({ "status": "received" }).to_string();
+    if let Err(e) = stream.write_all(response_json.as_bytes()).await {
+        error!("Error sending JSON response to {}: {}", service_name, e);
+    }
+}
+pub async fn produce_unknown_message(stream: &mut TcpStream, service_name: String) {
+    warn!(
+        "Receiving message with unknown direction from {}",
+        service_name
+    );
+    warn!("Ignoring the message with unknown direction");
+
+    // Send a response back
+    let response_json = json!({ "status": "received" }).to_string();
+    if let Err(e) = stream.write_all(response_json.as_bytes()).await {
+        error!("Error sending JSON response to {}: {}", service_name, e);
+    }
+}
+pub async fn produce_incoming_message(stream: &mut TcpStream, service_name: String) {
+    // return a status response
+    let response_json = json!({"status":"received"}).to_string();
+    info!(
+        "Sending TCP response back to {} with content {}",
+        service_name, response_json
+    );
+    let response_message =
+        create_message(&service_name, MexType::Outcoming, response_json.as_bytes());
+
+    if let Err(e) = stream.write_all(&response_message).await {
+        error!("Error sending {:?} to {}", response_message, service_name);
+        error!("Error: {}", e);
+    }
+}
+pub async fn send_success_ack_message(stream: &mut TcpStream) {
+    // ACK message
+    let ack_message = b"Message Received";
+    if let Err(e) = stream.write_all(ack_message).await {
+        error!("Error sending TCP acknowledgment: {}", e);
+    }
+}
+pub async fn send_fail_ack_message(stream: &mut TcpStream) {
+    // ACK message
+    let ack_message = b"Delivery failed";
+    if let Err(e) = stream.write_all(ack_message).await {
+        error!("Error sending TCP acknowledgment: {}", e);
+    }
+}
+pub fn ignore_message_with_no_service(direction: MexType, payload: &[u8]) {
+    info!(
+        "Ignoring message with direction {:?}: {:?}",
+        direction, payload
+    );
 }
