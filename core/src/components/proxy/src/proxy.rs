@@ -206,6 +206,7 @@ impl Proxy {
         mut stream: TcpStream,
         cache: Arc<DashMap<Vec<u8>, Vec<u8>>>,
     ) {
+        //TODO: add cache check
         let mut buffer = [0u8; 1024];
 
         match stream.read(&mut buffer).await {

@@ -13,7 +13,8 @@ use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpStream, UdpSocket};
 use tracing::{error, info};
-
+use crate::metrics::{DNS_REQUEST,DNS_RESPONSE_TIME};
+use std::time::Instant;
 /* service discovery structure:
    uses a dns_server-->kube-dns
    service_cache: speed up the discovery process
@@ -162,13 +163,22 @@ impl ServiceDiscovery {
         // tcp message forward to the resolved address
         match TcpStream::connect(&target_service).await {
             Ok(mut stream) => {
+                DNS_REQUEST.with_label_values(&[&target_service.to_string()]).inc();
+                let start_time = Instant::now();
+
                 if let Err(e) = stream.write_all(payload).await {
                     error!("Error sending TCP request: {}", e);
                     return None;
                 }
                 let mut response = vec![0u8; 1024];
                 match stream.read(&mut response).await {
-                    Ok(size) => Some(response[..size].to_vec()),
+                    Ok(size) => {
+                        let duration = start_time.elapsed().as_secs_f64();
+                        DNS_RESPONSE_TIME
+                        .with_label_values(&["service_discovery"])
+                        .observe(duration);
+                    Some(response[..size].to_vec())
+                    },
                     Err(e) => {
                         error!("Error reading TCP response: {}", e);
                         None
