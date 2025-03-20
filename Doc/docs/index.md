@@ -145,6 +145,81 @@ To better understand how the CortexFlow Proxy operates within the cluster, here'
 
 ![ProxySidecarTopology](assets/cf_sidecar_proxy_topology.gif "CortexFlow Proxy Sidecar Topology")
 
+### A Real Example
+
+In this example, we have deployed two pods in our Kubernetes cluster using Minikube. Since pods live in an isolated environment (we call it a container), they are not able to communicate with each other simply.  
+
+We noticed that immediately after we deployed the test pods, the proxy injector successfully intercepted our `CREATE` requests. The admission webhook deployed a container with the proxy sidecar in both pods. Now the pods can easily communicate using a TCP or UDP protocol.  
+
+Let's test this by sending a simple TCP message `"Hello from proxy-sidecar"` from `test-proxy` to `test-proxy2` pod:
+
+### Request format:
+To communicate with the poe this JSON format is required:
+```json
+{
+   "direction":"<direction>",
+   "service": <destination-service.namespace>,
+   "payload":{
+      "<message>": "<value>"
+   }
+}
+```
+Here's the explanation of each key:
+
+   - **direction**: The direction of the message (Incoming). If there's no direction in the payload the system logs an error message and send a "Delivery failed" ACK message
+   - **service**: The name of the destination service. For example, if you want to send a message to the pod "test-proxy2" your destination is "test-proxy.cortexflow". In general, the default namespace is set to "cortexflow" as a fallback and can be not specified if your service lives in the cortexflow namespace,otherwise you must specify the namespace 
+   - **payload**: The message you want to send encoded in base64 format. You can easily encode a text message in base64 using this command:
+   ```bash
+   echo -n "Hello from proxy-sidecar" | base64
+   ```
+   Result:
+   ```bash
+   SGVsbG8gZnJvbSBwcm94eS1zaWRlY2Fy
+   ```
+If you try to send a message using a different format you'll get an error and a 'Delivery Failed' ACK message.    
+Now that all the assumptions have been made, we can try to send a message to test-proxy2 from the test-proxy pod using this command:
+```bash
+kubectl exec test-proxy -c proxy-sidecar -n cortexflow -- sh -c \
+'echo "{\"service\":\"test-proxy2.cortexflow\",\"direction\":\"Incoming\",\
+\"payload\":\"eyJtZXNzYWdlIjogIkhlbGxvIGZyb20gcHJveHktc2lkZWNhciJ9\"}" | \
+nc -w 3 test-proxy2 5054 && echo "\n✅ Test completed"'
+```
+We receive this response: 
+
+```json
+{
+   "payload":"eyJzdGF0dXMiOiJyZWNlaXZlZCJ9",
+   "service":"test-proxy2",
+   "direction":"Outcoming"
+}
+
+```
+At this point we have done! We received a success response from test-proxy2. We can decode the payload using this command:
+```base
+echo eyJzdGF0dXMiOiJyZWNlaXZlZCJ9 | base64 --decode
+```
+Resulting in:
+```base
+{"status":"received"}
+```
+In the next paragraph there's a detailed explanation of the response JSON.
+### Response format:
+Every time you send a message from one service to another service, if the message is successfully delivered you get a response like the one presented below:
+```json
+{
+   "payload":<reponse-payload>,
+   "service": <destination-service.namespace>,
+   "direction":<Outcoming>
+}
+```
+Here's a detailed explanation of every key of the response:
+
+   - **payload**: The response message {"status":"received"} encoded in base64. This is the payload that the destination service has sent back.
+   - **service**: The name of the service that has sent the response. For example, if you have successfully sent a
+   message to the pod "test-proxy2.cortexflow" you will see "test-proxy2.cortexflow" in the response.
+   - **direction**: The direction of the message (Outcoming).
+
+
 
 
 ### Summary
