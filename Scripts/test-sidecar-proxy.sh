@@ -36,18 +36,28 @@ echo "Checking network connections in test-proxy2 pod"
 kubectl exec -it test-proxy2 -c proxy-sidecar -n cortexflow -- netstat -tulnp
 
 
-#echo
-#sleep 2
-#echo "TEST 1: Checking if test-proxy can communicate with test-proxy2"
-#kubectl exec -it test-proxy -c proxy-sidecar -n cortexflow -- nc -zv test-proxy2.cortexflow.svc.cluster.local 5054
-#echo
+echo
+sleep 2
+echo "TEST 1: Checking if test-proxy can communicate with test-proxy2"
+kubectl exec -it test-proxy -c proxy-sidecar -n cortexflow -- nc -zv test-proxy2.cortexflow.svc.cluster.local 5054
+echo
+
+echo
+
+echo "TEST 2: Checking if test-proxy can communicate with test-proxy2 (TCP)"
+
+# 2. Send the message from test-proxy to test-proxy2
+kubectl exec test-proxy -c proxy-sidecar -n cortexflow -- sh -c '
+    echo "Test: Incoming Message ⏳"
+    echo "{\"service\":\"test-proxy2.cortexflow\",\"direction\":\"Incoming\",\"payload\":\"eyJtZXNzYWdlIjogIkhlbGxvIGZyb20gcHJveHktc2lkZWNhciJ9\"}" | nc -w3 test-proxy2 5054 && echo "✅ Test 2 completed"
+'
 
 echo
 sleep 2
 echo
-echo "TEST3: Sending a message from test-proxy to test-proxy2 (UDP)"
+echo "TEST 2: Sending a message from test-proxy to test-proxy2 (UDP)"
 
-# 1. Start the UDP listener on test-proxy2 (MUST be before sending the message)
+#Start the UDP listener on test-proxy2 (MUST be before sending the message)
 kubectl exec test-proxy2 -c proxy-sidecar -n cortexflow -- sh -c '
     echo "Starting UDP listener on port 5053..."
     nohup sh -c "nc -lu -p 5053 > /tmp/received_message.log" >/dev/null 2>&1 &
@@ -58,12 +68,4 @@ kubectl exec test-proxy2 -c proxy-sidecar -n cortexflow -- sh -c '
 kubectl exec test-proxy -c proxy-sidecar -n cortexflow -- sh -c '
     echo "Test: Incoming Message ⏳"
     echo "{\"service\":\"test-proxy2.cortexflow\",\"direction\":\"Incoming\",\"payload\":\"eyJtZXNzYWdlIjogIkhlbGxvIGZyb20gcHJveHktc2lkZWNhciJ9\"}" | nc -u -w3 test-proxy2 5053 && echo "✅ Test 2 completed"
-'
-
-# 3. Wait a few seconds and verify the received message
-echo "Checking received message in test-proxy2..."
-kubectl exec test-proxy2 -c proxy-sidecar -n cortexflow -- sh -c '
-    sleep 2  # Wait for the message to be written to the file
-    echo "Received message:"
-    cat /tmp/received_message.log
 '
