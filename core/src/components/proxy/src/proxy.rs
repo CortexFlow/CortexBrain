@@ -11,19 +11,20 @@ use crate::messaging;
 use crate::messaging::MexType;
 use crate::messaging::{
     ignore_message_with_no_service, produce_incoming_message, produce_unknown_message,
-    send_fail_ack_message, send_outcoming_message, send_success_ack_message,
+    produce_unknown_message_udp, send_fail_ack_message, send_outcoming_message,
+    send_outcoming_message_udp, send_success_ack_message,
 };
 use crate::metrics::{DNS_REQUEST, DNS_RESPONSE_TIME};
 use anyhow::{Error, Result};
 use dashmap::DashMap;
 use prometheus::{Encoder, TextEncoder};
 use shared::apiconfig::EdgeProxyConfig;
-use std::{net::UdpSocket, sync::Arc, time::Instant};
+use std::{sync::Arc, time::Instant};
 use tokio::io::AsyncReadExt;
+use tokio::net::UdpSocket;
 use tokio::net::{TcpListener, TcpStream};
-use tracing::{error, info};
+use tracing::{debug, error, info};
 use warp::Filter;
-
 #[derive(Clone)]
 pub struct Proxy {
     proxy_config: Arc<EdgeProxyConfig>,
@@ -53,15 +54,15 @@ impl Proxy {
     }
 
     pub async fn run(&self) -> Result<(), Error> {
-        info!("Cortexflow Proxy is running");
+        debug!("Cortexflow Proxy is running");
 
         // Start udpsocket
-        let socket = UdpSocket::bind("0.0.0.0:5053")?;
-        info!("Socket bound to {}", socket.local_addr()?);
+        let socket = UdpSocket::bind("0.0.0.0:5053").await?;
+        debug!("Socket bound to {}", socket.local_addr()?);
 
         // Start tcp_listener
         let tcp_listener = TcpListener::bind("0.0.0.0:5054").await?;
-        info!("Tcp listener bound to {}", tcp_listener.local_addr()?);
+        debug!("Tcp listener bound to {}", tcp_listener.local_addr()?);
 
         //start the cache
         let cache = Arc::new(DashMap::new());
@@ -92,7 +93,7 @@ impl Proxy {
                 let proxy = proxy_clone.clone();
 
                 tokio::spawn(async move {
-                    Self::handle_tcp_connection_static(proxy, stream, cache).await;
+                    Self::handle_tcp_connection_static(proxy, stream, 5054, cache).await;
                 });
             }
         });
@@ -102,23 +103,25 @@ impl Proxy {
 
         let mut buffer = [0u8; 512];
         loop {
-            match socket_clone.recv_from(&mut buffer) {
+            match socket_clone.recv_from(&mut buffer).await {
                 Ok((len, addr)) => {
                     let query = &buffer[..len];
-                    info!("Received {} bytes from {}", len, addr);
+                    info!("Received {} bytes from sender: {}", len, addr);
 
                     //dns request metrics export
                     DNS_REQUEST.with_label_values(&[&addr.to_string()]).inc();
                     let start_time = Instant::now();
 
-                    let response = self.handle_udp_connection(query, &socket_clone, addr).await;
+                    let response = self
+                        .handle_udp_connection(query, &socket_clone, addr, 5053)
+                        .await;
                     let duration = start_time.elapsed().as_secs_f64();
                     //dns response time metrics export
                     DNS_RESPONSE_TIME
                         .with_label_values(&["service_discovery"])
                         .observe(duration);
 
-                    if let Err(e) = socket_clone.send_to(&response, addr) {
+                    if let Err(e) = socket_clone.send_to(&response, addr).await {
                         error!("Error sending response: {:?}", e);
                     }
                 }
@@ -129,23 +132,13 @@ impl Proxy {
         }
     }
 
-    //TODO: this part needs code refactoring
     pub async fn handle_udp_connection(
         &self,
         query: &[u8],
         socket: &UdpSocket,
-        addr: std::net::SocketAddr,
+        sender_addr: std::net::SocketAddr,
+        port: i32,
     ) -> Vec<u8> {
-        // Reply to the test message
-        if query == b"Hi CortexFlow" {
-            let response = b"Hi user!".to_vec();
-            info!("Sending test response...");
-            if let Err(e) = socket.send_to(&response, addr) {
-                error!("Error sending response: {:?}", e);
-            }
-            return response;
-        }
-
         // Extract service name, direction, and payload
         let (direction, service_name, payload) =
             match messaging::extract_service_name_and_payload(query) {
@@ -161,49 +154,40 @@ impl Proxy {
         match direction {
             MexType::Incoming => {
                 info!(
-                    "Processing incoming UDP message for service: {}",
-                    service_name
+                    "([{}]->[{}]): Processing incoming UDP message from service: {}",
+                    sender_addr, service_name, sender_addr
                 );
 
-                // Use service discovery to resolve the request
-                let response = self
+                // Use service discovery to resolve the request and forward response to client
+                if let Some(response) = self
                     .service_discovery
-                    .send_udp_response(&service_name, namespace, &payload)
-                    .await;
-
-                // Create a response message in JSON format
-                let response_message =
-                    messaging::create_message(&service_name, MexType::Outcoming, &response);
-
-                // Send the response
-                if let Err(e) = socket.send_to(&response_message, addr) {
-                    error!("Error sending UDP response: {:?}", e);
+                    .wait_for_udp_response(&service_name, namespace, &payload, port, sender_addr)
+                    .await
+                {
+                    if let Err(e) = socket.send_to(&response, sender_addr).await {
+                        error!(
+                            "([{}]->[{}]):Error sending UDP response : {}",
+                            service_name, sender_addr, e
+                        );
+                    }
+                    response
+                } else {
+                    Vec::new() // Return empty if no response received
                 }
-
-                response_message
             }
             MexType::Outcoming => {
-                // Log outgoing messages
-                info!(
-                    "Processing outgoing UDP message for service: {}",
-                    service_name
-                );
-                Vec::new() // No direct response needed for outgoing messages
+                send_outcoming_message_udp(socket, service_name, sender_addr).await
             }
-            _ => {
-                info!(
-                    "Message with unknown direction for service: {}",
-                    service_name
-                );
-                Vec::new()
-            }
+            _ => produce_unknown_message_udp(socket, service_name, sender_addr).await,
         }
     }
 
+    //TODO: this part needs new debug
     // handles the tcp connection
     pub async fn handle_tcp_connection_static(
         proxy: Self,
         mut stream: TcpStream,
+        port: i32,
         cache: Arc<DashMap<Vec<u8>, Vec<u8>>>,
     ) {
         //TODO: add cache check
@@ -217,15 +201,15 @@ impl Proxy {
                         if direction == MexType::Incoming {
                             //TODO: check this part MexType::incoming case. the logic seems to be redundant
 
-                            info!("Receiving incoming message from {}", service_name);
+                            info!("Receiving incoming message from sender: {}", service_name);
                             let namespace = "cortexflow";
 
                             match proxy
                                 .service_discovery
-                                .send_tcp_response(&service_name, namespace, &payload)
+                                .wait_for_tcp_response(&service_name, namespace, &payload, port)
                                 .await
                             {
-                                Some(_) => {
+                                Some(response) => {
                                     produce_incoming_message(&mut stream, service_name).await;
                                     send_success_ack_message(&mut stream).await;
                                 }
