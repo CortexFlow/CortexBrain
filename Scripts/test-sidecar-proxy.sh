@@ -49,7 +49,7 @@ echo "TEST 2: Checking if test-proxy can communicate with test-proxy2 (TCP)"
 # 2. Send the message from test-proxy to test-proxy2
 kubectl exec test-proxy -c proxy-sidecar -n cortexflow -- sh -c '
     echo "Test: Incoming Message ⏳"
-    echo "{\"service\":\"test-proxy2.cortexflow\",\"direction\":\"Incoming\",\"payload\":\"eyJtZXNzYWdlIjogIkhlbGxvIGZyb20gcHJveHktc2lkZWNhciJ9\"}" | nc -w3 test-proxy2 5054 && echo "✅ Test 2 completed"
+    printf "{\"service\":\"test-proxy2.cortexflow\",\"direction\":\"Incoming\",\"payload\":\"eyJwYXlsb2FkIjogIkhlbGxvIGZyb20gcHJveHktc2lkZWNhciJ9\"}\n" | nc -w3 test-proxy2 5054 && echo "✅ Test completed"
 '
 
 echo
@@ -64,8 +64,8 @@ kubectl exec test-proxy2 -c proxy-sidecar -n cortexflow -- sh -c '
     sleep 2  # Wait for the listener to start
 '
 
-# 2. Send the message from test-proxy to test-proxy2
+#2. Send the message from test-proxy to test-proxy2
 kubectl exec test-proxy -c proxy-sidecar -n cortexflow -- sh -c '
     echo "Test: Incoming Message ⏳"
-    echo "{\"service\":\"test-proxy2.cortexflow\",\"direction\":\"Incoming\",\"payload\":\"eyJtZXNzYWdlIjogIkhlbGxvIGZyb20gcHJveHktc2lkZWNhciJ9\"}" | nc -u -w3 test-proxy2 5053 && echo "✅ Test 2 completed"
+    echo "{\"service\":\"test-proxy2.cortexflow\",\"direction\":\"Incoming\",\"payload\":\"eyJtZXNzYWdlIjogIkhlbGxvIGZyb20gcHJveHktc2lkZWNhciJ9\"}" | nc -u -w3 test-proxy2 5053 && echo "✅ Test completed"
 '
