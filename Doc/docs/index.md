@@ -157,18 +157,19 @@ Let's test this by sending a simple TCP message `"Hello from proxy-sidecar"` fro
 To communicate with the poe this JSON format is required:
 ```json
 {
-   "direction":"<direction>",
    "service": <destination-service.namespace>,
+   "direction":"<direction>",
    "payload":{
-      "<message>": "<value>"
+      "<payload>": "<message>"
    }
 }
 ```
 Here's the explanation of each key:
 
-   - **direction**: The direction of the message (Incoming). If there's no direction in the payload the system logs an error message and send a "Delivery failed" ACK message
-   - **service**: The name of the destination service. For example, if you want to send a message to the pod "test-proxy2" your destination is "test-proxy.cortexflow". In general, the default namespace is set to "cortexflow" as a fallback and can be not specified if your service lives in the cortexflow namespace,otherwise you must specify the namespace 
+   - **direction**: The direction of the message (Incoming). If there's no direction in the payload the system logs an error message and send a "Delivery failed" message
+   - **service**: The name of the destination service. For example, if you want to send a message to the pod "test-proxy2" your destination is "test-proxy.cortexflow". In general, the default namespace is set to "cortexflow" as a fallback and can be not specified if your service lives in the cortexflow namespace,otherwise you must specify the namespace
    - **payload**: The message you want to send encoded in base64 format. You can easily encode a text message in base64 using this command:
+
    ```bash
    echo -n "Hello from proxy-sidecar" | base64
    ```
@@ -176,13 +177,13 @@ Here's the explanation of each key:
    ```bash
    SGVsbG8gZnJvbSBwcm94eS1zaWRlY2Fy
    ```
-If you try to send a message using a different format you'll get an error and a 'Delivery Failed' ACK message.    
+
+If you try to send a message using a different format you'll get an error and a 'Delivery Failed' message.    
 Now that all the assumptions have been made, we can try to send a message to test-proxy2 from the test-proxy pod using this command:
 ```bash
-kubectl exec test-proxy -c proxy-sidecar -n cortexflow -- sh -c \
-'echo "{\"service\":\"test-proxy2.cortexflow\",\"direction\":\"Incoming\",\
-\"payload\":\"eyJtZXNzYWdlIjogIkhlbGxvIGZyb20gcHJveHktc2lkZWNhciJ9\"}" | \
-nc -w 3 test-proxy2 5054 && echo "\n✅ Test completed"'
+kubectl exec test-proxy -c proxy-sidecar -n cortexflow -- sh -c '
+    echo "Test: Incoming Message ⏳"
+    printf "{\"service\":\"test-proxy2.cortexflow\",\"direction\":\"Incoming\",\"payload\":\"eyJwYXlsb2FkIjogIkhlbGxvIGZyb20gcHJveHktc2lkZWNhciJ9\"}\n" | nc -w3 test-proxy2 5054 && echo "✅ Test completed"
 ```
 We receive this response: 
 
@@ -192,7 +193,6 @@ We receive this response:
    "service":"test-proxy2",
    "direction":"Outcoming"
 }
-
 ```
 At this point we have done! We received a success response from test-proxy2. We can decode the payload using this command:
 ```base
@@ -225,5 +225,3 @@ Here's a detailed explanation of every key of the response:
 ### Summary
 
 The **CortexFlow Proxy** is the workhorse of the CortexFlow service mesh, enabling secure, reliable, and efficient communication between services. By handling traffic interception, encapsulation, and secure channel establishment, it ensures that your applications can communicate seamlessly without requiring any modifications. Additionally, its support for observability and logging provides valuable insights into system performance, making it easier to monitor and troubleshoot your cluster.
-
-With features like UDP/TCP traffic interception, protocol-agnostic communication, and advanced resiliency mechanisms, the CortexFlow Proxy is an essential component for building robust and scalable distributed systems.
