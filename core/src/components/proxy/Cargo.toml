@@ -19,11 +19,11 @@ tokio = "1.43.0"
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 warp = "0.3.7"
+time = "=0.3.41"
 
-[dependencies.shared]    
-path = "../../shared"      
+[dependencies.shared]
+path = "../../shared"
 
 [[bin]]
 name = "proxy"
 path = "src/main.rs"
-
