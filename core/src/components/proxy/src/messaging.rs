@@ -82,6 +82,7 @@ fn decode_json_message(message: &str) -> Option<(MexType, String, Vec<u8>)> {
             // Decode base64 payload
             match STANDARD.decode(&service_message.payload) {
                 Ok(decoded_payload) => {
+                    info!("decoded payload:{:?}", decoded_payload);
                     Some((service_message.direction, service_name, decoded_payload))
                 }
                 Err(e) => {
@@ -113,8 +114,15 @@ pub fn create_message(service: &str, direction: MexType, payload: &[u8]) -> Vec<
     }
 }
 //tcp connection method
+//TODO: debug tcp connection
 pub async fn send_outcoming_message(stream: &mut TcpStream, service_name: String) {
-    info!("Receiving outgoing message from: {}", service_name);
+    info!("Producing outcoming message");
+    info!(
+        "([{}]->[{:?}]): Receiving outgoing message from: {}",
+        service_name,
+        stream.peer_addr(),
+        service_name
+    );
 
     // Send a response back
     let response_json = json!({ "status": "received" }).to_string();
@@ -144,7 +152,9 @@ pub async fn send_outcoming_message_udp(
     response_json.as_bytes().to_vec()
 }
 //tcp connection method
+//TODO: debug this method
 pub async fn produce_unknown_message(stream: &mut TcpStream, service_name: String) {
+    warn!("Producing message from unknown direction");
     warn!(
         "Receiving message with unknown direction from {}",
         service_name
@@ -178,7 +188,9 @@ pub async fn produce_unknown_message_udp(
 }
 
 //tcp connection method
+//TODO: debug this method
 pub async fn produce_incoming_message(stream: &mut TcpStream, service_name: String) {
+    info!("Producing Incoming response message");
     // return a status response
     let response_json = json!({"status":"received"}).to_string();
     info!(
@@ -194,6 +206,7 @@ pub async fn produce_incoming_message(stream: &mut TcpStream, service_name: Stri
     }
 }
 //tcp connection method
+//TODO: debug this method
 pub async fn send_success_ack_message(stream: &mut TcpStream) {
     // ACK message
     let ack_message = b"Message Received";
@@ -202,6 +215,7 @@ pub async fn send_success_ack_message(stream: &mut TcpStream) {
     }
 }
 //tcp connection method
+//TODO: debug this method
 pub async fn send_fail_ack_message(stream: &mut TcpStream) {
     // ACK message
     let ack_message = b"Delivery failed";
@@ -210,6 +224,7 @@ pub async fn send_fail_ack_message(stream: &mut TcpStream) {
     }
 }
 //tcp connnection method
+//TODO: debug this method
 pub fn ignore_message_with_no_service(direction: MexType, payload: &[u8]) {
     info!(
         "Ignoring message with direction {:?}: {:?}",
