@@ -42,14 +42,30 @@ echo "TEST 1: Checking if test-proxy can communicate with test-proxy2"
 kubectl exec -it test-proxy -c proxy-sidecar -n cortexflow -- nc -zv test-proxy2.cortexflow.svc.cluster.local 5054
 echo
 
-echo "TEST 2: Sending a message from test-proxy to test-proxy2"
+echo
 
-# Start Netcat listening on test-proxy2 (background)
-kubectl exec test-proxy2 -c proxy-sidecar -n cortexflow -- sh -c \
-  'nc -l -p 5054 > /tmp/proxy_test_output' &
+echo "TEST 2: Checking if test-proxy can communicate with test-proxy2 (TCP)"
+
+# 2. Send the message from test-proxy to test-proxy2
+kubectl exec test-proxy -c proxy-sidecar -n cortexflow -- sh -c '
+    echo "Test: Incoming Message ⏳"
+    printf "{\"service\":\"test-proxy2.cortexflow\",\"direction\":\"Incoming\",\"payload\":\"eyJwYXlsb2FkIjogIkhlbGxvIGZyb20gcHJveHktc2lkZWNhciJ9\"}\n" | nc -w3 test-proxy2 5054 && echo "✅ Test completed"
+'
+
+echo
 sleep 2
+echo
+echo "TEST 2: Sending a message from test-proxy to test-proxy2 (UDP)"
 
-# Send a message from test-proxy to test-proxy2 using the 5054 TCP port
-# Use the format <service_name>:<payload>
-kubectl exec test-proxy -c proxy-sidecar -n cortexflow -- sh -c 'echo "{\"service\":\"test-proxy2.cortexflow\",\"direction\":\"Incoming\",\"payload\":\"eyJtZXNzYWdlIjogIkhlbGxvIGZyb20gcHJveHktc2lkZWNhciJ9\"}" | nc -w 3 test-proxy2 5054 && echo "\n✅ Test completato"'
+#Start the UDP listener on test-proxy2 (MUST be before sending the message)
+kubectl exec test-proxy2 -c proxy-sidecar -n cortexflow -- sh -c '
+    echo "Starting UDP listener on port 5053..."
+    nohup sh -c "nc -lu -p 5053 > /tmp/received_message.log" >/dev/null 2>&1 &
+    sleep 2  # Wait for the listener to start
+'
 
+#2. Send the message from test-proxy to test-proxy2
+kubectl exec test-proxy -c proxy-sidecar -n cortexflow -- sh -c '
+    echo "Test: Incoming Message ⏳"
+    echo "{\"service\":\"test-proxy2.cortexflow\",\"direction\":\"Incoming\",\"payload\":\"eyJtZXNzYWdlIjogIkhlbGxvIGZyb20gcHJveHktc2lkZWNhciJ9\"}" | nc -u -w3 test-proxy2 5053 && echo "✅ Test completed"
+'

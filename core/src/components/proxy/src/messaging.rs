@@ -2,6 +2,7 @@
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use tokio::net::UdpSocket;
 use tokio::{io::AsyncWriteExt, net::TcpStream};
 use tracing::{error, info, warn};
 
@@ -43,7 +44,7 @@ pub enum MexType {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Message {
-    payload: String,
+    payload: String, //TODO: consider using type Option<String> so the payload cannot be present and the functions does not return errors
     service: String,
     direction: MexType,
 }
@@ -81,6 +82,7 @@ fn decode_json_message(message: &str) -> Option<(MexType, String, Vec<u8>)> {
             // Decode base64 payload
             match STANDARD.decode(&service_message.payload) {
                 Ok(decoded_payload) => {
+                    info!("decoded payload:{:?}", decoded_payload);
                     Some((service_message.direction, service_name, decoded_payload))
                 }
                 Err(e) => {
@@ -111,9 +113,16 @@ pub fn create_message(service: &str, direction: MexType, payload: &[u8]) -> Vec<
         }
     }
 }
-
+//tcp connection method
+//TODO: debug tcp connection
 pub async fn send_outcoming_message(stream: &mut TcpStream, service_name: String) {
-    info!("Receiving outgoing message from: {}", service_name);
+    info!("Producing outcoming message");
+    info!(
+        "([{}]->[{:?}]): Receiving outgoing message from: {}",
+        service_name,
+        stream.peer_addr(),
+        service_name
+    );
 
     // Send a response back
     let response_json = json!({ "status": "received" }).to_string();
@@ -121,7 +130,31 @@ pub async fn send_outcoming_message(stream: &mut TcpStream, service_name: String
         error!("Error sending JSON response to {}: {}", service_name, e);
     }
 }
+//udp connection method
+pub async fn send_outcoming_message_udp(
+    socket: &UdpSocket,
+    service_name: String,
+    addr: std::net::SocketAddr,
+) -> Vec<u8> {
+    info!(
+        "([{}]->[{}]):Receiving outgoing message from: {}",
+        service_name, addr, service_name
+    );
+
+    // Send a response back
+    let response_json = json!({ "status": "received" }).to_string();
+    if let Err(e) = socket.send_to(&response_json.as_bytes(), addr).await {
+        error!(
+            "([{}]->[{}]):Error sending JSON response to {}: {}",
+            addr, service_name, service_name, e
+        );
+    }
+    response_json.as_bytes().to_vec()
+}
+//tcp connection method
+//TODO: debug this method
 pub async fn produce_unknown_message(stream: &mut TcpStream, service_name: String) {
+    warn!("Producing message from unknown direction");
     warn!(
         "Receiving message with unknown direction from {}",
         service_name
@@ -134,7 +167,30 @@ pub async fn produce_unknown_message(stream: &mut TcpStream, service_name: Strin
         error!("Error sending JSON response to {}: {}", service_name, e);
     }
 }
+//udp connection method
+pub async fn produce_unknown_message_udp(
+    socket: &UdpSocket,
+    service_name: String,
+    addr: std::net::SocketAddr,
+) -> Vec<u8> {
+    warn!(
+        "Receiving message with unknown direction from {}",
+        service_name
+    );
+    warn!("Ignoring the message with unknown direction");
+
+    // Send a response back
+    let response_json = json!({ "status": "received" }).to_string();
+    if let Err(e) = socket.send_to(&response_json.as_bytes(), addr).await {
+        error!("Error sending JSON response to {}: {}", service_name, e);
+    }
+    response_json.as_bytes().to_vec()
+}
+
+//tcp connection method
+//TODO: debug this method
 pub async fn produce_incoming_message(stream: &mut TcpStream, service_name: String) {
+    info!("Producing Incoming response message");
     // return a status response
     let response_json = json!({"status":"received"}).to_string();
     info!(
@@ -149,6 +205,8 @@ pub async fn produce_incoming_message(stream: &mut TcpStream, service_name: Stri
         error!("Error: {}", e);
     }
 }
+//tcp connection method
+//TODO: debug this method
 pub async fn send_success_ack_message(stream: &mut TcpStream) {
     // ACK message
     let ack_message = b"Message Received";
@@ -156,6 +214,8 @@ pub async fn send_success_ack_message(stream: &mut TcpStream) {
         error!("Error sending TCP acknowledgment: {}", e);
     }
 }
+//tcp connection method
+//TODO: debug this method
 pub async fn send_fail_ack_message(stream: &mut TcpStream) {
     // ACK message
     let ack_message = b"Delivery failed";
@@ -163,6 +223,8 @@ pub async fn send_fail_ack_message(stream: &mut TcpStream) {
         error!("Error sending TCP acknowledgment: {}", e);
     }
 }
+//tcp connnection method
+//TODO: debug this method
 pub fn ignore_message_with_no_service(direction: MexType, payload: &[u8]) {
     info!(
         "Ignoring message with direction {:?}: {:?}",
