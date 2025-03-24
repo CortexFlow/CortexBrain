@@ -8,7 +8,7 @@ contains the client side service discovery implementation
 use crate::messaging;
 use crate::messaging::MexType;
 use crate::metrics::{DNS_REQUEST, DNS_RESPONSE_TIME};
-use anyhow::Error;
+use anyhow::Error ;
 use dashmap::DashMap;
 use k8s_openapi::api::core::v1::{Pod, Service};
 use kube::api::ListParams;
@@ -23,6 +23,8 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpStream, UdpSocket};
 use tokio::time::timeout;
 use tracing::{debug, error, info, warn};
+use std::result::Result::Ok;
+
 
 /* service discovery structure:
    uses a dns_server-->kube-dns
@@ -209,52 +211,96 @@ impl ServiceDiscovery {
     }
 
     //TCP RESPONSE
-    pub async fn wait_for_tcp_response(
+    pub async fn send_tcp_request(
         &self,
         service_name: &str,
         namespace: &str,
         payload: &[u8],
         port: i32,
     ) -> Option<Vec<u8>> {
-        // Resolve the service name
-        let target_service = self
-            .resolve_service_address(service_name, namespace, port)
-            .await?;
-
-        // tcp message forward to the resolved address
-        match TcpStream::connect(&target_service).await {
+        // Risolve l'indirizzo del servizio
+        let target_service = match self.resolve_service_destination(service_name, namespace, port).await {
+            Some(addr) => addr,
+            None => {
+                error!("Service {} not found in namespace {}", service_name, namespace);
+                return None;
+            }
+        };
+    
+        // Convert the address in a socket address
+        let target_addr: SocketAddr = match target_service.parse() {
+            Ok(addr) => addr,
+            Err(e) => {
+                error!("Invalid target address: {}", e);
+                return None;
+            }
+        };
+    
+        // Connessione TCP al servizio
+        match TcpStream::connect(target_addr).await {
             Ok(mut stream) => {
-                DNS_REQUEST
-                    .with_label_values(&[&target_service.to_string()])
-                    .inc();
-                let start_time = Instant::now();
+                info!("Connected to service at {}", target_addr);
+    
+                // Create the json message
+                info!("Message waiting to be forwarded:{:?}",&payload);
+                
+                let response = json!({
+                    "message": String::from_utf8_lossy(payload)
+                });
 
-                if let Err(e) = stream.write_all(payload).await {
-                    error!("Error sending TCP request: {}", e);
+                let msg_forwarded_serialized = match to_vec(&response) {
+                    Ok(data) => data,
+                    Err(e) => {
+                        error!("Failed to serialize request: {}", e);
+                        return None;
+                    }
+                };
+                let response_message = messaging::create_message(
+                    &service_name,
+                    MexType::Outcoming,
+                    &msg_forwarded_serialized,
+                );
+    
+                // send the message
+                if let Err(e) = stream.write_all(&response_message).await {
+                    error!("Failed to send request to {}: {}", target_addr, e);
                     return None;
                 }
-                let mut response = vec![0u8; 1024];
-                match stream.read(&mut response).await {
-                    Ok(size) => {
-                        let duration = start_time.elapsed().as_secs_f64();
-                        DNS_RESPONSE_TIME
-                            .with_label_values(&["service_discovery_tcp"])
-                            .observe(duration);
-                        Some(response[..size].to_vec())
+                info!("Request sent to {}", target_addr);
+    
+                let client_addr = match stream.peer_addr() {
+                    Ok(addr) => addr,
+                    Err(e) => {
+                        error!("Cannot return client address: {}", e);
+                        return None;
+                    }
+                };
+    
+                let mut buffer = vec![0u8; 1024];
+    
+                // wait for the response with a timeout timer
+                match timeout(Duration::from_secs(10), stream.read(&mut buffer)).await {
+                    Ok(Ok(len)) if len > 0 => {
+                        let response_data = buffer[..len].to_vec();
+                        info!("Received response from {} ({} bytes)", client_addr, len);
+                        Some(response_data)
+                    }
+                    Ok(_) => {
+                        warn!("Empty response received from {}", client_addr);
+                        None
                     }
                     Err(e) => {
-                        error!("Error reading TCP response: {}", e);
+                        error!("TCP response timed out: {}", e);
                         None
                     }
                 }
             }
             Err(e) => {
-                error!("Error connecting to {:?} service: {:?}", target_service, e);
+                error!("Failed to connect to {}: {}", target_addr, e);
                 None
             }
         }
     }
-
     //UDP RESPONSE
     pub async fn wait_for_udp_response(
         &self,
@@ -368,6 +414,7 @@ impl ServiceDiscovery {
                     match socket.recv_from(&mut buffer).await {
                         Ok((len, addr)) => {
                             // Check if this is a response from our target (any port)
+                            //TODO: is this part safe?
                             if addr.ip() == client_ip {
                                 if len == 0 {
                                     warn!(
