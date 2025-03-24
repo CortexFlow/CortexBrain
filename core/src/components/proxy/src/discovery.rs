@@ -218,7 +218,7 @@ impl ServiceDiscovery {
         payload: &[u8],
         port: i32,
     ) -> Option<Vec<u8>> {
-        // Risolve l'indirizzo del servizio
+        // Resolves the address of the service
         let target_service = match self.resolve_service_destination(service_name, namespace, port).await {
             Some(addr) => addr,
             None => {
@@ -236,7 +236,7 @@ impl ServiceDiscovery {
             }
         };
     
-        // Connessione TCP al servizio
+        // TCP connection to the service
         match TcpStream::connect(target_addr).await {
             Ok(mut stream) => {
                 info!("Connected to service at {}", target_addr);
