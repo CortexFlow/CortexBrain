@@ -1,6 +1,6 @@
 /*
 Cortexflow proxy is the main proxy in cortexbrain. Features:
-- Caching ✅
+- Caching ✅//TODO: refer to bug (line 67)
 - UDP/TCP traffic ✅
 - Automatic prometheus metrics export ✅
 - Load balancing ❌
@@ -16,11 +16,11 @@ use crate::messaging::{
 };
 use crate::metrics::{DNS_REQUEST, DNS_RESPONSE_TIME};
 use anyhow::{Error, Result};
-use dashmap::DashMap;
 use prometheus::{Encoder, TextEncoder};
 use shared::apiconfig::EdgeProxyConfig;
 use std::{sync::Arc, time::Instant};
 use tokio::io::AsyncReadExt;
+use tokio::io::AsyncWriteExt;
 use tokio::net::UdpSocket;
 use tokio::net::{TcpListener, TcpStream};
 use tracing::{debug, error, info};
@@ -53,6 +53,7 @@ impl Proxy {
         self.run().await
     }
 
+    //TODO: a code refactoring needed here
     pub async fn run(&self) -> Result<(), Error> {
         debug!("Cortexflow Proxy is running");
 
@@ -64,9 +65,23 @@ impl Proxy {
         let tcp_listener = TcpListener::bind("0.0.0.0:5054").await?;
         debug!("Tcp listener bound to {}", tcp_listener.local_addr()?);
 
+        //TODO:fix caching bug
+        /*
+           Bug description: the caching system use the udp resolved endpoint
+           when a tcp communication is performed
+
+           Solution to do:
+           implement a system that can recognize and block the use of udp endpoints
+           while performing a tcp communication
+
+           Additional info:
+           TCP port: 5054
+           UDP port : 5053
+
+        */
         //start the cache
-        let cache = Arc::new(DashMap::new());
-        let cache_clone = cache.clone();
+        //let cache = Arc::new(DashMap::new());
+        //let cache_clone = cache.clone();
 
         let metrics_route = warp::path!("metrics").map(|| {
             let mut buffer = Vec::new();
@@ -89,11 +104,11 @@ impl Proxy {
 
         tokio::spawn(async move {
             while let Ok((stream, _)) = tcp_listener.accept().await {
-                let cache = cache_clone.clone();
+                //let cache = cache_clone.clone();
                 let proxy = proxy_clone.clone();
 
                 tokio::spawn(async move {
-                    Self::handle_tcp_connection_static(proxy, stream, 5054, cache).await;
+                    Self::handle_tcp_connection(proxy, stream, 5054).await;
                 });
             }
         });
@@ -182,69 +197,74 @@ impl Proxy {
         }
     }
 
-    //TODO: this part needs new debug
     // handles the tcp connection
-    pub async fn handle_tcp_connection_static(
-        proxy: Self,
-        mut stream: TcpStream,
-        port: i32,
-        cache: Arc<DashMap<Vec<u8>, Vec<u8>>>,
-    ) {
-        //TODO: add cache check
+    pub async fn handle_tcp_connection(proxy: Self, mut stream: TcpStream, port: i32) {
+        let sender_addr = stream.peer_addr();
+        info!("Debugging sender address: {:?}", sender_addr);
         let mut buffer = [0u8; 1024];
 
         match stream.read(&mut buffer).await {
             Ok(size) if size > 0 => {
                 let query = &buffer[..size];
+                info!("Received query: {:?}", query);
+
                 match messaging::extract_service_name_and_payload(query) {
                     Some((direction, service_name, payload)) if !service_name.is_empty() => {
-                        if direction == MexType::Incoming {
-                            //TODO: check this part MexType::incoming case. the logic seems to be redundant
+                        let namespace = "cortexflow";
 
-                            info!("Receiving incoming message from sender: {}", service_name);
-                            let namespace = "cortexflow";
+                        match direction {
+                            MexType::Incoming => {
+                                info!(
+                                    "([{:?}]->[{}]):Processing request for service: {}",
+                                    sender_addr, service_name, service_name
+                                );
 
-                            match proxy
-                                .service_discovery
-                                .wait_for_tcp_response(&service_name, namespace, &payload, port)
-                                .await
-                            {
-                                Some(response) => {
-                                    produce_incoming_message(&mut stream, service_name).await;
-                                    send_success_ack_message(&mut stream).await;
-                                }
-                                None => {
+                                // Forward the response to the client
+                                if let Some(response) = proxy
+                                    .service_discovery
+                                    .send_tcp_request(&service_name, namespace, &payload, port)
+                                    .await
+                                {
+                                    info!(
+                                        "([{}]->[{:?}]): Sending response back to client",
+                                        service_name, sender_addr
+                                    );
+                                    if let Err(e) = stream.write_all(&response).await {
+                                        error!("Failed to send response: {}", e);
+                                    }
+                                } else {
                                     error!(
                                         "Service {} not found in namespace {}",
                                         service_name, namespace
                                     );
-                                    send_fail_ack_message(&mut stream).await;
                                 }
                             }
-                        } else if direction == MexType::Outcoming {
-                            send_outcoming_message(&mut stream, service_name).await;
-                            send_success_ack_message(&mut stream).await;
-                        } else {
-                            produce_unknown_message(&mut stream, service_name).await;
-                            send_success_ack_message(&mut stream).await;
+                            MexType::Outcoming => {
+                                info!(
+                                    "([{}]->[{:?}]) Processing outgoing message for {}",
+                                    service_name, sender_addr, service_name
+                                );
+                                send_outcoming_message(&mut stream, service_name).await;
+                            }
+                            _ => {
+                                produce_unknown_message(&mut stream, service_name).await;
+                            }
                         }
+
+                        send_success_ack_message(&mut stream).await;
                     }
-                    Some((direction, _, payload)) => {
-                        ignore_message_with_no_service(direction, &payload);
-                        send_fail_ack_message(&mut stream).await;
-                    }
-                    None => {
-                        error!("Invalid request format");
+                    _ => {
+                        error!("Invalid or empty service name in request");
                         send_fail_ack_message(&mut stream).await;
                     }
                 }
             }
             Ok(_) => {
-                info!("Received empty message"); //log empty message if the message has no bytes
+                info!("Received empty message");
                 send_success_ack_message(&mut stream).await;
             }
             Err(e) => {
-                error!("Error: {}", e); //return error if the first match fails
+                error!("Error: {}", e);
                 send_fail_ack_message(&mut stream).await;
             }
         }
