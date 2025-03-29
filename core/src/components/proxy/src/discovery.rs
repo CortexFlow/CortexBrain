@@ -237,6 +237,11 @@ impl ServiceDiscovery {
         };
     
         // TCP connection to the service
+        let start_time = Instant::now();
+        let duration = start_time.elapsed().as_secs_f64();
+        
+        
+                                
         match TcpStream::connect(target_addr).await {
             Ok(mut stream) => {
                 info!("Connected to service at {}", target_addr);
@@ -280,21 +285,35 @@ impl ServiceDiscovery {
     
                 // wait for the response with a timeout timer
                 match timeout(Duration::from_secs(10), stream.read(&mut buffer)).await {
-                    Ok(Ok(len)) if len > 0 => {
+                    Ok(Ok(len)) => {
                         let response_data = buffer[..len].to_vec();
                         info!("Received response from {} ({} bytes)", client_addr, len);
-                        Some(response_data)
+                        DNS_REQUEST.with_label_values(&[&(client_addr.to_string()+"_tcp")]).inc();
+                        // Register the metric when len =0
+                        DNS_RESPONSE_TIME.with_label_values(&["service_discovery_tcp"]).observe(duration);
+                        
+                        if len > 0 {
+                            DNS_REQUEST.with_label_values(&[&(client_addr.to_string() + "_tcp")]).inc();
+                            Some(response_data)
+                        } else {
+                            warn!("Empty response received from {}", client_addr);
+                            None
+                        }
                     }
-                    Ok(_) => {
-                        warn!("Empty response received from {}", client_addr);
+                    Ok(Err(e))=> {
+                        error!("Error: {}",e);
                         None
                     }
                     Err(e) => {
                         error!("TCP response timed out: {}", e);
+                        
+                        // Register the metric when timeout
+                        DNS_RESPONSE_TIME.with_label_values(&["service_discovery_tcp"]).observe(duration);
+                        
                         None
                     }
                 }
-            }
+            }                
             Err(e) => {
                 error!("Failed to connect to {}: {}", target_addr, e);
                 None
@@ -357,10 +376,6 @@ impl ServiceDiscovery {
             return None;
         }
     
-        DNS_REQUEST
-            .with_label_values(&[&target_service.to_string()])
-            .inc();
-    
         // Sends the payload to the destination service
         let response = json!({
             "message": String::from_utf8_lossy(payload)
@@ -416,6 +431,7 @@ impl ServiceDiscovery {
                             // Check if this is a response from our target (any port)
                             //TODO: is this part safe?
                             if addr.ip() == client_ip {
+                                DNS_REQUEST.with_label_values(&[&(addr.to_string()+"_udp")]).inc();
                                 if len == 0 {
                                     warn!(
                                         "Received null UDP response from {} at address {}",
