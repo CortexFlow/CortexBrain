@@ -14,11 +14,10 @@ use crate::messaging::{
     produce_unknown_message_udp, send_fail_ack_message, send_outcoming_message,
     send_outcoming_message_udp, send_success_ack_message,
 };
-use crate::metrics::{DNS_REQUEST, DNS_RESPONSE_TIME};
 use anyhow::{Error, Result};
 use prometheus::{Encoder, TextEncoder};
 use shared::apiconfig::EdgeProxyConfig;
-use std::{sync::Arc, time::Instant};
+use std::sync::Arc;
 use tokio::io::AsyncReadExt;
 use tokio::io::AsyncWriteExt;
 use tokio::net::UdpSocket;
@@ -123,18 +122,9 @@ impl Proxy {
                     let query = &buffer[..len];
                     info!("Received {} bytes from sender: {}", len, addr);
 
-                    //dns request metrics export
-                    DNS_REQUEST.with_label_values(&[&addr.to_string()]).inc();
-                    let start_time = Instant::now();
-
                     let response = self
                         .handle_udp_connection(query, &socket_clone, addr, 5053)
                         .await;
-                    let duration = start_time.elapsed().as_secs_f64();
-                    //dns response time metrics export
-                    DNS_RESPONSE_TIME
-                        .with_label_values(&["service_discovery"])
-                        .observe(duration);
 
                     if let Err(e) = socket_clone.send_to(&response, addr).await {
                         error!("Error sending response: {:?}", e);
