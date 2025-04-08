@@ -10,7 +10,7 @@ members = [
     "src/components/loadbalancer",
     "src/client",
     "src/shared"
-, "src/components/proxy", "src/components/proxy-injector"]
+, "src/components/proxy", "src/components/proxy-injector", "src/components/xdp"]
 
 [dependencies]
 actix-web = "4.9.0"  
@@ -46,6 +46,8 @@ prost = "0.13.4"
 rdkafka = "0.37.0"
 trust-dns-server = "0.23.2"
 dirs = "6.0.0"
+aya-ebpf = "0.1.1"
+aya-log-ebpf = "0.1.1"
 
 [dev-dependencies]
 wiremock = "0.6.0"
