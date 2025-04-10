@@ -20,10 +20,27 @@ tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 warp = "0.3.7"
 time = "=0.3.41"
+aya-ebpf = { git = "https://github.com/aya-rs/aya" }
+aya-log-ebpf = { git = "https://github.com/aya-rs/aya" }
+bytemuck = "1.22.0"
+aya = "0.13.1"
+once_cell = { version = "1.20.3" }
 
 [dependencies.shared]
 path = "../../shared"
 
+[build-dependencies]
+which = { version = "7.0.0", default-features = false }
+
 [[bin]]
 name = "proxy"
 path = "src/main.rs"
+
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"
+
+[patch.crates-io]
+once_cell = "1.20.3"

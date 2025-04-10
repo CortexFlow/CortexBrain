@@ -1,6 +1,6 @@
 [package]
-name = "core"  
-version = "0.1.0"  
+name = "core"
+version = "0.1.0"
 edition = "2021"  # Rust edition, don't change
 
 [workspace]
@@ -9,16 +9,17 @@ members = [
     "src/components/kernel",
     "src/components/loadbalancer",
     "src/client",
-    "src/shared"
-, "src/components/proxy", "src/components/proxy-injector", "src/components/xdp"]
+    "src/shared",
+    "src/components/proxy",
+    "src/components/proxy-injector",
+    "src/components/xdp",
+]
 
 [dependencies]
-actix-web = "4.9.0"  
-clap = "4.5.21"  
-containerd-shim-wasm = "0.7.0"  
-reqwest = { version = "0.12.9", features = ["json"] }  
-wasmtime = "26.0.1"  
-tokio = { version = "1", features = ["full"] }  
+actix-web = "4.9.0"
+clap = "4.5.21"
+reqwest = { version = "0.12.9", features = ["json"] }
+tokio = { version = "1", features = ["full"] }
 tracing = "0.1.40"
 futures = "0.3.31"
 anyhow = "1.0.93"
@@ -43,11 +44,8 @@ serde_yaml = "0.9.34"
 pnet = "0.35.0"
 bytes = "1.9.0"
 prost = "0.13.4"
-rdkafka = "0.37.0"
 trust-dns-server = "0.23.2"
 dirs = "6.0.0"
-aya-ebpf = "0.1.1"
-aya-log-ebpf = "0.1.1"
 
 [dev-dependencies]
 wiremock = "0.6.0"
