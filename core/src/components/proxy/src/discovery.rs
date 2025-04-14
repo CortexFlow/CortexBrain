@@ -1,29 +1,73 @@
-/*
-https://iximiuz.com/en/posts/service-discovery-in-kubernetes/
-https://microservices.io/patterns/client-side-discovery.html
-https://medium.com/@dmosyan/service-mesh-and-service-discovery-e512253d8a17
-contains the client side service discovery implementation
+/* 
+🚀 Update to ebpf: Using BPF maps to store values 🚀
+
+To store the service discovery data we need to do things in the kernel space
+we can use bpf maps in particular this map:
+
+    BPF_MAP_TYPE_HASH
+    doc: https://docs.kernel.org/bpf/map_hash.html
+
+    DEFAULT MAP STRUCT:
+        #include <linux/bpf.h>
+        #include <bpf/bpf_helpers.h>
+
+        struct key {
+            __u32 srcip;
+        };
+
+        struct value {
+            __u64 packets;
+            __u64 bytes;
+        };
+
+        struct {
+                __uint(type, BPF_MAP_TYPE_LRU_HASH);
+                __uint(max_entries, 32);
+                __type(key, struct key);
+                __type(value, struct value);
+        } packet_stats SEC(".maps");
+
+
 */
+
+/* 
+The new algorithm can be described as this:
+
+    1. pod A need to know the ip of pod B to perform operations
+    2. discovery service check if the pod B ip is in the cache
+        2a. ip is in the cache!---> return ip address
+        2b. ip is not in the cache---> need to go to step 3
+
+    3. Service discovery search in ETCD the address of the pod B
+    4. Service discovery store the address in the BPF map to use it in the kernel 
+    5. Pod A now can obtain Pod B ip address
+
+
+
+*/
+
 
 use crate::messaging;
 use crate::messaging::MexType;
 use crate::metrics::{DNS_REQUEST, DNS_RESPONSE_TIME};
+use crate::map::{SVCKey, SVCValue};
+use crate::map;
 use anyhow::Error ;
-use dashmap::DashMap;
+use std::result::Result::Ok;
+use aya::maps::{HashMap as UserSpaceMap, MapData};
+use aya::Ebpf;
 use k8s_openapi::api::core::v1::{Pod, Service};
 use kube::api::ListParams;
 use kube::{Client, api::Api};
 use serde_json::{json, to_vec};
 use std::collections::BTreeMap;
 use std::net::{SocketAddr, ToSocketAddrs};
-use std::sync::Arc;
 use std::time::Duration;
 use std::time::Instant;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpStream, UdpSocket};
 use tokio::time::timeout;
 use tracing::{debug, error, info, warn};
-use std::result::Result::Ok;
 
 
 /* service discovery structure:
@@ -31,17 +75,31 @@ use std::result::Result::Ok;
    service_cache: speed up the discovery process
 
 */
-pub struct ServiceDiscovery {
+pub struct ServiceDiscovery<'a> {
     kube_client: Client,
-    service_cache: Arc<DashMap<String, String>>,
+    service_cache: UserSpaceMap<&'a mut MapData,SVCKey,SVCValue>,
 }
+/* 
+    Doc:
+    Here i'm using a lifetime <'a>
+    Lifetimes in Rust are used to ensure that references (&) are 
+    always valid and do not point to “expired” or deallocated memory.
 
-impl ServiceDiscovery {
-    pub async fn new() -> Result<Self, Error> {
+    Ensure that the code cannot use dangling pointers during the execution
+
+*/
+
+/* User space implementation */
+
+impl<'a> ServiceDiscovery<'a> {
+    pub async fn new(bpf: &'a mut Ebpf) -> Result<Self, Error> {
         let kube_client = Client::try_default().await?;
+        //accessing the bpf kernel map in the user space program 
+        let service_map= UserSpaceMap::try_from(bpf.map_mut("services").unwrap())?;
+        
         Ok(ServiceDiscovery {
             kube_client,
-            service_cache: Arc::new(DashMap::new()),
+            service_cache: service_map, 
         })
     }
 
@@ -53,17 +111,17 @@ impl ServiceDiscovery {
 
     */
     pub async fn resolve_service_destination(
-        &self,
+        &mut self,
         service_name: &str,
         namespace: &str,
         port: i32,
     ) -> Option<String> {
-        // Check the cache first
-        if let Some(cached) = self.service_cache.get(service_name) {
-            info!("Service {:?} found in cache: {:?}", service_name, cached);
-            return Some(cached.clone());
+        // 1. Check the cache and return the service ip if found
+        if let Some(cached_service) =self.get_service(service_name){
+            info!("Service {:?} found in cache ",service_name);
+            return Some(cached_service)
         }
-
+        else{
         let services: Api<Service> = Api::namespaced(self.kube_client.clone(), namespace);
         let pods: Api<Pod> = Api::namespaced(self.kube_client.clone(), namespace);
 
@@ -72,9 +130,10 @@ impl ServiceDiscovery {
             service_name, namespace
         );
 
-        // Fetch the service endpoint directly
+        // Fetch the service endpoint from the kubernetes api 
         self.fetch_service_endpoint_from_kubeapi(service_name, services, pods, namespace, port)
             .await
+        }
     }
 
     /*
@@ -82,8 +141,9 @@ impl ServiceDiscovery {
        Args: service_name, namespace
        Return: service address or None
     */
+
     async fn resolve_service_address(
-        &self,
+        &mut self,
         service_name: &str,
         namespace: &str,
         port: i32,
@@ -93,7 +153,7 @@ impl ServiceDiscovery {
             .await
         {
             Some(service_address) => {
-                info!(
+                debug!(
                     "Resolved service address for {}: {}",
                     service_name, service_address
                 );
@@ -114,8 +174,9 @@ impl ServiceDiscovery {
         Args: service name, service_api, namespace
         Return: service endpoint
     */
+
     async fn fetch_service_endpoint_from_kubeapi(
-        &self,
+        &mut self,
         service_name: &str,
         service_api: Api<Service>,
         pod_api: Api<Pod>,
@@ -177,8 +238,17 @@ impl ServiceDiscovery {
                     service_name, endpoint
                 );
                 // add to service cache
+
+                let key = SVCKey {
+                    service_name: map::str_to_u8_64(&service_name),
+                };
+                let value = SVCValue{
+                    ip: map::str_to_u8_64(&pod_ip),
+                    port: communication_port as u32
+                };
+                
                 self.service_cache
-                    .insert(service_name.to_string(), endpoint.clone());
+                    .insert(key, value,u64::min_value());
                 return Some(endpoint);
             } else {
                 error!(
@@ -193,6 +263,7 @@ impl ServiceDiscovery {
         None
     }
 
+    //return the selector from the labels
     fn labels_to_selector(&self, labels: &BTreeMap<String, String>) -> String {
         labels
             .iter()
@@ -200,19 +271,51 @@ impl ServiceDiscovery {
             .collect::<Vec<String>>()
             .join(",")
     }
+    
     //directly register a service in the cache
-    pub fn register_service(&self, service_id: String, endpoint: String) {
-        self.service_cache.insert(service_id, endpoint);
+    pub fn register_service(&mut self, service_id: String, endpoint: String,port: u32) {
+        let key = SVCKey{
+            service_name:map::str_to_u8_64(&service_id)
+        };
+        let value = SVCValue{
+            ip: map::str_to_u8_64(&endpoint),
+            port
+        };
+        self.service_cache.insert(key, value,u64::min_value());
     }
 
     //directly get a service from the cache
     pub fn get_service(&self, service_id: &str) -> Option<String> {
-        self.service_cache.get(service_id).map(|v| v.clone())
+        
+        let key= SVCKey{
+            service_name:map::str_to_u8_64(&service_id)
+        };
+
+        //match pattern
+        match self.service_cache.get(&key,0) {
+            Ok(service) => {
+                let svc_ip = String::from_utf8_lossy(&service.ip)
+                                    .trim_end_matches(char::from(0))
+                                    .to_string();
+                Some(svc_ip)
+            },
+            //return an error in case the key is not found
+            Err(aya::maps::MapError::KeyNotFound) => {
+                error!("Servuce not found in cache!");
+                return None
+            }
+            //return an error in case of any other error type expect "KeyNotFound"
+            Err(e)=>{
+                error!("An error occured {}",e);
+                return None
+            } 
+        }
     }
 
     //TCP RESPONSE
+    //TODO: replace this logic in the kernel space 
     pub async fn send_tcp_request(
-        &self,
+        &mut self,
         service_name: &str,
         namespace: &str,
         payload: &[u8],
@@ -321,8 +424,9 @@ impl ServiceDiscovery {
         }
     }
     //UDP RESPONSE
+    //TODO: replace this logic in the kernel space
     pub async fn wait_for_udp_response(
-        &self,
+        &mut self,
         service_name: &str,
         namespace: &str,
         payload: &[u8],
