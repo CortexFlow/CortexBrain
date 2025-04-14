@@ -21,13 +21,13 @@ unsafe impl Zeroable for SVCValue {}
 #[derive(Clone, Copy)]
 //struct to
 pub struct SVCKey {
-    pub port: u32,
+    pub service_name: [u8; 64],
 }
 
 #[repr(C)] //match the C fields alignment
 #[derive(Clone, Copy)]
 pub struct SVCValue {
-    pub ip: u32,
+    pub ip: [u8; 64],
     pub port: u32,
 }
 
@@ -51,3 +51,12 @@ unsafe impl Pod for SVCValue {}
 //init a BPF_MAP_HASH_TYPE to store the resolved service values
 pub static mut SERVICES: KernelSpaceMap<SVCKey, SVCValue> =
     KernelSpaceMap::with_max_entries(1024, 0);
+
+//perform &str types to &[u8;64]
+pub fn str_to_u8_64(s: &str) -> [u8; 64] {
+    let mut buf = [0u8; 64];
+    let bytes = s.as_bytes();
+    let len = bytes.len().min(64);
+    buf[..len].copy_from_slice(&bytes[..len]);
+    buf
+}
