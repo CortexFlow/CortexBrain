@@ -24,6 +24,7 @@ jobs:
 
       - name: Build documentation
         run: mkdocs build
+        working-directory: ./Doc
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
