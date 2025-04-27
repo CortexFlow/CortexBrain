@@ -4,3 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+anyhow = "1.0.98"
+aya = "0.13.1"
+log = "0.4.27"
+tokio = { version = "1.44.2", features = ["full"] }
