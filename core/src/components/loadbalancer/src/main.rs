@@ -21,7 +21,7 @@ HW_MODE | XDP on hardware | Requires hardware support | Highest (very rare)
 async fn main() -> Result<(), anyhow::Error> {
     //loading the pre-built binaries--> reason: linux kernel does not accept non compiled code. only accepts bytecode
     info!("loading data");
-    let data = fs::read("../../../target/bpfel-unknown-none/release/xdp-hello-world").await?;
+    let data = fs::read("../../../target/bpfel-unknown-none/release/xdp").await?;
     let mut bpf = aya::Ebpf::load(&data)?;
 
     //extract the bpf program "xdp-hello" from builded binaries
@@ -30,7 +30,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     info!("Starting program");
     program
-        .attach("eth0", XdpFlags::default())
+        .attach("enp0s3", XdpFlags::default())
         .context("Failed to attach XDP program with default flags to interface eth0")?;
 
     //waiting for signint (ctrl-c) to shutdown the program
