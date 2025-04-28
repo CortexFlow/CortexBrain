@@ -19,3 +19,11 @@ panic = "abort"
 
 [profile.release]
 panic = "abort"
+
+[target.bpfel-unknown-none]
+linker = "bpf-linker"
+rustflags = [
+    "-C", "panic=abort",
+    "-C", "target-feature=+alu32",
+    "-C", "link-args=-znotext",
+]
