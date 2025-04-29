@@ -7,6 +7,8 @@ use aya::programs::{Xdp, XdpFlags};
 use log::info;
 use tokio::fs;
 use tokio::signal;
+use aya_log::EbpfLogger;
+
 
 /*
 XDP flags
@@ -23,6 +25,8 @@ async fn main() -> Result<(), anyhow::Error> {
     info!("loading data");
     let data = fs::read("../../../target/bpfel-unknown-none/release/xdp").await?;
     let mut bpf = aya::Ebpf::load(&data)?;
+
+    EbpfLogger::init(&mut bpf)?;
 
     //extract the bpf program "xdp-hello" from builded binaries
     let program: &mut Xdp = bpf.program_mut("xdp_hello").unwrap().try_into()?;

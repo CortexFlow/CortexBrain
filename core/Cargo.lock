@@ -503,6 +503,7 @@ dependencies = [
  "object",
  "once_cell",
  "thiserror 1.0.69",
+ "tokio",
 ]
 
 [[package]]
@@ -541,6 +542,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "aya-log"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b600d806c1d07d3b81ab5f4a2a95fd80f479a0d3f1d68f29064d660865f85f02"
+dependencies = [
+ "aya",
+ "aya-log-common 0.1.15 (registry+https://github.com/rust-lang/crates.io-index)",
+ "bytes",
+ "log",
+ "thiserror 1.0.69",
+ "tokio",
+]
+
+[[package]]
+name = "aya-log-common"
+version = "0.1.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "befef9fe882e63164a2ba0161874e954648a72b0e1c4b361f532d590638c4eec"
+dependencies = [
+ "num_enum",
+]
+
+[[package]]
 name = "aya-log-common"
 version = "0.1.15"
 source = "git+https://github.com/aya-rs/aya#fe8e1c48b0f8e14634d55b6abd2207584110546d"
@@ -554,7 +578,7 @@ version = "0.1.1"
 source = "git+https://github.com/aya-rs/aya#fe8e1c48b0f8e14634d55b6abd2207584110546d"
 dependencies = [
  "aya-ebpf",
- "aya-log-common",
+ "aya-log-common 0.1.15 (git+https://github.com/aya-rs/aya)",
  "aya-log-ebpf-macros",
 ]
 
@@ -563,7 +587,7 @@ name = "aya-log-ebpf-macros"
 version = "0.1.0"
 source = "git+https://github.com/aya-rs/aya#fe8e1c48b0f8e14634d55b6abd2207584110546d"
 dependencies = [
- "aya-log-common",
+ "aya-log-common 0.1.15 (git+https://github.com/aya-rs/aya)",
  "aya-log-parser",
  "proc-macro2",
  "quote",
@@ -575,7 +599,7 @@ name = "aya-log-parser"
 version = "0.1.13"
 source = "git+https://github.com/aya-rs/aya#fe8e1c48b0f8e14634d55b6abd2207584110546d"
 dependencies = [
- "aya-log-common",
+ "aya-log-common 0.1.15 (git+https://github.com/aya-rs/aya)",
 ]
 
 [[package]]
@@ -2926,6 +2950,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "aya",
+ "aya-log",
  "log",
  "tokio",
 ]
