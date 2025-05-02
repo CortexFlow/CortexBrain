@@ -9,3 +9,5 @@ aya = "0.13.1"
 aya-log = "0.2.1"
 log = "0.4.27"
 tokio = { version = "1.44.2", features = ["full"] }
+tracing = "0.1.41"
+tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
