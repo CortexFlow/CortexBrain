@@ -55,6 +55,9 @@ markdown_extensions:
   - pymdownx.keys
 plugins: 
   - blog
+  - sitemap:
+      changefreq: daily
+      priority: 0.5
   - rss:
         match_path: test-report/reports/.*
         date_from_meta:
