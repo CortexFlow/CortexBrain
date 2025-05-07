@@ -21,6 +21,7 @@ jobs:
         run: |
           pip install mkdocs mkdocs-material
           pip install mkdocs-rss-plugin
+          pip install mkdocs-sitemap
 
       - name: Build documentation
         run: mkdocs build
