@@ -1,19 +1,25 @@
 [package]
-name = "xdp-hello-world"
+name = "xdp"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+name = "xdp"
+path = "src/lib.rs"
+
 [dependencies]
+maps ={ path = "../maps"}
 aya-ebpf = { git = "https://github.com/aya-rs/aya" }
 aya-log-ebpf = { git = "https://github.com/aya-rs/aya" }
+bytemuck = {version ="1.23.0",features = ["derive"]}
 network-types = "0.0.8"
 
 [build-dependencies]
 which = { version = "7.0.0", default-features = false }
 
 [[bin]]
-name = "xdp"
-path = "src/main.rs"
+name = "xdp-filter"
+path = "src/filter.rs"
 
 [profile.dev]
 panic = "abort"
@@ -28,3 +34,4 @@ rustflags = [
     "-C", "target-feature=+alu32",
     "-C", "link-args=-znotext",
 ]
+
