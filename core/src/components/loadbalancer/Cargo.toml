@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+xdp = { path = "../xdp" }
 anyhow = "1.0.98"
 aya = "0.13.1"
 aya-log = "0.2.1"
@@ -11,3 +12,4 @@ log = "0.4.27"
 tokio = { version = "1.44.2", features = ["full"] }
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
+bytemuck = {version ="1.23.0",features = ["derive"]}

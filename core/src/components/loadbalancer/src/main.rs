@@ -1,17 +1,28 @@
 /* contains the code for the kernel xdp manipulation. this code lives in
 the kernel space only and needs to be attached to a program in the user space
 */
+mod shared_struct;
+
+use std::error;
 
 use anyhow::Context;
 use aya::programs::{Xdp, XdpFlags};
-use log::info;
 use tokio::fs;
 use tokio::signal;
 use aya_log::EbpfLogger;
+use tracing::{error,info,warn};
+use std::path::Path;
 
 
 use tracing_subscriber::fmt::format::FmtSpan;
 use tracing_subscriber::EnvFilter;
+
+use aya::maps::{HashMap as UserSpaceMap, MapData};
+use crate::shared_struct::{SVCKey,SVCValue};
+
+
+unsafe impl aya::Pod for shared_struct::SVCKey {}
+unsafe impl aya::Pod for shared_struct::SVCValue {}
 
 /*
 XDP flags
@@ -42,8 +53,20 @@ async fn main() -> Result<(), anyhow::Error> {
 
     //loading the pre-built binaries--> reason: linux kernel does not accept non compiled code. only accepts bytecode
     info!("loading data");
-    let data = fs::read("../../../target/bpfel-unknown-none/release/xdp").await.context("failed to load file from path")?;
+    let data = fs::read("../../../target/bpfel-unknown-none/release/xdp-filter").await.context("failed to load file from path")?;
     let mut bpf = aya::Ebpf::load(&data).context("failed to load data from file")?;
+    let maps_owned = bpf.take_map("services").context("failed to take services map")?;
+
+    if Path::new("/sys/fs/bpf/services").exists(){
+        warn!("map already pinned,skipping process");
+    }
+    else{
+        maps_owned.pin("/sys/fs/bpf/services").context("failed to pin map")?;
+    }
+
+    let service_map = UserSpaceMap::<MapData, SVCKey, SVCValue>::try_from(maps_owned)?;
+
+
 
     EbpfLogger::init(&mut bpf).context("Cannot initialize ebpf logger");
 
@@ -55,10 +78,21 @@ async fn main() -> Result<(), anyhow::Error> {
     program
         .attach("enp0s25", XdpFlags::default())
         .context("Failed to attach XDP program with default flags to interface eth0")?;
-
+    
     //waiting for signint (ctrl-c) to shutdown the program
     info!("Waiting for Ctrl-C...");
     signal::ctrl_c().await?;
-    info!("Exiting");
+    warn!("Exiting");
+    info!("Printing existing (key,value) values from the services map ");
+    for entry in service_map.iter(){
+        match entry {
+            Ok((key,value))=>{
+                info!("Key: {:?}, value: {:?}",key,value);
+            },
+            Err(e)=>{
+                error!("An error occured: {}",e);
+            }
+        }
+    } 
     Ok(())
 }

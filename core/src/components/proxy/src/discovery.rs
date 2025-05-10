@@ -95,7 +95,7 @@ impl<'a> ServiceDiscovery<'a> {
     pub async fn new(bpf: &'a mut Ebpf) -> Result<Self, Error> {
         let kube_client = Client::try_default().await?;
         //accessing the bpf kernel map in the user space program 
-        let service_map= UserSpaceMap::try_from(bpf.map_mut("services").unwrap())?;
+        let service_map: aya::maps::HashMap<&mut _, K, V>= UserSpaceMap::try_from(bpf.map_mut("services").unwrap())?;
         
         Ok(ServiceDiscovery {
             kube_client,
