@@ -31,6 +31,12 @@ pub struct SVCValue {
     pub port: u32,
 }
 
+#[repr(C)]
+#[derive(Clone,Debug,Pod,Zeroable,Copy)]
+pub struct BackendPorts{
+    pub ports: [u16;4],
+    pub index: usize
+}
 
 //enable Pod (Plain of data) data type
 /* unsafe impl Pod for SVCKey {}
@@ -48,10 +54,24 @@ unsafe impl Pod for SVCValue {} */
 
 */
 
+
+
+/* Maps  */
+
+
 #[map(name = "services")] //connect the map name "SERVICES" to the HasMap in the BPF bytecode
 //init a BPF_MAP_HASH_TYPE to store the resolved service values
 pub static mut SERVICES: KernelSpaceMap<SVCKey, SVCValue> =
     KernelSpaceMap::with_max_entries(1024, 0);
+
+#[map(name = "Backend_ports")] //connect the map name "BACKEND_PORTS" to the HasMap in the BPF bytecode
+//init a BPF_MAP_HASH_TYPE to store the resolved service values
+pub static mut BACKEND_PORTS: KernelSpaceMap<u16, BackendPorts> =
+    KernelSpaceMap::with_max_entries(10, 0);
+
+
+
+/*Aux Functions */
 
 //perform &str types to &[u8;64]
 pub fn str_to_u8_64(s: &str) -> [u8; 64] {
@@ -76,8 +96,3 @@ pub fn u32_to_u8_64(s: u32) -> [u8; 64] {
     buf[..4].copy_from_slice(&bytes);  // Copia solo i primi 4 byte
     buf
 }
-/* #[panic_handler]
-fn panic(_info: &core::panic::PanicInfo) -> ! {
-    loop {}
-}
- */
