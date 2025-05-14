@@ -60,7 +60,7 @@ fn xdp_firewall(ctx: &XdpContext) -> Result<u32, ()> {
     let ipv4hdr: *const Ipv4Hdr = ptr_at(ctx, EthHdr::LEN)?;
     let source_addr = u32::from_be_bytes(unsafe { (*ipv4hdr).src_addr });
 
-    // Gestione dei protocolli
+    // handle protocols
     match unsafe { (*ipv4hdr).proto } {
         IpProto::Tcp => {
             let tcphdr: *const TcpHdr = ptr_at(ctx, EthHdr::LEN + Ipv4Hdr::LEN)?;
@@ -109,9 +109,8 @@ fn xdp_firewall(ctx: &XdpContext) -> Result<u32, ()> {
                 }
             }
         }
-        _ => return Ok(xdp_action::XDP_DROP), // Per altri protocolli, droppa il pacchetto o passa
+        _ => return Ok(xdp_action::XDP_DROP), 
     };
 
-    // Aggiungi un'istruzione di ritorno esplicita alla fine
     Ok(xdp_action::XDP_PASS)
 }
