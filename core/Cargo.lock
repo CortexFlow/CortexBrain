@@ -2027,9 +2027,9 @@ dependencies = [
 
 [[package]]
 name = "hyper-util"
-version = "0.1.10"
+version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "df2dcfbe0677734ab2f3ffa7fa7bfd4706bfdc1ef393f2ee30184aed67e631b4"
+checksum = "497bbc33a26fdd4af9ed9c70d63f61cf56a938375fbb32df34db9b1cd6d643f2"
 dependencies = [
  "bytes",
  "futures-channel",
@@ -2037,6 +2037,7 @@ dependencies = [
  "http 1.3.1",
  "http-body 1.0.1",
  "hyper 1.6.0",
+ "libc",
  "pin-project-lite",
  "socket2",
  "tokio",
@@ -2430,6 +2431,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "k8s-openapi"
+version = "0.25.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "aa60a41b57ae1a0a071af77dbcf89fc9819cfe66edaf2beeb204c34459dcf0b2"
+dependencies = [
+ "base64 0.22.1",
+ "chrono",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "kernel"
 version = "0.1.0"
 dependencies = [
@@ -2490,6 +2503,19 @@ dependencies = [
  "kube-core 0.98.0",
  "kube-derive 0.98.0",
  "kube-runtime 0.98.0",
+]
+
+[[package]]
+name = "kube"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1b49c39074089233c2bb7b1791d1b6c06c84dbab26757491fad9d233db0d432f"
+dependencies = [
+ "k8s-openapi 0.25.0",
+ "kube-client 1.0.0",
+ "kube-core 1.0.0",
+ "kube-derive 1.0.0",
+ "kube-runtime 1.0.0",
 ]
 
 [[package]]
@@ -2607,6 +2633,44 @@ dependencies = [
 ]
 
 [[package]]
+name = "kube-client"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e199797b1b08865041c9c698f0d11a91de0a8143e808b71e250cd4a1d7ce2b9f"
+dependencies = [
+ "base64 0.22.1",
+ "bytes",
+ "chrono",
+ "either",
+ "futures",
+ "home",
+ "http 1.3.1",
+ "http-body 1.0.1",
+ "http-body-util",
+ "hyper 1.6.0",
+ "hyper-http-proxy",
+ "hyper-rustls",
+ "hyper-timeout",
+ "hyper-util",
+ "jsonpath-rust 0.7.5",
+ "k8s-openapi 0.25.0",
+ "kube-core 1.0.0",
+ "pem",
+ "rustls",
+ "secrecy",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "thiserror 2.0.12",
+ "tokio",
+ "tokio-tungstenite 0.26.2",
+ "tokio-util",
+ "tower",
+ "tower-http",
+ "tracing",
+]
+
+[[package]]
 name = "kube-core"
 version = "0.96.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2660,6 +2724,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "kube-core"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1bdefbba89dea2d99ea822a1d7cd6945535efbfb10b790056ee9284bf9e698e7"
+dependencies = [
+ "chrono",
+ "derive_more",
+ "form_urlencoded",
+ "http 1.3.1",
+ "json-patch 4.0.0",
+ "k8s-openapi 0.25.0",
+ "schemars",
+ "serde",
+ "serde-value",
+ "serde_json",
+ "thiserror 2.0.12",
+]
+
+[[package]]
 name = "kube-derive"
 version = "0.96.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2681,6 +2764,20 @@ dependencies = [
  "darling",
  "proc-macro2",
  "quote",
+ "serde_json",
+ "syn",
+]
+
+[[package]]
+name = "kube-derive"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8e609a3633689a50869352a3c16e01d863b6137863c80eeb038383d5ab9f83bf"
+dependencies = [
+ "darling",
+ "proc-macro2",
+ "quote",
+ "serde",
  "serde_json",
  "syn",
 ]
@@ -2760,6 +2857,33 @@ dependencies = [
  "json-patch 4.0.0",
  "k8s-openapi 0.24.0",
  "kube-client 0.99.0",
+ "parking_lot",
+ "pin-project",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.12",
+ "tokio",
+ "tokio-util",
+ "tracing",
+]
+
+[[package]]
+name = "kube-runtime"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1d4bd8a4554786f8f9a87bfa977fb7dbaa1d7f102a30477338b044b65de29d8e"
+dependencies = [
+ "ahash",
+ "async-broadcast",
+ "async-stream",
+ "backon",
+ "educe",
+ "futures",
+ "hashbrown 0.15.2",
+ "hostname",
+ "json-patch 4.0.0",
+ "k8s-openapi 0.25.0",
+ "kube-client 1.0.0",
  "parking_lot",
  "pin-project",
  "serde",
@@ -2965,12 +3089,21 @@ dependencies = [
  "anyhow",
  "aya",
  "aya-log",
+ "base64 0.22.1",
  "bytemuck",
+ "k8s-openapi 0.25.0",
+ "kube 1.0.0",
+ "kube-runtime 1.0.0",
+ "lazy_static",
  "log",
+ "prometheus 0.14.0",
+ "serde",
+ "serde_json",
+ "shared",
  "tokio",
  "tracing",
  "tracing-subscriber",
- "xdp",
+ "warp",
 ]
 
 [[package]]
@@ -3663,8 +3796,23 @@ dependencies = [
  "lazy_static",
  "memchr",
  "parking_lot",
- "protobuf",
+ "protobuf 2.28.0",
  "thiserror 1.0.69",
+]
+
+[[package]]
+name = "prometheus"
+version = "0.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3ca5326d8d0b950a9acd87e6a3f94745394f62e4dae1b1ee22b2bc0c394af43a"
+dependencies = [
+ "cfg-if",
+ "fnv",
+ "lazy_static",
+ "memchr",
+ "parking_lot",
+ "protobuf 3.7.2",
+ "thiserror 2.0.12",
 ]
 
 [[package]]
@@ -3726,6 +3874,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "106dd99e98437432fed6519dedecfade6a06a73bb7b2a1e019fdd2bee5778d94"
 
 [[package]]
+name = "protobuf"
+version = "3.7.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d65a1d4ddae7d8b5de68153b48f6aa3bba8cb002b243dbdbc55a5afbc98f99f4"
+dependencies = [
+ "once_cell",
+ "protobuf-support",
+ "thiserror 1.0.69",
+]
+
+[[package]]
+name = "protobuf-support"
+version = "3.7.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3e36c2f31e0a47f9280fb347ef5e461ffcd2c52dd520d8e216b52f93b0b0d7d6"
+dependencies = [
+ "thiserror 1.0.69",
+]
+
+[[package]]
 name = "proxy"
 version = "0.1.0"
 dependencies = [
@@ -3742,7 +3910,7 @@ dependencies = [
  "kube-runtime 0.99.0",
  "lazy_static",
  "once_cell",
- "prometheus",
+ "prometheus 0.13.4",
  "serde",
  "serde_json",
  "shared",
@@ -4404,8 +4572,8 @@ dependencies = [
  "ipnet",
  "iptables",
  "itertools 0.13.0",
- "k8s-openapi 0.24.0",
- "kube 0.98.0",
+ "k8s-openapi 0.25.0",
+ "kube 1.0.0",
  "libc",
  "libloading",
  "libp2p",
@@ -4467,9 +4635,9 @@ checksum = "7fcf8323ef1faaee30a44a340193b1ac6814fd9b7b4e88e9d4519a3e4abe1cfd"
 
 [[package]]
 name = "socket2"
-version = "0.5.8"
+version = "0.5.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c970269d99b64e60ec3bd6ad27270092a5394c4e309314b18ae3fe575695fbe8"
+checksum = "4f5fd57c80058a56cf5c777ab8a126398ece8e442983605d280a44ce79d0edef"
 dependencies = [
  "libc",
  "windows-sys 0.52.0",
