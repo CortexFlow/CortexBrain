@@ -50,8 +50,8 @@ The new algorithm can be described as this:
 use crate::messaging;
 use crate::messaging::MexType;
 use crate::metrics::{DNS_REQUEST, DNS_RESPONSE_TIME};
-use crate::map::{SVCKey, SVCValue};
-use crate::map;
+use crate::shared_struct::{SVCKey, SVCValue};
+use crate::shared_struct;
 use anyhow::Error ;
 use std::result::Result::Ok;
 use aya::maps::{HashMap as UserSpaceMap, MapData};
@@ -77,7 +77,7 @@ use tracing::{debug, error, info, warn};
 */
 pub struct ServiceDiscovery<'a> {
     kube_client: Client,
-    service_cache: UserSpaceMap<&'a mut MapData,SVCKey,SVCValue>,
+    service_cache: &'a mut UserSpaceMap<&'a mut MapData,SVCKey,SVCValue>,
 }
 /* 
     Doc:
@@ -92,11 +92,8 @@ pub struct ServiceDiscovery<'a> {
 /* User space implementation */
 
 impl<'a> ServiceDiscovery<'a> {
-    pub async fn new(bpf: &'a mut Ebpf) -> Result<Self, Error> {
-        let kube_client = Client::try_default().await?;
-        //accessing the bpf kernel map in the user space program 
-        let service_map: aya::maps::HashMap<&mut _, K, V>= UserSpaceMap::try_from(bpf.map_mut("services").unwrap())?;
-        
+    pub async fn new(mut service_map: &'a mut UserSpaceMap<&'a mut MapData,SVCKey,SVCValue>  ) -> Result<Self, Error> {
+        let kube_client = Client::try_default().await?;        
         Ok(ServiceDiscovery {
             kube_client,
             service_cache: service_map, 
@@ -240,10 +237,10 @@ impl<'a> ServiceDiscovery<'a> {
                 // add to service cache
 
                 let key = SVCKey {
-                    service_name: map::str_to_u8_64(&service_name),
+                    service_name: shared_struct::str_to_u8_64(&service_name),
                 };
                 let value = SVCValue{
-                    ip: map::str_to_u8_64(&pod_ip),
+                    ip: shared_struct::str_to_u8_4(&pod_ip),
                     port: communication_port as u32
                 };
                 
@@ -275,10 +272,10 @@ impl<'a> ServiceDiscovery<'a> {
     //directly register a service in the cache
     pub fn register_service(&mut self, service_id: String, endpoint: String,port: u32) {
         let key = SVCKey{
-            service_name:map::str_to_u8_64(&service_id)
+            service_name:shared_struct::str_to_u8_64(&service_id)
         };
         let value = SVCValue{
-            ip: map::str_to_u8_64(&endpoint),
+            ip: shared_struct::str_to_u8_4(&endpoint),
             port
         };
         self.service_cache.insert(key, value,u64::min_value());
@@ -288,7 +285,7 @@ impl<'a> ServiceDiscovery<'a> {
     pub fn get_service(&self, service_id: &str) -> Option<String> {
         
         let key= SVCKey{
-            service_name:map::str_to_u8_64(&service_id)
+            service_name:shared_struct::str_to_u8_64(&service_id)
         };
 
         //match pattern
