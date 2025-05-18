@@ -165,3 +165,4 @@ docker-compose.yaml
 admission-webhook-with-cert.yaml
 proxy-injector-with-cert.yaml
 kafka.rs
+node-debugger.yaml
