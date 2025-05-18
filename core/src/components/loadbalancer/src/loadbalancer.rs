@@ -25,33 +25,45 @@ use tokio::net::{TcpListener, TcpStream};
 use tracing::{debug, warn,error, info};
 use warp::Filter;
 use shared::apiconfig::EdgeProxyConfig;
+use std::path::Path;
+use aya::maps::{HashMap as UserSpaceMap, MapData};
+use crate::shared_struct::BackendPorts;
+use tokio::sync::RwLock;
+
+
+const BPF_PATH : &str = "BPF_PATH";
 
 pub struct Loadbalancer<'a> {
     proxy_config: Arc<EdgeProxyConfig>,
     service_discovery: Arc<tokio::sync::RwLock<ServiceDiscovery<'a>>>,
+    backends: Arc<RwLock<UserSpaceMap<MapData, u16, BackendPorts>>>,
 }
 
 impl<'a> Loadbalancer<'a>{
     
-    pub async fn new(proxycfg: EdgeProxyConfig,cache_map: ServiceDiscovery<'a>) -> Result<Self, Error> {
+    pub async fn new(proxycfg: EdgeProxyConfig,cache_map: ServiceDiscovery<'a>,backends_list: UserSpaceMap<MapData, u16, BackendPorts>
+) -> Result<Self, Error> {
         Ok(Loadbalancer {
             proxy_config: Arc::new(proxycfg),
             service_discovery: Arc::new(cache_map.into()),
+            backends: Arc::new(backends_list.into()),
         })
     }
 
     pub async fn run(&self) -> Result<(), Error> {
-        let data = fs::read("../../../target/bpfel-unknown-none/release/xdp-filter").await.context("failed to load file from path")?;
+        let bpf_path= std::env::var(BPF_PATH).context("BPF_PATH environment variable required")?;
+        let data = fs::read(Path::new(&bpf_path)).await.context("failed to load file from path")?;
         let mut bpf = aya::Ebpf::load(&data).context("failed to load data from file")?;
         EbpfLogger::init(&mut bpf).context("Cannot initialize ebpf logger");
 
         //extract the bpf program "xdp-hello" from builded binaries
+        info!("loading xdp program");
         let program: &mut Xdp = bpf.program_mut("xdp_hello").unwrap().try_into()?;
         program.load().context("Failed to laod XDP program")?; //load the program
     
         info!("Starting program");
         program
-            .attach("enp0s25", XdpFlags::default())
+            .attach("eth0", XdpFlags::default())
             .context("Failed to attach XDP program with default flags to interface eth0")?;
         info!("Cortexflow Intelligent Loadbalancer is running");
 
@@ -60,7 +72,7 @@ impl<'a> Loadbalancer<'a>{
 
         // Start udpsocket
         let socket = UdpSocket::bind("0.0.0.0:5053").await?;
-        info!("Socket bound to {}", socket.local_addr()?);
+        info!("Udp socket bound to {}", socket.local_addr()?);
 
         let metrics_route = warp::path!("metrics").map(|| {
             let mut buffer = Vec::new();
@@ -101,19 +113,6 @@ impl<'a> Loadbalancer<'a>{
                 }
             }
         }
-        signal::ctrl_c().await?;
-        warn!("Exiting");
-        info!("Printing existing (key,value) values from the services map ");
-    /*     for entry in service_map.iter(){
-            match entry {
-                Ok((key,value))=>{
-                    info!("Key: {:?}, value: {:?}",key,value);
-                },
-                Err(e)=>{
-                    error!("An error occured: {}",e);
-                }
-            }
-        }  */
     }
 
 

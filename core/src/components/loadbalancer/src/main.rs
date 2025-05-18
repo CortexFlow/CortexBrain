@@ -1,6 +1,16 @@
 /* contains the code for the kernel xdp manipulation. this code lives in
 the kernel space only and needs to be attached to a program in the user space
 */
+
+/*     let kubeconfig_path = PathBuf::from("/home/cortexflow/.kube/config");
+ */
+    /* annotations for permissions:
+    sudo chmod 644 /home/<name>/.kube/config
+    sudo chown <name>:<name> /home/<name>/.kube/config
+
+    sudo mkdir -p /root/.kube
+    sudo cp /home/<name>/.kube/config /root/.kube/config
+ */
 mod shared_struct;
 mod discovery;
 
@@ -36,6 +46,8 @@ unsafe impl aya::Pod for shared_struct::SVCKey {}
 unsafe impl aya::Pod for shared_struct::SVCValue {}
 unsafe impl aya::Pod for shared_struct::BackendPorts {}
 
+const BPF_PATH : &str = "BPF_PATH";
+
 /*
 XDP flags
 Mode | Description | Compatibility | Performance
@@ -65,11 +77,15 @@ async fn main() -> Result<(), anyhow::Error> {
 
     //loading the pre-built binaries--> reason: linux kernel does not accept non compiled code. only accepts bytecode
     info!("loading data");
-    let data = fs::read("../../../target/bpfel-unknown-none/release/xdp-filter").await.context("failed to load file from path")?;
+    let bpf_path= std::env::var(BPF_PATH).context("BPF_PATH environment variable required")?;
+    let data = fs::read(Path::new(&bpf_path)).await.context("failed to load file from path")?;
+    info!("loading bpf data");
     let mut bpf = aya::Ebpf::load(&data).context("failed to load data from file")?;
+    info!("loading maps data");
     let mut maps_owned = bpf.take_map("services").context("failed to take services map")?;
+    info!("loading bpf backends map");
     let backend_map = bpf.take_map("Backend_ports").context("failed to take backends map")?;
-    
+
 
     if Path::new("/sys/fs/bpf/services").exists(){
         warn!("map already pinned,skipping process");
@@ -78,7 +94,9 @@ async fn main() -> Result<(), anyhow::Error> {
         maps_owned.pin("/sys/fs/bpf/services").context("failed to pin map")?;
     }
 
+    info!("loading service map in user space");
     let mut service_map = UserSpaceMap::<&mut MapData, SVCKey, SVCValue>::try_from(&mut maps_owned)?;
+    info!("loading backends in user space");
     let mut backends = UserSpaceMap::<MapData, u16, BackendPorts>::try_from(backend_map)?;
 
     let mut ports = [0;4];
@@ -89,31 +107,23 @@ async fn main() -> Result<(), anyhow::Error> {
         ports:ports,
         index:0,
     }; 
-    backends.insert(9875,backend_ports,0);
+    backends.insert(5053,backend_ports,0);
 
 
     //declare service discovery
+    info!("Initializing service discovery");
     let service_discovery=ServiceDiscovery::new(&mut service_map).await?;
 
-    let kubeconfig_path = PathBuf::from("/home/cortexflow/.kube/config");
+    info!("connecting to client");
+    let client = Client::try_default().await?;
 
-    /* annotations for permissions:
-    sudo chmod 644 /home/<name>/.kube/config
-    sudo chown <name>:<name> /home/<name>/.kube/config
-
-    sudo mkdir -p /root/.kube
-    sudo cp /home/<name>/.kube/config /root/.kube/config
- */
-
-
-    let kubeconfig = Kubeconfig::read_from(kubeconfig_path)?;
-    let config = Config::from_custom_kubeconfig(kubeconfig, &Default::default()).await?;
-    let client = Client::try_from(config)?;
-
+    info!("reading kubernetes configmap");
     let configmap: Api<ConfigMap> = Api::namespaced(client.clone(), "cortexflow");
 
-    let proxycfg = EdgeProxyConfig::load_from_configmap(configmap, ConfigType::Default).await?;
-    let loadbalancer = Loadbalancer::new(proxycfg,service_discovery).await?;
+    info!("Loading Loadbalancer configuration from configmap");
+    let lbcfg = EdgeProxyConfig::load_from_configmap(configmap, ConfigType::Default).await?;
+    info!("Initializing Loadbalancer");
+    let loadbalancer = Loadbalancer::new(lbcfg,service_discovery,backends).await?;
     loadbalancer.run().await?;
 
     Ok(())

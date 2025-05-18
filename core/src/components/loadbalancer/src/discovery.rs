@@ -298,7 +298,7 @@ impl<'a> ServiceDiscovery<'a> {
             },
             //return an error in case the key is not found
             Err(aya::maps::MapError::KeyNotFound) => {
-                error!("Servuce not found in cache!");
+                error!("Service not found in cache!");
                 return None
             }
             //return an error in case of any other error type expect "KeyNotFound"
