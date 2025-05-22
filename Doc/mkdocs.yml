@@ -1,6 +1,6 @@
 site_name: Documentation
 site_author: Cortexflow Team
-site_url: https://www.cortexflow.org/doc
+site_url: https://docs.cortexflow.org
 site_description: >-
   Offical CortexFlow documentation
 
@@ -54,7 +54,6 @@ markdown_extensions:
   - pymdownx.snippets
   - pymdownx.keys
 plugins: 
-  - blog
   - rss:
         match_path: test-report/reports/.*
         date_from_meta:
