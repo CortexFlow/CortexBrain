@@ -1,12 +1,13 @@
-/* contains the code for the kernel xdp manipulation. this code lives in
-the kernel space only and needs to be attached to a "main" program that lives in the user space
+/*
+ * Contains the code for the kernel xdp manipulation. this code lives in
+ * the kernel space only and needs to be attached to a "main" program that lives in the user space
 */
 
-#![no_std] //no standard library
-#![no_main] //no main entrypoint
+#![no_std] // * no standard library
+#![no_main] // * no main entrypoint
 
 use aya_ebpf::{bindings::xdp_action, macros::xdp, programs::XdpContext};
-use aya_log_ebpf::{info,error,debug};
+use aya_log_ebpf::{debug, error, info};
 
 use core::mem;
 use maps::map::{SVCKey, SVCValue, SERVICES};
@@ -17,6 +18,9 @@ use network_types::{
     udp::UdpHdr,
 };
 
+/*
+* init xdp program
+*/
 #[xdp]
 pub fn xdp_hello(ctx: XdpContext) -> u32 {
     match unsafe { xdp_firewall(&ctx) } {
@@ -35,8 +39,8 @@ fn panic(_info: &core::panic::PanicInfo) -> ! {
     loop {}
 }
 
+// * getting packet data from raw packets
 #[inline(always)] //inline
-                  //getting packet data from raw packets
 fn ptr_at<T>(ctx: &XdpContext, offset: usize) -> Result<*const T, ()> {
     let start = ctx.data();
     let end = ctx.data_end();
@@ -48,8 +52,15 @@ fn ptr_at<T>(ctx: &XdpContext, offset: usize) -> Result<*const T, ()> {
     Ok((start + offset) as *const T)
 }
 
-//xdp firewall to parse
 //TODO:safe the result of the firewall into a bpf hash map and perform a redirect
+/*
+* XDP firewall
+* Usage:
+*   1. Drop packets from the 443 port (only fo development test )
+*   2. Log TCP and UDP traffic
+*   3. //TODO: rebuild firewall policy to efficiently filter traffic
+*   4. //TODO: use ConnArray declared in conntracker program to discover services and implement policies
+*/
 fn xdp_firewall(ctx: &XdpContext) -> Result<u32, ()> {
     let ethhdr: *const EthHdr = ptr_at(ctx, 0)?;
     match unsafe { (*ethhdr).ether_type } {
@@ -102,7 +113,7 @@ fn xdp_firewall(ctx: &XdpContext) -> Result<u32, ()> {
                 let res = unsafe { SERVICES.insert(&key, &value, 0) };
                 match res {
                     Ok(_) => {
-                        return Ok(xdp_action::XDP_PASS); 
+                        return Ok(xdp_action::XDP_PASS);
                     }
                     Err(_) => {
                         error!(ctx, "Error inserting element into bpf map");
@@ -111,7 +122,7 @@ fn xdp_firewall(ctx: &XdpContext) -> Result<u32, ()> {
                 }
             }
         }
-        _ => return Ok(xdp_action::XDP_DROP), 
+        _ => return Ok(xdp_action::XDP_DROP),
     };
 
     Ok(xdp_action::XDP_PASS)
