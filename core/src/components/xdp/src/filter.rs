@@ -84,6 +84,8 @@ fn xdp_firewall(ctx: &XdpContext) -> Result<u32, ()> {
                     ctx,
                     "Received UDP packet from IP: {:i} PORT: {}", source_addr, port
                 );
+                //TODO: saving the packet address here will only store the ip and port
+                // of the gateway (in this case the minikube node ip)--> i need to save the ip in the user space
                 debug!(
                     ctx,
                     "Inserting key: {:i} and value {:i} into the services bpf map",

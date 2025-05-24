@@ -7,7 +7,7 @@
 
 use bytemuck::{Pod,Zeroable};
 use aya_ebpf::{macros::map, maps::HashMap as KernelSpaceMap}; //aya_ebpf is the kernel space libary
-
+use aya_ebpf::maps::PerfEventArray;
 /* unsafe impl Zeroable for SVCKey {} //implemente zeroable 
 unsafe impl Zeroable for SVCValue {} */
 
@@ -68,8 +68,6 @@ pub static mut SERVICES: KernelSpaceMap<SVCKey, SVCValue> =
 //init a BPF_MAP_HASH_TYPE to store the resolved service values
 pub static mut BACKEND_PORTS: KernelSpaceMap<u16, BackendPorts> =
     KernelSpaceMap::with_max_entries(10, 0);
-
-
 
 /*Aux Functions */
 

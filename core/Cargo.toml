@@ -12,7 +12,7 @@ members = [
     "src/shared",
     "src/components/proxy",
     "src/components/proxy-injector",
-    "src/components/xdp", "src/components/maps",
+    "src/components/xdp", "src/components/maps", "src/components/conntracker", "xtask", "src/components/identity",
 ]
 
 [dependencies]
