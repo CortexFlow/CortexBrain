@@ -1,16 +1,25 @@
-/* contains the code for the kernel xdp manipulation. this code lives in
-the kernel space only and needs to be attached to a program in the user space
-*/
+/* 
+    * Contains the Load balancer (CortexFlow Agent) user space code implementation.
+    * The implementation leverages the power of bpf programs to interact with the internet interface
+    * to distribute load accross multiple backends.
+    * The program leverages bpf maps to enable the communication between Kernel Space and User Space
 
-/*     let kubeconfig_path = PathBuf::from("/home/cortexflow/.kube/config");
- */
+    * //TODO: Update the code to use the discovered services from the cortexflow identity service 
+    */
+
+/*     
+    * Annotations
+
+    let kubeconfig_path = PathBuf::from("/home/cortexflow/.kube/config");
+*/
     /* annotations for permissions:
     sudo chmod 644 /home/<name>/.kube/config
     sudo chown <name>:<name> /home/<name>/.kube/config
 
     sudo mkdir -p /root/.kube
     sudo cp /home/<name>/.kube/config /root/.kube/config
- */
+*/
+
 mod shared_struct;
 mod discovery;
 
@@ -48,18 +57,12 @@ unsafe impl aya::Pod for shared_struct::BackendPorts {}
 
 const BPF_PATH : &str = "BPF_PATH";
 
-/*
-XDP flags
-Mode | Description | Compatibility | Performance
-DRIVER_MODE | XDP native in the driver | Only compatible cards | Highest
-SKB_MODE | XDP on top of Linux stack | Always compatible | Good
-HW_MODE | XDP on hardware | Requires hardware support | Highest (very rare)
-*/
 
 //main program
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
 
+    // * init tracing subscriber
     tracing_subscriber::fmt()
     .with_max_level(tracing::Level::INFO)
     .with_target(false)
@@ -75,7 +78,8 @@ async fn main() -> Result<(), anyhow::Error> {
 
 
 
-    //loading the pre-built binaries--> reason: linux kernel does not accept non compiled code. only accepts bytecode
+    // * loading the pre-built binaries--> reason: linux kernel does not accept non compiled code. only accepts bytecode
+    
     info!("loading data");
     let bpf_path= std::env::var(BPF_PATH).context("BPF_PATH environment variable required")?;
     let data = fs::read(Path::new(&bpf_path)).await.context("failed to load file from path")?;
