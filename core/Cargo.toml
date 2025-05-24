@@ -10,7 +10,6 @@ members = [
     "src/client",
     "src/shared",
     "src/components/proxy",
-    "src/components/proxy-injector",
     "src/components/xdp",
     "src/components/maps",
     "src/components/conntracker",
