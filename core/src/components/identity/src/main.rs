@@ -1,3 +1,11 @@
+/* 
+    * CortexBrain Identity Service
+    * Features: 
+    *   1. TCP, UDP , ICMP events tracker
+    *   2. Track Connections using a PerfEventArray named ConnArray
+    *
+*/
+
 use aya::Bpf;
 use aya::programs::{SchedClassifier, TcAttachType};
 use aya::maps::perf::PerfEventArray;
@@ -15,6 +23,10 @@ use tracing_subscriber::EnvFilter;
 use tracing::{info, error, warn};
 use std::path::Path;
 
+/* 
+    * Structure PacketLog
+    * This structure is used to store the packet information
+*/
 #[repr(C)]
 #[derive(Clone, Copy)]
 struct PacketLog {
@@ -26,6 +38,9 @@ struct PacketLog {
     hash_id: u16,
 }
 
+/* 
+    * Connection Array that contains the hash_id associated with an active connection
+*/
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct ConnArray {
@@ -34,6 +49,10 @@ pub struct ConnArray {
 
 unsafe impl aya::Pod for ConnArray {}
 
+/* 
+    * IpProtocols enum to reconstruct the packet protocol based on the 
+    * IPV4 Header Protocol code 
+*/
 #[derive(Debug)]
 #[repr(u8)]
 enum IpProtocols {
@@ -41,6 +60,12 @@ enum IpProtocols {
     TCP = 6,
     UDP = 17,
 }
+
+/* 
+    * TryFrom Trait implementation for IpProtocols enum
+    * This is used to reconstruct the packet protocol based on the
+    * IPV4 Header Protocol code
+*/
 
 impl TryFrom<u8> for IpProtocols {
     type Error = ();
@@ -56,6 +81,7 @@ impl TryFrom<u8> for IpProtocols {
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
+    //init tracing subscriber
     tracing_subscriber::fmt()
         .with_max_level(tracing::Level::INFO)
         .with_target(false)
@@ -71,10 +97,12 @@ async fn main() -> Result<(), anyhow::Error> {
     info!("Starting identity service...");
     info!("fetching data");
     
+    //init conntracker data path 
     let data = fs::read("../../../target/bpfel-unknown-none/release/conntracker")
         .await
         .context("Failed to load BPF object data")?;
     
+    //init bpf data 
     let mut bpf = Bpf::load(&data)?;
     
     info!("Loading programs");
@@ -87,15 +115,19 @@ async fn main() -> Result<(), anyhow::Error> {
         program.attach("enp0s25", TcAttachType::Ingress)?;
     }
 
+    //init events map 
     let events_map = bpf
         .take_map("EVENTS")
         .ok_or_else(|| anyhow::anyhow!("EVENTS map not found"))?;
     
     info!("loading bpf connections map");
+    
+    //init connection map 
     let connections_map_raw = bpf
         .take_map("ConnectionArray")
         .context("failed to take connections map")?;
     
+    //pinning connections map 
     if Path::new("/sys/fs/bpf/connections").exists() {
         warn!("map already pinned, skipping process");
     } else {
@@ -103,9 +135,11 @@ async fn main() -> Result<(), anyhow::Error> {
             .context("failed to pin map")?;
     }
 
+    // init PerfEventArrays 
     let mut perf_array = PerfEventArray::try_from(events_map)?;
     let mut connections_perf_array = PerfEventArray::try_from(connections_map_raw)?;
 
+    //init PerfEventArrays buffers
     let mut perf_buffers = Vec::new();
     let mut connections_perf_buffers = Vec::new();
 
@@ -121,12 +155,13 @@ async fn main() -> Result<(), anyhow::Error> {
     let running = Arc::new(AtomicBool::new(true));
     let r = running.clone();
     
+    //waiting for signint (CTRL+C) to stop the main program
     tokio::spawn(async move {
         signal::ctrl_c().await.unwrap();
         r.store(false, Ordering::SeqCst);
     });
 
-    let mut buffers = vec![BytesMut::with_capacity(1024); 10];
+    /* let mut buffers = vec![BytesMut::with_capacity(1024); 10]; */
     let mut connections_buffers = vec![BytesMut::with_capacity(1024); 10];
 
     /* 
@@ -164,7 +199,7 @@ async fn main() -> Result<(), anyhow::Error> {
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
     }
     */ 
-
+    //print out Connection Events
     while running.load(Ordering::SeqCst) {
         for buf in &mut connections_perf_buffers {
             match buf.read_events(&mut connections_buffers) {
