@@ -79,6 +79,11 @@ impl TryFrom<u8> for IpProtocols {
     }
 }
 
+/* 
+    * decleare bpf path env variable
+*/
+const BPF_PATH : &str = "BPF_PATH";
+
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
     //init tracing subscriber
@@ -98,9 +103,8 @@ async fn main() -> Result<(), anyhow::Error> {
     info!("fetching data");
     
     //init conntracker data path 
-    let data = fs::read("../../../target/bpfel-unknown-none/release/conntracker")
-        .await
-        .context("Failed to load BPF object data")?;
+    let bpf_path= std::env::var(BPF_PATH).context("BPF_PATH environment variable required")?;
+    let data = fs::read(Path::new(&bpf_path)).await.context("failed to load file from path")?;
     
     //init bpf data 
     let mut bpf = Bpf::load(&data)?;
