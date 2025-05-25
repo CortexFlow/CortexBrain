@@ -116,7 +116,7 @@ async fn main() -> Result<(), anyhow::Error> {
             .ok_or_else(|| anyhow::anyhow!("program 'identity_classifier' not found"))?
             .try_into()?;
         program.load()?;
-        program.attach("enp0s25", TcAttachType::Ingress)?;
+        program.attach("eth0", TcAttachType::Ingress)?;
     }
 
     //init events map 
