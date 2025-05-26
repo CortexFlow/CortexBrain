@@ -54,7 +54,6 @@ markdown_extensions:
   - pymdownx.snippets
   - pymdownx.keys
 plugins: 
-  - blog
   - rss:
         match_path: test-report/reports/.*
         date_from_meta:

@@ -33,7 +33,7 @@ Our current development efforts are dedicated to the following key improvements:
 - 🖥️ **Integrating a Command Line Interface:** We're actually working on a CLI to let users interact with the cluster without any stress or frustation. You can track the progress of the CLI tool by referring to the [Milestone]
 - 📡 **Cloud-Edge Multi-Cluster Integration:** Enabling orchestration between cloud environments and edge devices
 
-![Architecture](Doc/architecture.gif "Cortexflow architecture")
+![Architecture](Doc/docs/cf_architecture.svg "Cortexflow architecture")
 
 # 🤖 Getting Started
 
