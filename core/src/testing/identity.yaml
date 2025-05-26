@@ -1,0 +1,91 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cortexflow-identity
+  namespace: cortexflow
+  labels:
+    app: cortexflow-identity
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cortexflow-identity
+  template:
+    metadata:
+      labels:
+        app: cortexflow-identity
+    spec:
+      hostPID: true
+      #initContainers:
+      #- name: fix-bpf-permissions
+      #  image: busybox
+       # command:
+       # - sh
+       # - -c
+       # - |
+       #   echo "Setting bpf permissions"
+       #   chmod 777 /sys/fs/bpf
+
+        #  chown root:root /sys/fs/bpf
+        #  ls -ld /sys/fs/bpf /sys/fs/bpf
+        #  echo "Done setting up /sys/fs/bpf"
+        #volumeMounts:
+       # - name: bpf
+        #  mountPath: /sys/fs/bpf
+        #  mountPropagation: Bidirectional
+        #  readOnly: false
+        #securityContext:
+         # privileged: true
+      containers:
+      - name: identity
+        image: lorenzotettamanti/cortexflow-identity:latest
+        command: ["/bin/bash", "-c"]
+        args:
+          - |
+            echo "Running on kernel $(uname -r)"
+            if [ ! -d "/sys/fs/bpf" ]; then
+              echo "ERROR: BPF filesystem not mounted"
+              exit 1
+            else
+              echo "Checking ebpf path..."
+              ls -l /sys/fs/bpf
+            fi
+            echo "checking privilegi"
+            ls -ld /sys/fs/bpf
+            
+            echo "Avvio dell'applicazione principale..."
+            exec /usr/local/bin/cortexflow-identity-service || echo "Application exited with code $?"
+        volumeMounts:
+        - name: bpf
+          mountPath: /sys/fs/bpf
+          mountPropagation: Bidirectional
+          readOnly: false
+        - name: proc
+          mountPath: /host/proc
+          readOnly: false
+        - name: kernel-dev
+          mountPath: /lib/modules
+          readOnly: false
+        securityContext:
+          privileged: true
+          allowPrivilegeEscalation: true
+          capabilities:
+            add:
+            - SYS_ADMIN
+            - NET_ADMIN
+            - SYS_RESOURCE
+            - CAP_BPF
+            - SYS_PTRACE
+      volumes:
+      - name: bpf
+        hostPath:
+          path: /sys/fs/bpf
+          type: Directory
+      - name: proc
+        hostPath:
+          path: /proc
+          type: Directory
+      - name: kernel-dev
+        hostPath:
+          path: /lib/modules
+          type: Directory

@@ -15,6 +15,7 @@ use crate::messaging::{
     send_outcoming_message_udp, send_success_ack_message,
 };
 use anyhow::{Error, Result};
+use aya::Ebpf;
 use prometheus::{Encoder, TextEncoder};
 use shared::apiconfig::EdgeProxyConfig;
 use std::sync::Arc;
@@ -32,7 +33,7 @@ pub struct Proxy {
 
 impl Proxy {
     pub async fn new(proxycfg: EdgeProxyConfig) -> Result<Self, Error> {
-        let service_discovery = ServiceDiscovery::new().await?;
+        let service_discovery = ServiceDiscovery::new(&mut Ebpf).await?;
         Ok(Proxy {
             proxy_config: Arc::new(proxycfg),
             service_discovery: Arc::new(service_discovery),

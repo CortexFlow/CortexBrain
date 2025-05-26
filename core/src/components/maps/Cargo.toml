@@ -1,0 +1,36 @@
+[package]
+name = "maps"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "maps"
+path = "src/lib.rs"
+
+[dependencies]
+aya-ebpf = { git = "https://github.com/aya-rs/aya" }
+aya-log-ebpf = { git = "https://github.com/aya-rs/aya" }
+bytemuck = {version ="1.23.0",features = ["derive"]}
+network-types = "0.0.8"
+
+[build-dependencies]
+which = { version = "7.0.0", default-features = false }
+
+[[bin]]
+name = "xdp-map"
+path = "src/map.rs"
+
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"
+
+[target.bpfel-unknown-none]
+linker = "bpf-linker"
+rustflags = [
+    "-C", "panic=abort",
+    "-C", "target-feature=+alu32",
+    "-C", "link-args=-znotext",
+]
+

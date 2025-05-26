@@ -1,4 +1,5 @@
 pub mod discovery;
+pub mod map;
 pub mod messaging;
-pub mod proxy;
 pub mod metrics;
+pub mod proxy;

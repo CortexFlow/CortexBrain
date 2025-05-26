@@ -34,58 +34,16 @@ roleRef:
 apiVersion: v1
 kind: Pod
 metadata:
-  name: test-proxy
-  namespace: cortexflow
-  labels:
-    app: test-proxy
-    proxy-injection: enabled
-  annotations:
-    proxy-injection: enabled
-spec:
-  serviceAccountName: proxy-service-account
-  containers:
-  - name: nginx
-    image: nginx
-    ports:
-    - containerPort: 5053 # Porta UDP
-      protocol: UDP
-    - containerPort: 5054 # Porta TCP
-      protocol: TCP
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: test-proxy
-  namespace: cortexflow
-spec:
-  selector:
-    app: test-proxy # Deve corrispondere alla label del pod
-  ports:
-  - protocol: TCP
-    name: tcp-connection
-    port: 5054
-    targetPort: 5054
-  - protocol: UDP
-    name: udp-connection
-    port: 5053
-    targetPort: 5053
-  type: ClusterIP
----
-apiVersion: v1
-kind: Pod
-metadata:
   name: test-proxy2
   namespace: cortexflow
   labels:
     app: test-proxy2
-    proxy-injection: enabled
-  annotations:
-    proxy-injection: enabled
 spec:
   serviceAccountName: proxy-service-account
   containers:
-  - name: nginx
-    image: nginx
+  - name: test-proxy2
+    image: nicolaka/netshoot
+    command: ["/bin/bash", "-c", "sleep 3600"]
     ports:
     - containerPort: 5053
       protocol: UDP
