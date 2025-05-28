@@ -21,7 +21,12 @@
 - **Lorenzo Bradanini**  [📧 lorenzolollobrada@gmail.com](mailto:lorenzolollobrada@gmail.com)
 
 # 🧑‍💻What is CortexBrain?
-**CortexBrain** is an ambitious open source project aimed at creating an intelligent, lightweight, and efficient architecture to seamlessly connect cloud and edge devices.  
+**CortexBrain** is an ambitious open-source project aimed at creating an intelligent, lightweight, and efficient architecture to connect cloud and edge devices seamlessly. 
+By leveraging the power of eBPF, CortexBrain can successfully manage **networking** and **observability** in a distributed cluster, limiting resource waste and improving overall performance. 
+
+The linux in-kernel verifier (BPF Verifier) ensures that all the programs are safe to run and a JIT compiler converts the bytecode to CPU architecture specific for native execution efficiency. CortexBrain can observe and trace network events such as **ingress** (incoming) and **egress** (outgoing) connections, apply policies, and distribute traffic among different backends directly at **kernel level** by attaching the programs in different hooks such as TC (traffic control) and XDP hooks. All the intercepted events are successfully notified in the user space thanks to BPF maps. 
+
+Comprehensive information about CortexBrain’s core architecture, installation, and practical applications is available in the [official documentation](https://docs.cortexflow.org/) and on the [CortexFlow blog](https://blog.cortexflow.org/).
 
 # ⚛️ **Current Development Focus**  
 
