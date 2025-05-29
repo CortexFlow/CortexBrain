@@ -15,7 +15,7 @@
 
 use bytemuck::{Pod,Zeroable};
 use aya_ebpf::{
-    bindings::TC_ACT_OK,
+    bindings::{TC_ACT_OK,TC_ACT_SHOT},
     macros::{ classifier, map },
     maps::PerfEventArray,
     programs::TcContext,
@@ -150,6 +150,12 @@ fn try_identity_classifier(ctx: TcContext) -> Result<(), i64> {
         let dst_port = u32::from_be(ctx.load::<u32>(DST_PORT).map_err(|_| 1)?);
         let proto = u8::from_be(ctx.load::<u8>(PROTOCOL_T0TAL_BYTES_OFFSET).map_err(|_| 1)?);
         
+        //test blocking
+        let ip_to_block = u32::from_be_bytes([1,49,168,192]);
+        //TODO: create a blocklist 
+        if src_ip == ip_to_block {
+            return Err(TC_ACT_SHOT as i64); //cast TC_ACT_SHOT  TC_ACT_SHOT=2 TC_ACT_OK = 0 TC_ACT_UNSPEC = -1 
+        }else{
         // XOR to generate the hash id for the given connection
         let hash_id = (src_ip ^ dst_ip ^ (src_port as u32) ^ (dst_port as u32) ^ (proto as u32)) as u16;
 
@@ -168,6 +174,8 @@ fn try_identity_classifier(ctx: TcContext) -> Result<(), i64> {
             EVENTS.output(&ctx, &log, 0); //output to userspace
             CONNARRAY.output(&ctx,&connections, 0) //save hash_id to kernel space array
         };
+        }
+        
     }
 
     Ok(())

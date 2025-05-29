@@ -116,7 +116,7 @@ async fn main() -> Result<(), anyhow::Error> {
             .ok_or_else(|| anyhow::anyhow!("program 'identity_classifier' not found"))?
             .try_into()?;
         program.load()?;
-        program.attach("eth0", TcAttachType::Ingress)?;
+        program.attach("eth0", TcAttachType::Ingress)?; //check with ipconfig a the source of traffic
     }
 
     //init events map 
@@ -141,7 +141,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     // init PerfEventArrays 
     let mut perf_array = PerfEventArray::try_from(events_map)?;
-    let mut connections_perf_array = PerfEventArray::try_from(connections_map_raw)?;
+    let mut connections_perf_array = PerfEventArray::try_from(connections_map_raw)?; //change with lru hash map
 
     //init PerfEventArrays buffers
     let mut perf_buffers = Vec::new();
@@ -165,10 +165,9 @@ async fn main() -> Result<(), anyhow::Error> {
         r.store(false, Ordering::SeqCst);
     });
 
-    /* let mut buffers = vec![BytesMut::with_capacity(1024); 10]; */
-    let mut connections_buffers = vec![BytesMut::with_capacity(1024); 10];
+    let mut buffers = vec![BytesMut::with_capacity(1024); 10]; 
+/*     let mut connections_buffers = vec![BytesMut::with_capacity(1024); 10]; */
 
-    /* 
     while running.load(Ordering::SeqCst) {
         for buf in &mut perf_buffers {
             match buf.read_events(&mut buffers) {
@@ -202,9 +201,8 @@ async fn main() -> Result<(), anyhow::Error> {
         }
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
     }
-    */ 
     //print out Connection Events
-    while running.load(Ordering::SeqCst) {
+/*     while running.load(Ordering::SeqCst) {
         for buf in &mut connections_perf_buffers {
             match buf.read_events(&mut connections_buffers) {
                 Ok(events) => {
@@ -224,7 +222,7 @@ async fn main() -> Result<(), anyhow::Error> {
             }
         }
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-    }
+    } */
 
     info!("Exiting...");
     Ok(())
