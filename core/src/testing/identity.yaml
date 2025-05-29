@@ -16,26 +16,7 @@ spec:
         app: cortexflow-identity
     spec:
       hostPID: true
-      #initContainers:
-      #- name: fix-bpf-permissions
-      #  image: busybox
-       # command:
-       # - sh
-       # - -c
-       # - |
-       #   echo "Setting bpf permissions"
-       #   chmod 777 /sys/fs/bpf
-
-        #  chown root:root /sys/fs/bpf
-        #  ls -ld /sys/fs/bpf /sys/fs/bpf
-        #  echo "Done setting up /sys/fs/bpf"
-        #volumeMounts:
-       # - name: bpf
-        #  mountPath: /sys/fs/bpf
-        #  mountPropagation: Bidirectional
-        #  readOnly: false
-        #securityContext:
-         # privileged: true
+      hostNetwork: true
       containers:
       - name: identity
         image: lorenzotettamanti/cortexflow-identity:latest
@@ -50,10 +31,10 @@ spec:
               echo "Checking ebpf path..."
               ls -l /sys/fs/bpf
             fi
-            echo "checking privilegi"
+            echo "checking privileges"
             ls -ld /sys/fs/bpf
             
-            echo "Avvio dell'applicazione principale..."
+            echo "Running application..."
             exec /usr/local/bin/cortexflow-identity-service || echo "Application exited with code $?"
         volumeMounts:
         - name: bpf

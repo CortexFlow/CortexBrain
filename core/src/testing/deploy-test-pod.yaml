@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: proxy-service-account
+  name: testing-service-account
   namespace: cortexflow
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -24,7 +24,7 @@ metadata:
   namespace: cortexflow
 subjects:
 - kind: ServiceAccount
-  name: proxy-service-account
+  name: testing-service-account
   namespace: cortexflow
 roleRef:
   kind: Role
@@ -34,14 +34,52 @@ roleRef:
 apiVersion: v1
 kind: Pod
 metadata:
-  name: test-proxy2
+  name: test-pod
   namespace: cortexflow
   labels:
-    app: test-proxy2
+    app: test1
 spec:
-  serviceAccountName: proxy-service-account
+  serviceAccountName: testing-service-account
   containers:
-  - name: test-proxy2
+  - name: test-pod
+    image: nicolaka/netshoot
+    command: ["/bin/bash", "-c", "sleep 3600"]
+    ports:
+    - containerPort: 5053
+      protocol: UDP
+    - containerPort: 5054
+      protocol: TCP
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: test-pod2
+  namespace: cortexflow
+  labels:
+    app: test2
+spec:
+  serviceAccountName: testing-service-account
+  containers:
+  - name: test-pod2
+    image: nicolaka/netshoot
+    command: ["/bin/bash", "-c", "sleep 3600"]
+    ports:
+    - containerPort: 5053
+      protocol: UDP
+    - containerPort: 5054
+      protocol: TCP
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: test-pod3
+  namespace: cortexflow
+  labels:
+    app: test3
+spec:
+  serviceAccountName: testing-service-account
+  containers:
+  - name: test-pod3
     image: nicolaka/netshoot
     command: ["/bin/bash", "-c", "sleep 3600"]
     ports:
@@ -53,11 +91,49 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: test-proxy2
+  name: test-pod
   namespace: cortexflow
 spec:
   selector:
-    app: test-proxy2 # Deve corrispondere alla label del pod
+    app: test1
+  ports:
+  - protocol: TCP
+    name: tcp-connection
+    port: 5054
+    targetPort: 5054
+  - protocol: UDP
+    name: udp-connection
+    port: 5053
+    targetPort: 5053
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: test-pod2
+  namespace: cortexflow
+spec:
+  selector:
+    app: test2
+  ports:
+  - protocol: TCP
+    name: tcp-connection
+    port: 5054
+    targetPort: 5054
+  - protocol: UDP
+    name: udp-connection
+    port: 5053
+    targetPort: 5053
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: test-pod3
+  namespace: cortexflow
+spec:
+  selector:
+    app: test3
   ports:
   - protocol: TCP
     name: tcp-connection
