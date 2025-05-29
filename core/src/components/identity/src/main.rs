@@ -9,6 +9,8 @@
 use aya::Bpf;
 use aya::programs::{SchedClassifier, TcAttachType};
 use aya::maps::perf::PerfEventArray;
+use aya::maps::PerCpuHashMap;
+use aya::maps::MapData;
 use aya::util::online_cpus;
 use bytes::BytesMut;
 use std::convert::TryInto;
@@ -32,10 +34,10 @@ use std::path::Path;
 struct PacketLog {
     proto: u8,
     src_ip: u32,
-    src_port: u32,
+    src_port: u16,
     dst_ip: u32,
-    dst_port: u32,
-    hash_id: u16,
+    dst_port: u16,
+    event_id: u16,
 }
 
 /* 
@@ -44,7 +46,8 @@ struct PacketLog {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct ConnArray {
-    pub hash_id: u16,
+    pub event_id: u16,
+    pub connection_id: u16,
 }
 
 unsafe impl aya::Pod for ConnArray {}
@@ -121,14 +124,14 @@ async fn main() -> Result<(), anyhow::Error> {
 
     //init events map 
     let events_map = bpf
-        .take_map("EVENTS")
-        .ok_or_else(|| anyhow::anyhow!("EVENTS map not found"))?;
+        .take_map("EventsMap")
+        .ok_or_else(|| anyhow::anyhow!("EventsMap map not found"))?;
     
     info!("loading bpf connections map");
     
     //init connection map 
     let connections_map_raw = bpf
-        .take_map("ConnectionArray")
+        .take_map("ConnectionMap")
         .context("failed to take connections map")?;
     
     //pinning connections map 
@@ -141,18 +144,18 @@ async fn main() -> Result<(), anyhow::Error> {
 
     // init PerfEventArrays 
     let mut perf_array = PerfEventArray::try_from(events_map)?;
-    let mut connections_perf_array = PerfEventArray::try_from(connections_map_raw)?; //change with lru hash map
-
+/*     let mut connections_perf_array = PerCpuHashMap::<&mut MapData,u8,ConnArray>::try_from(connections_map_raw)?; //change with lru hash map
+ */
     //init PerfEventArrays buffers
     let mut perf_buffers = Vec::new();
-    let mut connections_perf_buffers = Vec::new();
+/*     let mut connections_perf_buffers = Vec::new(); */
 
     for cpu_id in online_cpus().map_err(|e| anyhow::anyhow!("Error {:?}", e))? {
         let buf = perf_array.open(cpu_id, None)?;
         perf_buffers.push(buf);
         
-        let conn_buf = connections_perf_array.open(cpu_id, None)?;
-        connections_perf_buffers.push(conn_buf);
+/*         let conn_buf = connections_perf_array.open(cpu_id, None)?;
+        connections_perf_buffers.push(conn_buf); */
     }
 
     info!("Listening for events...");
@@ -180,14 +183,14 @@ async fn main() -> Result<(), anyhow::Error> {
                             let dst = Ipv4Addr::from(u32::from_be(pl.dst_ip));
                             let src_port = u16::from_be(pl.src_port as u16);
                             let dst_port = u16::from_be(pl.dst_port as u16);
-                            let hash = pl.hash_id;
-                            
+                            let event_id = pl.event_id;
+
                             match IpProtocols::try_from(pl.proto) {
                                 Ok(proto) => {
                                     info!("Hash: {} Protocol: {:?} SRC: {}:{} -> DST: {}:{}", 
-                                          hash, proto, src, src_port, dst, dst_port);
+                                    event_id, proto, src, src_port, dst, dst_port);
                                 },
-                                Err(_) => info!("Hash: {} Protocol: Unknown ({})", hash, pl.proto),
+                                Err(_) => info!("Hash: {} Protocol: Unknown ({})", event_id, pl.proto),
                             };
                         } else {
                             warn!("Received packet data too small: {} bytes", data.len());
