@@ -35,7 +35,7 @@ Our current development efforts are dedicated to the following key improvements:
 - 🔧 **System Architecture:** Optimizing the actual [architecture](https://www.cortexflow.org/doc/#architecture) by eliminating sidecar proxies while maintaining scalability
 - 🌐 **Kernel-Level Observability with eBPF:** Enhancing system observability by leveraging eBPF to collect logs,metrics at the kernel level
 - 📊 **Expanded Metrics:** Extending the current [metrics](https://www.cortexflow.org/doc/#detected-metrics) landscape to provide deeper understanding  
-- 🖥️ **Integrating a Command Line Interface:** We're actually working on a CLI to let users interact with the cluster without any stress or frustation. You can track the progress of the CLI tool by referring to the [Milestone]
+- 🖥️ **Integrating a Command Line Interface:** We're actually working on a CLI to let users interact with the cluster without any stress or frustation. You can track the progress of the CLI tool by referring to the [[CLI Milestone]](https://github.com/CortexFlow/CortexBrain/milestone/3)
 - 📡 **Cloud-Edge Multi-Cluster Integration:** Enabling orchestration between cloud environments and edge devices
 
 ![Architecture](Doc/docs/cf_architecture.svg "Cortexflow architecture")
