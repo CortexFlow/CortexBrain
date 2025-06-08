@@ -6,24 +6,40 @@
     * Functionalities:
     *   1. Creates a PacketLog structure to track incoming packets
     *   2. Tracking Parameters: SRC_IP.SRC_PORT,DST_IP,DST_PORT,PROTOCOL,HASH
-    *   3. Store HASH_ID in a BPF HASHMAP
+    *   3. Compute the EVENT_ID and CONNECTION_ID using a byte XOR 
+    *   4. Store CONNECTION_ID in a BPF LRU HASHMAP and pass EVENT_ID to the user space
 */
 
 // Imports
 #![no_std]
 #![no_main]
+#![allow(warnings)]
 
-use bytemuck::{Pod,Zeroable};
+//mod skbuff;
+
+use bytemuck::{ Pod, Zeroable };
 use aya_ebpf::{
-    bindings::TC_ACT_OK,
-    macros::{ classifier, map },
+    bindings::{ TC_ACT_OK, TC_ACT_SHOT },
+    macros::{ classifier, map, kprobe, tracepoint },
     maps::PerfEventArray,
-    programs::TcContext,
+    maps::LruPerCpuHashMap,
+    programs::{ TcContext, TracePointContext },
+    helpers::{ bpf_probe_read_kernel, bpf_ktime_get_ns },
 };
+use aya_ebpf::EbpfContext;
+//use crate::skbuff::{ sock, sock_common };
 use aya_log_ebpf::info;
-use core::mem;
-
-
+use core::{ mem, ptr };
+//use crate::skbuff::proto;
+//use crate::skbuff::{ iphdr };
+//use crate::skbuff::sk_buff;
+use network_types::{
+    eth::{ EthHdr, EtherType },
+    ip::{ IpProto, Ipv4Hdr },
+    tcp::TcpHdr,
+    udp::UdpHdr,
+};
+use core::ptr::addr_of;
 /* 
     * ETHERNET TYPE II FRAME:
     * Reference: https://it.wikipedia.org/wiki/Frame_Ethernet
@@ -41,18 +57,7 @@ use core::mem;
     * https://en.wikipedia.org/wiki/IPv4#Header
     *
     * Original reference:
-    * https://datatracker.ietf.org/doc/html/rfc791
-    *
-    *
-    * Ipv4 header datagram
 
-    0                   1                   2                   3                       TOT BYTES OFFSET (full length)     
-    0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1      32 bit           
-   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-   |Version|  IHL  |Type of Service|          Total Length         |     4 bytes            4             
-   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-   |         Identification        |Flags|      Fragment Offset    |     4 bytes            8            
-   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+    
    |  Time to Live |    Protocol   |         Header Checksum       |     4 bytes            12             
    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
    |                       Source Address                          |     4 bytes            16             
@@ -86,22 +91,35 @@ use core::mem;
 pub struct PacketLog {
     pub proto: u8,
     pub src_ip: u32,
-    pub src_port: u32,
+    pub src_port: u16,
     pub dst_ip: u32,
-    pub dst_port: u32,
-    pub hash_id: u16,
+    pub dst_port: u16,
+    pub event_id: u16,
 }
 
 #[repr(C)]
-#[derive(Clone, Copy, Pod, Zeroable)]
-pub struct ConnArray{
-    pub hash_id: u16
+#[derive(Clone, Copy)]
+pub struct ConnArray {
+    pub src_ip: u32,
+    pub dst_ip: u32,
+    pub src_port: u16,
+    pub dst_port: u16,
+    pub proto: u8,
 }
 
-#[map]
+#[map(name = "EventsMap")]
 static mut EVENTS: PerfEventArray<PacketLog> = PerfEventArray::new(0);
-#[map(name = "ConnectionArray")]
-pub static mut CONNARRAY: PerfEventArray<ConnArray> = PerfEventArray::new(0);
+#[map(name = "ConnectionMap")]
+pub static mut ACTIVE_CONNECTIONS: LruPerCpuHashMap<
+    u16,
+    ConnArray
+> = LruPerCpuHashMap::with_max_entries(65536, 0);
+
+#[map(name = "ConnectionTrackerMap")]
+pub static mut CONNTRACKER: LruPerCpuHashMap<ConnArray, u8> = LruPerCpuHashMap::with_max_entries(
+    65536,
+    0
+);
 
 const IPV4_ETHERTYPE: u16 = 0x0800;
 
@@ -116,22 +134,38 @@ const DST_MAC: usize = 6;
 const ETHERTYPE_BYTES: usize = 2;
 
 //TCP UDP Stack
-const SRC_PORT: usize = 34;
-const DST_PORT: usize = 36;
+const SRC_PORT_OFFSET_FROM_IP_HEADER: usize = 0;
+const DST_PORT_OFFSET_FROM_IP_HEADER: usize = 2;
 
-static ETH_STACK_BYTES :usize = SRC_MAC+DST_MAC+ETHERTYPE_BYTES;
-static DST_T0TAL_BYTES_OFFSET :usize = ETH_STACK_BYTES + DST_BYTE_OFFSET;
-static SRC_T0TAL_BYTES_OFFSET :usize = ETH_STACK_BYTES + SRC_BYTE_OFFSET;
-static PROTOCOL_T0TAL_BYTES_OFFSET :usize = ETH_STACK_BYTES + IPV4_PROTOCOL_OFFSET;
+static ETH_STACK_BYTES: usize = SRC_MAC + DST_MAC + ETHERTYPE_BYTES;
+static DST_T0TAL_BYTES_OFFSET: usize = ETH_STACK_BYTES + DST_BYTE_OFFSET;
+static SRC_T0TAL_BYTES_OFFSET: usize = ETH_STACK_BYTES + SRC_BYTE_OFFSET;
+static PROTOCOL_T0TAL_BYTES_OFFSET: usize = ETH_STACK_BYTES + IPV4_PROTOCOL_OFFSET;
 
+const AF_INET: u16 = 2; //ipv4
+const AF_INET6: u16 = 10; //ipv6
 
+const IPPROTO_UDP: u8 = 17;
+const IPPROTO_TCP: u8 = 6;
 
+//TODO: add kprobe tracing for process ID
+//kprobe docs: https://docs.kernel.org/trace/kprobes.html
+
+/* constants */
+const HOST_NETNS_INUM: u32 = 4026531993;
+const KUBE_POD_CIDR: u32 = 0x0af40000; // 10.244.0.0/16
+
+/* Helper Functions */
+#[inline]
+unsafe fn is_kube_internal(ip: u32) -> bool {
+    (ip & 0xffff0000) == KUBE_POD_CIDR
+}
 
 #[classifier]
 pub fn identity_classifier(ctx: TcContext) -> i32 {
     match try_identity_classifier(ctx) {
         Ok(_) => TC_ACT_OK,
-        Err(_) => TC_ACT_OK,
+        Err(_) => TC_ACT_SHOT, //block packets that returns errors
     }
 }
 
@@ -141,38 +175,81 @@ fn try_identity_classifier(ctx: TcContext) -> Result<(), i64> {
     //only ipv4 protcol allowed
     if eth_proto != IPV4_ETHERTYPE {
         return Ok(());
-    } else {
-
-        //get the source ip,destination ip and connection id
-        let src_ip = u32::from_be(ctx.load::<u32>(SRC_T0TAL_BYTES_OFFSET).map_err(|_| 1)?); // ETH+SOURCE_ADDRESS
-        let src_port = u32::from_be(ctx.load::<u32>(SRC_PORT).map_err(|_| 1)?);
-        let dst_ip = u32::from_be(ctx.load::<u32>(DST_T0TAL_BYTES_OFFSET).map_err(|_| 1)?); // ETH+ DESTINATION_ADDRESS
-        let dst_port = u32::from_be(ctx.load::<u32>(DST_PORT).map_err(|_| 1)?);
-        let proto = u8::from_be(ctx.load::<u8>(PROTOCOL_T0TAL_BYTES_OFFSET).map_err(|_| 1)?);
-        
-        // XOR to generate the hash id for the given connection
-        let hash_id = (src_ip ^ dst_ip ^ (src_port as u32) ^ (dst_port as u32) ^ (proto as u32)) as u16;
-
-        let log = PacketLog {
-            proto,
-            src_ip,
-            src_port,
-            dst_ip,
-            dst_port,
-            hash_id,
-        };
-        let connections = ConnArray{
-            hash_id
-        };
-        unsafe {
-            EVENTS.output(&ctx, &log, 0); //output to userspace
-            CONNARRAY.output(&ctx,&connections, 0) //save hash_id to kernel space array
-        };
     }
+
+    //read if the packets has Options
+    let first_ipv4_byte = u8::from_be(ctx.load::<u8>(ETH_STACK_BYTES).map_err(|_| 1)?);
+    let ihl = (first_ipv4_byte &
+        0x0f) as usize; /* 0x0F=00001111 &=AND bit a bit operator to extract the last 4 bit*/
+    let ip_header_len = ihl * 4; //returns the header lenght in bytes
+
+    //get the source ip,destination ip and connection id
+    let src_ip = u32::from_be(ctx.load::<u32>(SRC_T0TAL_BYTES_OFFSET).map_err(|_| 1)?); // ETH+SOURCE_ADDRESS
+    let src_port = u16::from_be(
+        ctx
+            .load::<u16>(ETH_STACK_BYTES + ip_header_len + SRC_PORT_OFFSET_FROM_IP_HEADER)
+            .map_err(|_| 1)?
+    ); //14+IHL-Lenght+0
+    let dst_ip = u32::from_be(ctx.load::<u32>(DST_T0TAL_BYTES_OFFSET).map_err(|_| 1)?); // ETH+ DESTINATION_ADDRESS
+    let dst_port = u16::from_be(
+        ctx
+            .load::<u16>(ETH_STACK_BYTES + ip_header_len + DST_PORT_OFFSET_FROM_IP_HEADER)
+            .map_err(|_| 1)?
+    ); //14+IHL-Lenght+0
+    let proto = u8::from_be(ctx.load::<u8>(PROTOCOL_T0TAL_BYTES_OFFSET).map_err(|_| 1)?);
+
+    //not logging internal communication packets
+    //TODO: do not log internal communications such as minikube dashboard packets or kubectl api packets
+    let ip_to_block = u32::from_be_bytes([192, 168, 49, 1]); //inverted requence
+    let dst_ip_to_block = u32::from_be_bytes([192, 168, 49, 2]);
+
+    let key = ConnArray {
+        src_ip,
+        dst_ip,
+        src_port,
+        dst_port,
+        proto,
+    };
+
+    // XOR to generate the hash id for the given connection
+    let event_id = (src_ip ^
+        dst_ip ^
+        (src_port as u32) ^
+        (dst_port as u32) ^
+        (proto as u32)) as u16; //generate one for every event using a 'byte XOR' operation
+
+    //let connection_id = (src_ip ^ dst_ip ^(proto as u32)) as u16; //added host_id to track the host to count every all the different connections
+
+    //if
+    //  (unsafe { is_kube_internal(src_ip) }) ||
+    //(unsafe { is_kube_internal(dst_ip) }) ||
+    // src_ip == ip_to_block ||
+    // src_ip == dst_ip_to_block
+    //{
+    //   return Ok(());
+    //} else {
+    //log all other packets
+    let log = PacketLog {
+        proto,
+        src_ip,
+        src_port,
+        dst_ip,
+        dst_port,
+        event_id,
+    };
+    //let connections = ConnArray{
+    //  event_id,
+    //connection_id
+    //};
+    unsafe {
+        EVENTS.output(&ctx, &log, 0); //output to userspace
+        //TODO: add more parameters to better identify the active connection (maybe timestamp?)
+        ACTIVE_CONNECTIONS.insert(&event_id, &key, 0);
+    }
+    //}
 
     Ok(())
 }
-
 #[panic_handler]
 fn panic(_info: &core::panic::PanicInfo) -> ! {
     loop {
