@@ -77,6 +77,8 @@ metadata:
   labels:
     app: test3
 spec:
+  hostNetwork: true
+  hostPID: true
   serviceAccountName: testing-service-account
   containers:
   - name: test-pod3

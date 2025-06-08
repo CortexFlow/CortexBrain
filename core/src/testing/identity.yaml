@@ -21,6 +21,9 @@ spec:
       - name: identity
         image: lorenzotettamanti/cortexflow-identity:latest
         command: ["/bin/bash", "-c"]
+        env:
+        - name: IFACE
+          value: "cali8240b51b115"
         args:
           - |
             echo "Running on kernel $(uname -r)"
@@ -33,7 +36,7 @@ spec:
             fi
             echo "checking privileges"
             ls -ld /sys/fs/bpf
-            
+
             echo "Running application..."
             exec /usr/local/bin/cortexflow-identity-service || echo "Application exited with code $?"
         volumeMounts:
@@ -55,7 +58,7 @@ spec:
             - SYS_ADMIN
             - NET_ADMIN
             - SYS_RESOURCE
-            - CAP_BPF
+            - BPF
             - SYS_PTRACE
       volumes:
       - name: bpf
