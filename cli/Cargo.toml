@@ -6,3 +6,9 @@ edition = "2024"
 [dependencies]
 clap = { version = "4.5.38", features = ["derive"] }
 tracing = "0.1.41"
+
+#commented until first release
+
+#[[bin]]
+#name="cfcli"
+#path="src/main.rs"
