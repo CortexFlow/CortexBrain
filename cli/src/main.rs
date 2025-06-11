@@ -1,6 +1,7 @@
 mod essential;
 mod install;
 mod general;
+mod uninstall;
 
 use clap::{ Error, Parser, Subcommand, Args };
 use clap::command;
@@ -8,6 +9,7 @@ use tracing::debug;
 
 use crate::essential::{ info, update_cli };
 use crate::install::install_cortexflow;
+use crate::uninstall::uninstall;
 
 use crate::general::GeneralData;
 
@@ -34,6 +36,8 @@ enum Commands {
     GetEnv,
     #[command(name="install")]
     Install,
+    #[command(name="uninstall")]
+    Uninstall,
     #[command(name="update")]
     Update,
     #[command(name="info")]
@@ -60,6 +64,10 @@ fn args_parser() -> Result<(), Error> {
         }
         Some(Commands::Install) => {
             install_cortexflow();
+            Ok(())
+        }
+        Some(Commands::Uninstall)=>{
+            uninstall();
             Ok(())
         }
         Some(Commands::Update) => {
