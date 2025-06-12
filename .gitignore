@@ -159,74 +159,13 @@ dbConfig.json
 config.json
 
 #output file
-mappa_punti_interesse_satellitare.html
-DistanceFromPoi.csv
-POI.csv
-cache
-sensor_map.html
-merge-branches.sh
-workingon
-8357 - 3F 66 1 LED 6 II - 3002535.ldt
-MQTTPublic
-RunSimulation.lprof
-simgrid.lprof
-RunSimulation.txt
-simgrid_output.txt
-illuminance_chart.html
-planimetria.jpg
-planimetria2.jpg
-planimetria3.jpg
-floor.py
-notes.txt
-notes2.txt
-test_topics.txt
-fonts/
-generazione.xlsx
-hotel_data.json.gz
-Config/
-image.jpg
-image2.jpg
-amqConnector.py
-data_processor.py
-data_semantic.py
-nlp.py
-tabular.py
-data_scientist_agent.py
-generate_sensor_data.py
-data_preparation/
-SyntaxBrain/
-pipeline.py
-data_processor/
-test_datasets/
-models/
-ai/
-Integrations/
-data_cleaning/
-data_pipeline.py
-notes.md
-cidr.md
-MeshAdapter.md
-default_config.rs
-frontend\node_modules
-vendor
-cidr_explanation.md
-coredns_explaination.md
-corefilego.md
-functions1.md
-Guide.md
-test_config/
 .vscode/
-# PyCharm
-#  JetBrains specific template is maintained in a separate JetBrains.gitignore that can
-#  be found at https://github.com/github/gitignore/blob/main/Global/JetBrains.gitignore
-#  and can be added to the global gitignore or merged into this file.  For a more nuclear
-#  option (not recommended) you can uncomment the following to ignore the entire idea folder.
-#.idea/
 /node_modules
 docker-compose.yaml
 admission-webhook-with-cert.yaml
 proxy-injector-with-cert.yaml
-analysis.py
-tcp_udp_specific_analysis_seaborn.png
-udp_specific_analysis_seaborn.png
-analysis_one_metric.py
+kafka.rs
+node-debugger.yaml
+notes.txt
+dev-notes.txt
+skbuff.rs

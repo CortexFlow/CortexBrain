@@ -5,7 +5,7 @@ on:
     branches: [main]
 
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -21,16 +21,27 @@ jobs:
         run: |
           pip install mkdocs mkdocs-material
           pip install mkdocs-rss-plugin
-
+          
       - name: Build documentation
         run: mkdocs build
         working-directory: ./Doc
 
-      - name: Deploy to site host
-        uses: airvzxf/ftp-deployment-action@latest
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
         with:
-          server: ${{ secrets.SFTP_SERVER }}
-          user: ${{ secrets.SFTP_USERNAME }}
-          password: ${{ secrets.SFTP_PSW }}
-          local_dir: './Doc/site'
-          remote_dir: ${{ secrets.CF_SITE_DIR }}
+          path: ./Doc/site 
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    permissions:
+      pages: write
+      id-token: write
+      contents: write
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

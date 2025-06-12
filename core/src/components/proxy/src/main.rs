@@ -3,9 +3,10 @@
 //TODO: add load balancer between dns servers
 
 mod discovery;
+mod map;
 mod messaging;
-mod proxy;
 mod metrics;
+mod proxy;
 
 use k8s_openapi::api::core::v1::ConfigMap;
 use kube::{Client, api::Api};
