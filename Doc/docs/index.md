@@ -9,12 +9,10 @@ You can see the development stage of every component here:
 
 | **Component**       | **Stage**                | **Latest Commit** | **Referring Branch**  |**Related Milestone**
 |---------------------|--------------------------|-------------------|-----------------------|-----------------------|
-| **Dashboard**       | Under development  | [![GitHub last commit](https://img.shields.io/github/last-commit/CortexFlow/CortexBrain?style=flat-square&logo=github&color=success)](https://github.com/CortexFlow/CortexBrain/commits/feature/frontend)                | `feature frontend`    | CortexBrain v 0.1.0 Launch |
-| **Client**          |  Under development  | [![GitHub last commit](https://img.shields.io/github/last-commit/CortexFlow/CortexBrain?style=flat-square&logo=github&color=success)](https://github.com/CortexFlow/CortexBrain/commits/core)                 | `feature/core`        | CortexBrain core v 0.1.0 |
-| **Proxy**           |  Under development  | [![GitHub last commit](https://img.shields.io/github/last-commit/CortexFlow/CortexBrain?style=flat-square&logo=github&color=success)](https://github.com/CortexFlow/CortexBrain/commits/core)                 | `feature/core`        | CortexBrain core v 0.1.0 |
-| **Controller**      |  Under development  |   [![GitHub last commit](https://img.shields.io/github/last-commit/CortexFlow/CortexBrain?style=flat-square&logo=github&color=success)](https://github.com/CortexFlow/CortexBrain/commits/core)               | `feature/core`   | CortexBrain core v 0.1.0 |
-| **CLI**             | ❌ Not started yet       | ❌                | `feature/cli`         | CortexBrain CLI v .0.1 |
-| **Identity Service**             | ❌ Not started yet       | ❌                | ❌         | CortexBrain core v 0.1.0 |
+| **Dashboard**       | Under development  | [![GitHub last commit](https://img.shields.io/github/last-commit/CortexFlow/CortexBrain?style=flat-square&logo=github&color=success)](https://github.com/CortexFlow/CortexBrain/commits/feature/frontend)                | `feature/frontend`    | CortexBrain v 0.1.0 Launch |
+| **Identity Service**             | Under development       | [![GitHub last commit](https://img.shields.io/github/last-commit/CortexFlow/CortexBrain?style=flat-square&logo=github&color=success)](https://github.com/CortexFlow/CortexBrain/commits/feature/ebpf-core)                 | `feature/ebpf-core`         | CortexBrain core v 0.1.0 |
+| **Agent**           |  Under development  | [![GitHub last commit](https://img.shields.io/github/last-commit/CortexFlow/CortexBrain?style=flat-square&logo=github&color=success)](https://github.com/CortexFlow/CortexBrain/commits/core)                 | `feature/core`        | CortexBrain core v 0.1.0 |
+| **CLI**             | Under development       |[![GitHub last commit](https://img.shields.io/github/last-commit/CortexFlow/CortexBrain?style=flat-square&logo=github&color=success)](https://github.com/CortexFlow/CortexBrain/commits/feature/cli)              | `feature/cli`         | CortexBrain CLI v .0.1 |
 
 ## An Introduction to Service Mesh
 
