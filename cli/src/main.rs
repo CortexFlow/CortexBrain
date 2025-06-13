@@ -4,18 +4,34 @@ mod install;
 use clap::{Arg, Parser, Subcommand};
 
 #[derive(Parser)]
-#[command(author="CortexFlow",version="0.1",about=None,long_about=None)]
 struct Args {
-    name: String,
+    #[command(subcommand)]
+    command: Commands,
 }
+
+#[derive(Subcommand)]
 enum Commands {
-    /* continue from here */
-    Install(String),
-    Update(String),
+    Install,
+    Update,
+    Version,
 }
+
 fn args_parser() {
     let args = Args::parse();
-    println!("Arguments {:?}", args.name);
+    
+    match args.command {
+        Commands::Version => {
+            essential::version();
+        },
+        Commands::Install => {
+            // TODO: Not Implemented Yet. Check install.rs
+            install::install_cortexflow();
+        },
+        Commands::Update => {
+            // TODO: Not Implemented Yet. Check essential.rs
+            essential::update_cli();
+        }
+    }
 }
 
 fn main() {
