@@ -169,3 +169,8 @@ node-debugger.yaml
 notes.txt
 dev-notes.txt
 skbuff.rs
+admission-webhook.yaml
+certificate-manager.yaml
+client-deployment.yaml
+dns-deployment.yaml
+proxy-injector.yaml
