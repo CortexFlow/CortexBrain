@@ -57,3 +57,41 @@ pub fn list_services(namespace: Option<String>) {
         }
     }
 }
+
+pub fn describe_service(service_name: String, namespace: Option<String>) {
+    let ns = namespace.unwrap_or_else(|| "cortexflow".to_string());
+    
+    println!("Describing service '{}' in namespace: {}", service_name, ns);
+    println!("{}", "=".repeat(60));
+    
+    // Execute kubectl describe pod command
+    let output = Command::new("kubectl")
+        .args(["describe", "pod", &service_name, "-n", &ns])
+        .output();
+    
+    match output {
+        Ok(output) => {
+            if !output.status.success() {
+                let error = str::from_utf8(&output.stderr).unwrap_or("Unknown error");
+                eprintln!("Error executing kubectl describe: {}", error);
+                eprintln!("Make sure the pod '{}' exists in namespace '{}'", service_name, ns);
+                std::process::exit(1);
+            }
+            
+            let stdout = str::from_utf8(&output.stdout).unwrap_or("");
+            
+            if stdout.trim().is_empty() {
+                println!("No description found for pod '{}'", service_name);
+                return;
+            }
+            
+            // Print the full kubectl describe output
+            println!("{}", stdout);
+        }
+        Err(err) => {
+            eprintln!("Failed to execute kubectl describe command: {}", err);
+            eprintln!("Make sure kubectl is installed and configured properly");
+            std::process::exit(1);
+        }
+    }
+}
