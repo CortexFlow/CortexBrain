@@ -11,6 +11,6 @@ tokio = { version = "1", features = ["full"] }
 anyhow = "1.0"
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
-libc = "0.2.172"
-bytemuck = "1.23.0"
+libc = "0.2.173"
+bytemuck = "1.23.1"
 
