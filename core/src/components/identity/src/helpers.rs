@@ -1,9 +1,29 @@
-use aya::{ maps::{ perf::{ PerfEventArrayBuffer }, MapData } };
+use aya::{
+    maps::{ perf::{ PerfEventArray, PerfEventArrayBuffer }, MapData },
+    programs::{ SchedClassifier, TcAttachType },
+    util::online_cpus,
+    Bpf,
+};
 use crate::structs::PacketLog;
 use bytes::BytesMut;
-use std::{ borrow::BorrowMut, net::Ipv4Addr, sync::{ atomic::{ AtomicBool, Ordering }, Arc } };
+use std::{
+    borrow::BorrowMut,
+    net::Ipv4Addr,
+    string,
+    sync::{ atomic::{ AtomicBool, Ordering }, Arc },
+};
 use crate::enums::IpProtocols;
 use tracing::{ info, error, warn };
+use nix::net::if_::if_nameindex;
+
+use tokio::{ fs, signal };
+use std::path::Path;
+use anyhow::Context;
+/*
+ * decleare bpf path env variable
+ */
+const BPF_PATH: &str = "BPF_PATH";
+const IFACE: &str = "IFACE";
 
 pub async fn display_events<T: BorrowMut<MapData>>(
     mut perf_buffers: Vec<PerfEventArrayBuffer<T>>,
@@ -29,7 +49,7 @@ pub async fn display_events<T: BorrowMut<MapData>>(
                             match IpProtocols::try_from(pl.proto) {
                                 Ok(proto) => {
                                     info!(
-                                        "Hash: {} Protocol: {:?} SRC: {}:{} -> DST: {}:{}",
+                                        "Event Id: {} Protocol: {:?} SRC: {}:{} -> DST: {}:{}",
                                         event_id,
                                         proto,
                                         src,
@@ -39,7 +59,7 @@ pub async fn display_events<T: BorrowMut<MapData>>(
                                     );
                                 }
                                 Err(_) =>
-                                    info!("Hash: {} Protocol: Unknown ({})", event_id, pl.proto),
+                                    info!("Event Id: {} Protocol: Unknown ({})", event_id, pl.proto),
                             };
                         } else {
                             warn!("Received packet data too small: {} bytes", data.len());
@@ -53,4 +73,28 @@ pub async fn display_events<T: BorrowMut<MapData>>(
         }
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
     }
+}
+
+//filter the interfaces,exclude docker0,eth0,lo interfaces
+pub fn get_veth_channels() -> Vec<String> {
+    //filter interfaces and save the output in the
+    let mut interfaces: Vec<String> = Vec::new();
+
+    if let Ok(ifaces) = if_nameindex() {
+        for iface in &ifaces {
+            let iface_name = iface.name().to_str().unwrap().to_owned();
+            if
+                iface_name != "eth0" &&
+                iface_name != "docker0" &&
+                iface_name != "tunl0" &&
+                iface_name != "lo"
+            {
+                interfaces.push(iface_name);
+            } else {
+                info!("skipping interface");
+            }
+        }
+    }
+
+    interfaces
 }
