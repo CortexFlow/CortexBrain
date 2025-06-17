@@ -2072,6 +2072,7 @@ dependencies = [
  "bytemuck",
  "bytes",
  "libc",
+ "nix 0.30.1",
  "tokio",
  "tracing",
  "tracing-subscriber",
@@ -2155,7 +2156,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "587f29670d67df4c7af1631928dcc592e24e897e961f89b06b142b95702ce21f"
 dependencies = [
  "lazy_static",
- "nix",
+ "nix 0.29.0",
  "regex",
 ]
 
@@ -3068,6 +3069,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "78ca9ab1a0babb1e7d5695e3530886289c18cf2f87ec19a575a0abdce112e3a3"
 
 [[package]]
+name = "memoffset"
+version = "0.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "488016bfae457b036d996092f6cb448677611ce4449e970ceaf42695203f218a"
+dependencies = [
+ "autocfg",
+]
+
+[[package]]
 name = "mime"
 version = "0.3.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3221,6 +3231,19 @@ dependencies = [
  "cfg-if",
  "cfg_aliases",
  "libc",
+]
+
+[[package]]
+name = "nix"
+version = "0.30.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "74523f3a35e05aba87a1d978330aef40f67b0304ac79c1c00b294c9830543db6"
+dependencies = [
+ "bitflags 2.9.0",
+ "cfg-if",
+ "cfg_aliases",
+ "libc",
+ "memoffset",
 ]
 
 [[package]]

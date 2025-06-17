@@ -13,4 +13,5 @@ tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
 libc = "0.2.172"
 bytemuck = "1.23.0"
+nix  ={version="0.30.1",features=["net"]}
 
