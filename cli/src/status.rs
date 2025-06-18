@@ -18,25 +18,70 @@ impl From<String> for OutputFormat {
     }
 }
 
-pub fn status_command(output_format: Option<String>) {
+pub fn status_command(output_format: Option<String>, namespace: Option<String>) {
     let format = output_format.map(OutputFormat::from).unwrap_or(OutputFormat::Text);
+    let ns = namespace.unwrap_or_else(|| "cortexflow".to_string());
     
-    println!("Checking CortexFlow status...");
+    println!("Checking CortexFlow status for namespace: {}", ns);
     
     // namespace checking
-    let namespace_status = check_namespace_exists("cortexflow");
+    let namespace_status = check_namespace_exists(&ns);
     
-    // get pods
-    let pods_status = get_pods_status("cortexflow");
+    // If namespace doesn't exist, display error with available namespaces and exit
+    if !namespace_status {
+        let available_namespaces = get_available_namespaces();
+        
+        match format {
+            OutputFormat::Text => {
+                println!("\n❌ Namespace Status Check Failed");
+                println!("{}", "=".repeat(50));
+                println!("  ❌ {} namespace: NOT FOUND", ns);
+                
+                if !available_namespaces.is_empty() {
+                    println!("\n📋 Available namespaces:");
+                    for available_ns in &available_namespaces {
+                        println!("  • {}", available_ns);
+                    }
+                }
+            }
+            OutputFormat::Json => {
+                println!("{{");
+                println!("  \"error\": \"{} namespace not found\",", ns);
+                println!("  \"namespace\": {{");
+                println!("    \"name\": \"{}\",", ns);
+                println!("    \"exists\": false");
+                println!("  }},");
+                println!("  \"available_namespaces\": [");
+                for (i, ns) in available_namespaces.iter().enumerate() {
+                    let comma = if i == available_namespaces.len() - 1 { "" } else { "," };
+                    println!("    \"{}\"{}", ns, comma);
+                }
+                println!("  ]");
+                println!("}}");
+            }
+            OutputFormat::Yaml => {
+                println!("error: {} namespace not found", ns);
+                println!("namespace:");
+                println!("  name: {}", ns);
+                println!("  exists: false");
+                println!("available_namespaces:");
+                for ns in &available_namespaces {
+                    println!("  - {}", ns);
+                }
+            }
+        }
+        std::process::exit(1);
+    }
     
-    // get services
-    let services_status = get_services_status("cortexflow");
+    // get pods and services only if namespace exists
+    let pods_status = get_pods_status(&ns);
+    let services_status = get_services_status(&ns);
     
     // display options (format)
     match format {
-        OutputFormat::Text => display_text_format(namespace_status, pods_status, services_status),
-        OutputFormat::Json => display_json_format(namespace_status, pods_status, services_status),
-        OutputFormat::Yaml => display_yaml_format(namespace_status, pods_status, services_status),
+        OutputFormat::Text => display_text_format(&ns, namespace_status, pods_status, services_status),
+        OutputFormat::Json => display_json_format(&ns, namespace_status, pods_status, services_status),
+        OutputFormat::Yaml => display_yaml_format(&ns, namespace_status, pods_status, services_status),
     }
 }
 
@@ -48,6 +93,23 @@ fn check_namespace_exists(namespace: &str) -> bool {
     match output {
         Ok(output) => output.status.success(),
         Err(_) => false,
+    }
+}
+
+fn get_available_namespaces() -> Vec<String> {
+    let output = Command::new("kubectl")
+        .args(["get", "namespaces", "--no-headers", "-o", "custom-columns=NAME:.metadata.name"])
+        .output();
+    
+    match output {
+        Ok(output) if output.status.success() => {
+            let stdout = str::from_utf8(&output.stdout).unwrap_or("");
+            stdout.lines()
+                .map(|line| line.trim().to_string())
+                .filter(|line| !line.is_empty())
+                .collect()
+        }
+        _ => Vec::new(),
     }
 }
 
@@ -105,20 +167,20 @@ fn get_services_status(namespace: &str) -> Vec<(String, String, String)> {
     }
 }
 
-fn display_text_format(namespace_exists: bool, pods: Vec<(String, String, String)>, services: Vec<(String, String, String)>) {
+fn display_text_format(ns: &str, namespace_exists: bool, pods: Vec<(String, String, String)>, services: Vec<(String, String, String)>) {
     println!("\n🔍 CortexFlow Status Report");
     println!("{}", "=".repeat(50));
     
     println!("\n📦 Namespace Status:");
     if namespace_exists {
-        println!("  ✅ cortexflow namespace: EXISTS");
+        println!("  ✅ {} namespace: EXISTS", ns);
     } else {
-        println!("  ❌ cortexflow namespace: NOT FOUND");
+        println!("  ❌ {} namespace: NOT FOUND", ns);
     }
     
     println!("\n🚀 Pods Status:");
     if pods.is_empty() {
-        println!("  ⚠️  No pods found in cortexflow namespace");
+        println!("  ⚠️  No pods found in {} namespace", ns);
     } else {
         for (name, ready, status) in pods {
             let icon = if status == "Running" { "✅" } else { "⚠️" };
@@ -128,7 +190,7 @@ fn display_text_format(namespace_exists: bool, pods: Vec<(String, String, String
     
     println!("\n🌐 Services Status:");
     if services.is_empty() {
-        println!("  ⚠️  No services found in cortexflow namespace");
+        println!("  ⚠️  No services found in {} namespace", ns);
     } else {
         for (name, service_type, cluster_ip) in services {
             println!("  🔗 {}: {} ({})", name, service_type, cluster_ip);
@@ -138,10 +200,10 @@ fn display_text_format(namespace_exists: bool, pods: Vec<(String, String, String
     println!("\n{}", "=".repeat(50));
 }
 
-fn display_json_format(namespace_exists: bool, pods: Vec<(String, String, String)>, services: Vec<(String, String, String)>) {
+fn display_json_format(ns: &str, namespace_exists: bool, pods: Vec<(String, String, String)>, services: Vec<(String, String, String)>) {
     println!("{{");
     println!("  \"namespace\": {{");
-    println!("    \"name\": \"cortexflow\",");
+    println!("    \"name\": \"{}\",", ns);
     println!("    \"exists\": {}", namespace_exists);
     println!("  }},");
     
@@ -169,9 +231,9 @@ fn display_json_format(namespace_exists: bool, pods: Vec<(String, String, String
     println!("}}");
 }
 
-fn display_yaml_format(namespace_exists: bool, pods: Vec<(String, String, String)>, services: Vec<(String, String, String)>) {
+fn display_yaml_format(ns: &str, namespace_exists: bool, pods: Vec<(String, String, String)>, services: Vec<(String, String, String)>) {
     println!("namespace:");
-    println!("  name: cortexflow");
+    println!("  name: {}", ns);
     println!("  exists: {}", namespace_exists);
     
     println!("pods:");

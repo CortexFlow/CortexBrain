@@ -79,8 +79,10 @@ enum ServiceCommands {
 
 #[derive(Args, Debug, Clone)]
 struct StatusArgs {
-    #[arg(long, value_enum)]
+    #[arg(long)]
     output: Option<String>,
+    #[arg(long)]
+    namespace: Option<String>,
 }
 
 fn args_parser() -> Result<(), Error> {
@@ -126,7 +128,7 @@ fn args_parser() -> Result<(), Error> {
             }
         }
         Some(Commands::Status(status_args)) => {
-            status_command(status_args.output);
+            status_command(status_args.output, status_args.namespace);
             Ok(())
         }
         None => {
