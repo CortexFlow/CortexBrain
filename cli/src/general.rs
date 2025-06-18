@@ -7,7 +7,7 @@ pub struct GeneralData {
 }
 
 impl GeneralData {
-    pub const VERSION: &str = "0.1";
+    pub const VERSION: &str = env!("CARGO_PKG_VERSION");
     pub const AUTHOR: &str = "CortexFlow";
     pub const DESCRIPTION: &str = "";
 
