@@ -19,19 +19,14 @@ use aya::{
 };
 
 use bytes::BytesMut;
-use std::{
-    convert::TryInto,
-    sync::{ atomic::{ AtomicBool, Ordering }, Arc },
-    path::Path,
-};
-use crate::helpers::display_events;
+use std::{ convert::TryInto, sync::{ atomic::{ AtomicBool, Ordering }, Arc }, path::Path };
+use crate::helpers::{ display_events, get_veth_channels };
 use crate::enums::IpProtocols;
 
 use tokio::{ signal, fs };
 use anyhow::Context;
 use tracing_subscriber::{ fmt::format::FmtSpan, EnvFilter };
 use tracing::{ info, error, warn };
-
 
 /*
  * TryFrom Trait implementation for IpProtocols enum
@@ -55,7 +50,7 @@ impl TryFrom<u8> for IpProtocols {
  * decleare bpf path env variable
  */
 const BPF_PATH: &str = "BPF_PATH";
-const IFACE: &str = "IFACE";
+//const IFACE: &str = "IFACE";
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
@@ -66,7 +61,6 @@ async fn main() -> Result<(), anyhow::Error> {
         .with_target(false)
         .with_level(true)
         .with_span_events(FmtSpan::NONE)
-        .without_time()
         .with_file(false)
         .pretty()
         .with_env_filter(EnvFilter::new("info"))
@@ -83,17 +77,9 @@ async fn main() -> Result<(), anyhow::Error> {
     //init bpf data
     let mut bpf = Bpf::load(&data)?;
 
-    info!("Loading programs");
-
-    let program: &mut SchedClassifier = bpf
-        .program_mut("identity_classifier")
-        .ok_or_else(|| anyhow::anyhow!("program 'identity_classifier' not found"))?
-        .try_into()?;
-    program.load()?;
-    let iface = std::env::var(IFACE).context("Interface var 'IFACE' not found")?;
-    program.attach(&iface, TcAttachType::Ingress)?;
-
-    //init events map
+    let interfaces = get_veth_channels();
+    info!("Found interfaces: {:?}", interfaces);
+    attach_bpf_program(&data, interfaces).await?;
     let events_map = bpf
         .take_map("EventsMap")
         .ok_or_else(|| anyhow::anyhow!("EventsMap map not found"))?;
@@ -109,13 +95,6 @@ async fn main() -> Result<(), anyhow::Error> {
         .take_map("ConnectionTrackerMap")
         .context("failed to take ConnectionTrackerMap map")?;
 
-    //pinning connections map
-    //  if Path::new("/sys/fs/bpf/connections").exists() {
-    //  warn!("map already pinned, skipping process");
-    //} else {
-    //  connections_map_raw.pin("/sys/fs/bpf/connections").context("failed to pin map")?;
-    //}
-
     // init PerfEventArrays
     let mut perf_array: PerfEventArray<MapData> = PerfEventArray::try_from(events_map)?;
     /*     let mut connections_perf_array = PerCpuHashMap::<&mut MapData,u8,ConnArray>::try_from(connections_map_raw)?; //change with lru hash map*/
@@ -126,9 +105,6 @@ async fn main() -> Result<(), anyhow::Error> {
     for cpu_id in online_cpus().map_err(|e| anyhow::anyhow!("Error {:?}", e))? {
         let buf: PerfEventArrayBuffer<MapData> = perf_array.open(cpu_id, None)?;
         perf_buffers.push(buf);
-
-        //   conn_buf = connections_perf_array.open(cpu_id, None)?;
-        //connections_perf_buffers.push(conn_buf);
     }
     info!("Listening for events...");
     let running = Arc::new(AtomicBool::new(true));
@@ -144,7 +120,25 @@ async fn main() -> Result<(), anyhow::Error> {
     //   let mut connections_buffers = vec![BytesMut::with_capacity(1024); 10];
 
     display_events(perf_buffers, running, buffers).await;
-
     info!("Exiting...");
+
+    Ok(())
+}
+
+//attach a program to a vector of interfaces
+pub async fn attach_bpf_program(data: &[u8], ifaces: Vec<String>) -> Result<(), anyhow::Error> {
+    info!("Loading programs");
+
+    for interface in ifaces.iter() {
+        let mut bpf = Bpf::load(&data)?;
+        let program: &mut SchedClassifier = bpf
+            .program_mut("identity_classifier")
+            .ok_or_else(|| anyhow::anyhow!("program 'identity_classifier' not found"))?
+            .try_into()?;
+        program.load()?;
+
+        program.attach(&interface, TcAttachType::Ingress)?;
+    }
+
     Ok(())
 }

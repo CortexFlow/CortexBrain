@@ -1,0 +1,19 @@
+name: auto-reviewer-assign
+
+on:
+  pull_request:
+    types: [opened, review_requested, ready_for_review, reopened]
+
+jobs:
+  auto-reviewer-assign:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+      - name: Assign reviewers
+        uses: johnmanjiro13/auto-reviewer-assign@v0.2.0
+        with:
+          token: ${{secrets.GITHUB_TOKEN}}

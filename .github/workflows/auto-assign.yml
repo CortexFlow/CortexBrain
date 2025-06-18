@@ -4,16 +4,43 @@ on:
     types: [opened]
   pull_request:
     types: [opened]
+
 jobs:
-  run:
+  pr-assigner:
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     permissions:
-      issues: write
       pull-requests: write
+
     steps:
-    - name: 'Auto-assign issue'
-      uses: pozil/auto-assign-issue@v1
-      with:
+      - name: "Pull Request issue assigner"
+        uses: pozil/auto-assign-issue@v1
+        with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           assignees: LorenzoTettamanti
           numOfAssignee: 1
+
+  generic-issue-assigner:
+    if: github.event_name == 'issues'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: "Issue assigner"
+        uses: pozil/auto-assign-issue@v1
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          assignees: LorenzoTettamanti
+
+  cli-issue-assigner:
+    if: github.event_name == 'issues' && github.event.action == 'labeled' && github.event.issue.labels.name == 'cortexflow cli'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: "Cli issue assigner"
+        uses: pozil/auto-assign-issue@v1
+
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          assignees: LorenzoTettamanti,PranavVerma-droid
