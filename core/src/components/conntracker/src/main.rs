@@ -200,8 +200,11 @@ fn try_identity_classifier(ctx: TcContext) -> Result<(), i64> {
 
     //not logging internal communication packets
     //TODO: do not log internal communications such as minikube dashboard packets or kubectl api packets
-    let ip_to_block = u32::from_be_bytes([192, 168, 49, 1]); //inverted requence
-    let dst_ip_to_block = u32::from_be_bytes([192, 168, 49, 2]);
+    //FIXME: this part is not working properly because the ip associated in the k8s environment constantly changes every restart 
+    let ip_to_block = u32::from_be_bytes([90, 120, 244, 10]); // kubernetes-dashboard internal ip
+    let ip_to_block_2 = u32::from_be_bytes([87, 120, 244, 10]); // cert manager internal ip 
+    let ip_to_block_3 = u32::from_be_bytes([89, 120, 244, 10]); // kube-system internal ip
+    let ip_to_block_4 = u32::from_be_bytes([88, 120, 244, 10]); // other kuber-system internal ip
 
     let key = ConnArray {
         src_ip,
@@ -220,36 +223,41 @@ fn try_identity_classifier(ctx: TcContext) -> Result<(), i64> {
 
     //let connection_id = (src_ip ^ dst_ip ^(proto as u32)) as u16; //added host_id to track the host to count every all the different connections
 
-    //if
-    //  (unsafe { is_kube_internal(src_ip) }) ||
-    //(unsafe { is_kube_internal(dst_ip) }) ||
-    // src_ip == ip_to_block ||
-    // src_ip == dst_ip_to_block
-    //{
-    //   return Ok(());
-    //} else {
-    //log all other packets
-    let log = PacketLog {
-        proto,
-        src_ip,
-        src_port,
-        dst_ip,
-        dst_port,
-        event_id,
-    };
-    //let connections = ConnArray{
-    //  event_id,
-    //connection_id
-    //};
-    unsafe {
-        EVENTS.output(&ctx, &log, 0); //output to userspace
-        //TODO: add more parameters to better identify the active connection (maybe timestamp?)
-        ACTIVE_CONNECTIONS.insert(&event_id, &key, 0);
+    if
+        src_ip == ip_to_block ||
+        src_ip == ip_to_block_2 ||
+        src_ip == ip_to_block_3 ||
+        src_ip == ip_to_block_4
+    {
+        return Ok(());
+    } else {
+        //log all other packets
+        let log = PacketLog {
+            proto,
+            src_ip,
+            src_port,
+            dst_ip,
+            dst_port,
+            event_id,
+        };
+        //let connections = ConnArray{
+        //  event_id,
+        //connection_id
+        //};
+        unsafe {
+            EVENTS.output(&ctx, &log, 0); //output to userspace
+            //TODO: add more parameters to better identify the active connection (maybe timestamp?)
+            ACTIVE_CONNECTIONS.insert(&event_id, &key, 0);
+        }
     }
-    //}
 
     Ok(())
 }
+
+//ref:https://elixir.bootlin.com/linux/v6.15.1/source/include/uapi/linux/ethtool.h#L536
+//https://elixir.bootlin.com/linux/v6.15.1/source/drivers/net/veth.c#L268
+//https://eunomia.dev/tutorials/3-fentry-unlink/
+
 #[panic_handler]
 fn panic(_info: &core::panic::PanicInfo) -> ! {
     loop {
