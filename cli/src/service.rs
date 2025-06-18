@@ -1,10 +1,57 @@
 use std::process::Command;
 use std::str;
 
+fn check_namespace_exists(namespace: &str) -> bool {
+    let output = Command::new("kubectl")
+        .args(["get", "namespace", namespace])
+        .output();
+    
+    match output {
+        Ok(output) => output.status.success(),
+        Err(_) => false,
+    }
+}
+
+fn get_available_namespaces() -> Vec<String> {
+    let output = Command::new("kubectl")
+        .args(["get", "namespaces", "--no-headers", "-o", "custom-columns=NAME:.metadata.name"])
+        .output();
+    
+    match output {
+        Ok(output) if output.status.success() => {
+            let stdout = str::from_utf8(&output.stdout).unwrap_or("");
+            stdout.lines()
+                .map(|line| line.trim().to_string())
+                .filter(|line| !line.is_empty())
+                .collect()
+        }
+        _ => Vec::new(),
+    }
+}
+
 pub fn list_services(namespace: Option<String>) {
     let ns = namespace.unwrap_or_else(|| "cortexflow".to_string());
     
     println!("Listing services in namespace: {}", ns);
+    
+    // Check if namespace exists first
+    if !check_namespace_exists(&ns) {
+        let available_namespaces = get_available_namespaces();
+        
+        println!("\n❌ Namespace '{}' not found", ns);
+        println!("{}", "=".repeat(50));
+        
+        if !available_namespaces.is_empty() {
+            println!("\n📋 Available namespaces:");
+            for available_ns in &available_namespaces {
+                println!("  • {}", available_ns);
+            }
+        } else {
+            println!("No namespaces found in the cluster.");
+        }
+        
+        std::process::exit(1);
+    }
     
     // kubectl command to get services
     let output = Command::new("kubectl")
@@ -63,6 +110,26 @@ pub fn describe_service(service_name: String, namespace: Option<String>) {
     
     println!("Describing service '{}' in namespace: {}", service_name, ns);
     println!("{}", "=".repeat(60));
+    
+    // Check if namespace exists first
+    if !check_namespace_exists(&ns) {
+        let available_namespaces = get_available_namespaces();
+        
+        println!("\n❌ Namespace '{}' not found", ns);
+        println!("{}", "=".repeat(50));
+        
+        if !available_namespaces.is_empty() {
+            println!("\n📋 Available namespaces:");
+            for available_ns in &available_namespaces {
+                println!("  • {}", available_ns);
+            }
+            println!("\nTry: cortex service describe {} --namespace <namespace-name>", service_name);
+        } else {
+            println!("No namespaces found in the cluster.");
+        }
+        
+        std::process::exit(1);
+    }
     
     // Execute kubectl describe pod command
     let output = Command::new("kubectl")
