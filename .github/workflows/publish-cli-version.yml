@@ -1,0 +1,24 @@
+name: publish-cli-version
+
+on:
+  push:
+    branches: [ main ]
+    tags:
+    - v[0-9]+.[0-9]+.[0-9]+
+
+jobs:
+  Publish:
+    runs-on: ubuntu-latest
+
+    container:
+      image: rust:latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    - name: test version (dry-run) and metadata checks
+      run: cargo publish --dry-run
+    - name: Publish on crates.io
+      run: cargo publish
+      env:
+        CARGO_REGISTRY_TOKEN: ${{secrets.CF_TOKEN_CARGO_API}}
