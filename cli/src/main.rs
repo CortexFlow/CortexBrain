@@ -3,6 +3,7 @@ mod install;
 mod general;
 mod uninstall;
 mod service;
+mod status;
 
 use clap::{ Error, Parser, Subcommand, Args };
 use clap::command;
@@ -11,7 +12,8 @@ use tracing::debug;
 use crate::essential::{ info, update_cli };
 use crate::install::install_cortexflow;
 use crate::uninstall::uninstall;
-use crate::service::list_services;
+use crate::service::{list_services, describe_service};
+use crate::status::status_command;
 
 use crate::general::GeneralData;
 
@@ -46,6 +48,8 @@ enum Commands {
     Info,
     #[command(name="service")]
     Service(ServiceArgs),
+    #[command(name="status")]
+    Status(StatusArgs),
 }
 #[derive(Args, Debug, Clone)]
 struct SetArgs {
@@ -65,6 +69,20 @@ enum ServiceCommands {
         #[arg(long)]
         namespace: Option<String>,
     },
+    #[command(name="describe")]
+    Describe {
+        service_name: String,
+        #[arg(long)]
+        namespace: Option<String>,
+    },
+}
+
+#[derive(Args, Debug, Clone)]
+struct StatusArgs {
+    #[arg(long)]
+    output: Option<String>,
+    #[arg(long)]
+    namespace: Option<String>,
 }
 
 fn args_parser() -> Result<(), Error> {
@@ -103,7 +121,15 @@ fn args_parser() -> Result<(), Error> {
                     list_services(namespace);
                     Ok(())
                 }
+                ServiceCommands::Describe { service_name, namespace } => {
+                    describe_service(service_name, namespace);
+                    Ok(())
+                }
             }
+        }
+        Some(Commands::Status(status_args)) => {
+            status_command(status_args.output, status_args.namespace);
+            Ok(())
         }
         None => {
             eprintln!("CLI unknown argument. Cli arguments passed: {:?}", args.cmd);
