@@ -4,3 +4,4 @@ pub mod general;
 pub mod uninstall;
 pub mod service;
 pub mod status;
+pub mod logs;

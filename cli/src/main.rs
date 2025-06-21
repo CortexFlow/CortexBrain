@@ -4,6 +4,7 @@ mod general;
 mod uninstall;
 mod service;
 mod status;
+mod logs;
 
 use clap::{ Error, Parser, Subcommand, Args };
 use clap::command;
@@ -14,6 +15,7 @@ use crate::install::install_cortexflow;
 use crate::uninstall::uninstall;
 use crate::service::{list_services, describe_service};
 use crate::status::status_command;
+use crate::logs::logs_command;
 
 use crate::general::GeneralData;
 
@@ -50,6 +52,8 @@ enum Commands {
     Service(ServiceArgs),
     #[command(name="status")]
     Status(StatusArgs),
+    #[command(name="logs")]
+    Logs(LogsArgs),
 }
 #[derive(Args, Debug, Clone)]
 struct SetArgs {
@@ -81,6 +85,16 @@ enum ServiceCommands {
 struct StatusArgs {
     #[arg(long)]
     output: Option<String>,
+    #[arg(long)]
+    namespace: Option<String>,
+}
+
+#[derive(Args, Debug, Clone)]
+struct LogsArgs {
+    #[arg(long)]
+    service: Option<String>,
+    #[arg(long)]
+    component: Option<String>,
     #[arg(long)]
     namespace: Option<String>,
 }
@@ -129,6 +143,10 @@ fn args_parser() -> Result<(), Error> {
         }
         Some(Commands::Status(status_args)) => {
             status_command(status_args.output, status_args.namespace);
+            Ok(())
+        }
+        Some(Commands::Logs(logs_args)) => {
+            logs_command(logs_args.service, logs_args.component, logs_args.namespace);
             Ok(())
         }
         None => {
