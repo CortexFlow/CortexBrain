@@ -16,15 +16,16 @@
 #![allow(warnings)]
 
 //mod skbuff;
+//mod veth_trace;
+mod bindings;
 
 use bytemuck::{ Pod, Zeroable };
 use aya_ebpf::{
     bindings::{ TC_ACT_OK, TC_ACT_SHOT },
-    macros::{ classifier, map, kprobe, tracepoint },
-    maps::PerfEventArray,
-    maps::LruPerCpuHashMap,
-    programs::{ TcContext, TracePointContext },
-    helpers::{ bpf_probe_read_kernel, bpf_ktime_get_ns },
+    helpers::{ bpf_ktime_get_ns, bpf_probe_read_kernel, bpf_probe_read_kernel_str_bytes },
+    macros::{ classifier, kprobe, map, tracepoint },
+    maps::{ LruPerCpuHashMap, PerfEventArray },
+    programs::{ ProbeContext, TcContext, TracePointContext },
 };
 use aya_ebpf::EbpfContext;
 //use crate::skbuff::{ sock, sock_common };
@@ -40,6 +41,8 @@ use network_types::{
     udp::UdpHdr,
 };
 use core::ptr::addr_of;
+
+use crate::bindings::net_device;
 /* 
     * ETHERNET TYPE II FRAME:
     * Reference: https://it.wikipedia.org/wiki/Frame_Ethernet
@@ -121,6 +124,18 @@ pub static mut CONNTRACKER: LruPerCpuHashMap<ConnArray, u8> = LruPerCpuHashMap::
     0
 );
 
+#[repr(C)]
+#[derive(Clone, Copy, Zeroable, Debug)]
+struct VethLog {
+    name: [u8; 16],
+    state: u64, //state var type: long unsigned int
+    dev_addr: [u32; 8],
+    event_type: u8, //i choose 1 for veth creation or 2 for veth destruction
+}
+
+#[map(name = "veth_identity_map")]
+pub static mut VETH_CREATION_EVENTS: PerfEventArray<VethLog> = PerfEventArray::new(0);
+
 const IPV4_ETHERTYPE: u16 = 0x0800;
 
 //IPV4 STACK
@@ -148,18 +163,176 @@ const AF_INET6: u16 = 10; //ipv6
 const IPPROTO_UDP: u8 = 17;
 const IPPROTO_TCP: u8 = 6;
 
-//TODO: add kprobe tracing for process ID
-//kprobe docs: https://docs.kernel.org/trace/kprobes.html
-
 /* constants */
+//FIXME: this will be deprecated after solving issue #105
 const HOST_NETNS_INUM: u32 = 4026531993;
 const KUBE_POD_CIDR: u32 = 0x0af40000; // 10.244.0.0/16
-
 /* Helper Functions */
 #[inline]
 unsafe fn is_kube_internal(ip: u32) -> bool {
     (ip & 0xffff0000) == KUBE_POD_CIDR
 }
+
+#[kprobe]
+pub fn veth_creation_trace(ctx: ProbeContext) -> u32 {
+    match try_veth_creation_trace(ctx) {
+        Ok(ret_val) => ret_val,
+        Err(ret_val) => ret_val.try_into().unwrap_or(1),
+    }
+}
+#[kprobe]
+pub fn veth_deletion_trace(ctx: ProbeContext) -> u32 {
+    match try_veth_deletion_trace(ctx) {
+        Ok(ret_val) => ret_val,
+        Err(ret_val) => ret_val.try_into().unwrap_or(1),
+    }
+}
+
+
+pub fn try_veth_creation_trace(ctx: ProbeContext) -> Result<u32, i64> {
+    let net_device_pointer: *const net_device = ctx.arg(0).ok_or(1i64)?;
+
+    // first control: i'm, verifying that the pointer is not null
+    if net_device_pointer.is_null() {
+        return Err(1);
+    }
+
+    let name_field_offset = 304; // reading the name field offset
+    //pahole commands:
+    //syntax pahole -C <struct name>
+    // pahole -C net_device | grep name
+
+    let dev_addr_offset = 1080;
+    let state_offset = 168;
+
+    let name_pointer = unsafe { (net_device_pointer as *const u8).add(name_field_offset) };
+    let dev_addr_pointer = unsafe { (net_device_pointer as *const u8).add(dev_addr_offset) };
+    let state_pointer = unsafe { (net_device_pointer as *const u8).add(state_offset) };
+
+    let mut name_buf = [0u8; 16];
+    let mut dev_addr_buf = [0u32; 8];
+
+    let name_array_ptr = name_pointer as *const [u8; 16];
+    let dev_addr_ptr_array = dev_addr_pointer as *const [u32; 8];
+
+    let name_array = unsafe {
+        match bpf_probe_read_kernel(name_array_ptr) {
+            Ok(arr) => arr,
+            Err(ret) => {
+                return Err(ret);
+            }
+        }
+    };
+
+    let state=unsafe {
+        match bpf_probe_read_kernel(state_pointer) {
+            Ok(s)=>s,
+            Err(ret)=>{
+                return Err(ret);
+            }
+        }
+    };
+
+    let dev_addr_array = unsafe {
+        match bpf_probe_read_kernel(dev_addr_ptr_array) {
+            Ok(arr) => arr,
+            Err(ret) => {
+                return Err(ret);
+            }
+        }
+    };
+
+    name_buf.copy_from_slice(&name_array);
+    dev_addr_buf.copy_from_slice(&dev_addr_array);
+
+    let veth_data = VethLog {
+        name: name_buf,
+        state: state.into(),
+        dev_addr: dev_addr_buf,
+        event_type: 1
+    };
+
+    //send the data to the userspace
+    unsafe {
+        VETH_CREATION_EVENTS.output(&ctx, &veth_data, 0);
+    }
+
+    Ok(0)
+}
+
+pub fn try_veth_deletion_trace(ctx: ProbeContext) -> Result<u32, i64> {
+    let net_device_pointer: *const net_device = ctx.arg(0).ok_or(1i64)?;
+
+    // first control: i'm, verifying that the pointer is not null
+    if net_device_pointer.is_null() {
+        return Err(1);
+    }
+
+    let name_field_offset = 304; // reading the name field offset
+    //pahole commands:
+    //syntax pahole -C <struct name>
+    // pahole -C net_device | grep name
+
+    let dev_addr_offset = 1080;
+    let state_offset = 168;
+
+    let name_pointer = unsafe { (net_device_pointer as *const u8).add(name_field_offset) };
+    let dev_addr_pointer = unsafe { (net_device_pointer as *const u8).add(dev_addr_offset) };
+    let state_pointer = unsafe { (net_device_pointer as *const u8).add(state_offset) };
+
+    let mut name_buf = [0u8; 16];
+    let mut dev_addr_buf = [0u32; 8];
+
+    let name_array_ptr = name_pointer as *const [u8; 16];
+    let dev_addr_ptr_array = dev_addr_pointer as *const [u32; 8];
+
+    let name_array = unsafe {
+        match bpf_probe_read_kernel(name_array_ptr) {
+            Ok(arr) => arr,
+            Err(ret) => {
+                return Err(ret);
+            }
+        }
+    };
+
+    let state=unsafe {
+        match bpf_probe_read_kernel(state_pointer) {
+            Ok(s)=>s,
+            Err(ret)=>{
+                return Err(ret);
+            }
+        }
+    };
+
+    let dev_addr_array = unsafe {
+        match bpf_probe_read_kernel(dev_addr_ptr_array) {
+            Ok(arr) => arr,
+            Err(ret) => {
+                return Err(ret);
+            }
+        }
+    };
+
+    name_buf.copy_from_slice(&name_array);
+    dev_addr_buf.copy_from_slice(&dev_addr_array);
+
+    let veth_data = VethLog {
+        name: name_buf,
+        state: state.into(),
+        dev_addr: dev_addr_buf,
+        event_type: 2
+    };
+
+    //send the data to the userspace
+    unsafe {
+        VETH_CREATION_EVENTS.output(&ctx, &veth_data, 0);
+    }
+
+    Ok(0)
+}
+
+
+
 
 #[classifier]
 pub fn identity_classifier(ctx: TcContext) -> i32 {
@@ -200,9 +373,9 @@ fn try_identity_classifier(ctx: TcContext) -> Result<(), i64> {
 
     //not logging internal communication packets
     //TODO: do not log internal communications such as minikube dashboard packets or kubectl api packets
-    //FIXME: this part is not working properly because the ip associated in the k8s environment constantly changes every restart 
+    //FIXME: this part is not working properly because the ip associated in the k8s environment constantly changes every restart
     let ip_to_block = u32::from_be_bytes([90, 120, 244, 10]); // kubernetes-dashboard internal ip
-    let ip_to_block_2 = u32::from_be_bytes([87, 120, 244, 10]); // cert manager internal ip 
+    let ip_to_block_2 = u32::from_be_bytes([87, 120, 244, 10]); // cert manager internal ip
     let ip_to_block_3 = u32::from_be_bytes([89, 120, 244, 10]); // kube-system internal ip
     let ip_to_block_4 = u32::from_be_bytes([88, 120, 244, 10]); // other kuber-system internal ip
 

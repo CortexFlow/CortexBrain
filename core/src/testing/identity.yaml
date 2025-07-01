@@ -19,7 +19,8 @@ spec:
       hostNetwork: true
       containers:
       - name: identity
-        image: lorenzotettamanti/cortexflow-identity:latest
+        image: lorenzotettamanti/cortexflow-identity:latest-sid
+        imagePullPolicy: Never
         command: ["/bin/bash", "-c"]
         env:
         - name: IFACE

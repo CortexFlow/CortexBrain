@@ -4,16 +4,17 @@ use aya::{
     util::online_cpus,
     Bpf,
 };
-use crate::structs::PacketLog;
+use crate::structs::{ PacketLog, VethLog };
 use bytes::BytesMut;
 use std::{
+    ascii,
     borrow::BorrowMut,
     net::Ipv4Addr,
     string,
     sync::{ atomic::{ AtomicBool, Ordering }, Arc },
 };
 use crate::enums::IpProtocols;
-use tracing::{ info, error, warn };
+use tracing::{ error, event, info, warn };
 use nix::net::if_::if_nameindex;
 
 use tokio::{ fs, signal };
@@ -24,6 +25,25 @@ use anyhow::Context;
  */
 const BPF_PATH: &str = "BPF_PATH";
 const IFACE: &str = "IFACE";
+
+
+/*
+ * TryFrom Trait implementation for IpProtocols enum
+ * This is used to reconstruct the packet protocol based on the
+ * IPV4 Header Protocol code
+ */
+
+impl TryFrom<u8> for IpProtocols {
+    type Error = ();
+    fn try_from(proto: u8) -> Result<Self, Self::Error> {
+        match proto {
+            1 => Ok(IpProtocols::ICMP),
+            6 => Ok(IpProtocols::TCP),
+            17 => Ok(IpProtocols::UDP),
+            _ => Err(()),
+        }
+    }
+}
 
 pub async fn display_events<T: BorrowMut<MapData>>(
     mut perf_buffers: Vec<PerfEventArrayBuffer<T>>,
@@ -59,7 +79,11 @@ pub async fn display_events<T: BorrowMut<MapData>>(
                                     );
                                 }
                                 Err(_) =>
-                                    info!("Event Id: {} Protocol: Unknown ({})", event_id, pl.proto),
+                                    info!(
+                                        "Event Id: {} Protocol: Unknown ({})",
+                                        event_id,
+                                        pl.proto
+                                    ),
                             };
                         } else {
                             warn!("Received packet data too small: {} bytes", data.len());
@@ -68,6 +92,65 @@ pub async fn display_events<T: BorrowMut<MapData>>(
                 }
                 Err(e) => {
                     error!("Error reading events: {:?}", e);
+                }
+            }
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    }
+}
+
+pub async fn display_veth_events<T: BorrowMut<MapData>>(
+    mut perf_buffers: Vec<PerfEventArrayBuffer<T>>,
+    running: Arc<AtomicBool>,
+    mut buffers: Vec<BytesMut>
+) {
+    while running.load(Ordering::SeqCst) {
+        for buf in perf_buffers.iter_mut() {
+            match buf.read_events(&mut buffers) {
+                Ok(events) => {
+                    for i in 0..events.read {
+                        let data = &buffers[i];
+                        if data.len() >= std::mem::size_of::<VethLog>() {
+                            let vethlog: VethLog = unsafe {
+                                std::ptr::read(data.as_ptr() as *const _)
+                            };
+
+                            let name_bytes = vethlog.name;
+
+                            let dev_addr_bytes = vethlog.dev_addr.to_vec();
+                            let name = std::str::from_utf8(&name_bytes);
+                            let state = vethlog.state;
+
+                            let dev_addr = dev_addr_bytes;
+                            let mut event_type = String::new();
+                            match vethlog.event_type {
+                                1 => {
+                                    event_type = "creation".to_string();
+                                }
+                                2 => {
+                                    event_type = "deletion".to_string();
+                                }
+                                _ => warn!("unknown event_type"),
+                            }
+                            match name {
+                                Ok(veth_name) => {
+                                    info!(
+                                        "Triggered action: register_netdevice event_type:{:?} Manipulated veth: {:?} state:{:?} dev_addr:{:?}",
+                                        event_type,
+                                        veth_name.trim_end_matches("\0").to_string(),
+                                        state,
+                                        dev_addr
+                                    );
+                                }
+                                Err(_) => info!("Unknown name or corrupted field"),
+                            }
+                        } else {
+                            warn!("Corrupted data");
+                        }
+                    }
+                }
+                Err(e) => {
+                    error!("Error reading veth events: {:?}", e);
                 }
             }
         }
@@ -91,7 +174,7 @@ pub fn get_veth_channels() -> Vec<String> {
             {
                 interfaces.push(iface_name);
             } else {
-                info!("skipping interface");
+                info!("skipping interface {:?}", iface_name);
             }
         }
     }

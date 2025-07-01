@@ -26,3 +26,12 @@ pub struct ConnArray {
 }
 
 unsafe impl aya::Pod for ConnArray {}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct VethLog {
+    pub name: [u8; 16],
+    pub state: u64,
+    pub dev_addr: [u32;8],
+    pub event_type: u8,
+}
