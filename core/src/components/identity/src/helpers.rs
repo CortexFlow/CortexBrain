@@ -26,7 +26,6 @@ use anyhow::Context;
 const BPF_PATH: &str = "BPF_PATH";
 const IFACE: &str = "IFACE";
 
-
 /*
  * TryFrom Trait implementation for IpProtocols enum
  * This is used to reconstruct the packet protocol based on the
@@ -50,6 +49,7 @@ pub async fn display_events<T: BorrowMut<MapData>>(
     running: Arc<AtomicBool>,
     mut buffers: Vec<BytesMut>
 ) {
+    info!("Triggering network events:");
     while running.load(Ordering::SeqCst) {
         for buf in perf_buffers.iter_mut() {
             match buf.read_events(&mut buffers) {
@@ -104,6 +104,7 @@ pub async fn display_veth_events<T: BorrowMut<MapData>>(
     running: Arc<AtomicBool>,
     mut buffers: Vec<BytesMut>
 ) {
+    info!("Triggering veth events:");
     while running.load(Ordering::SeqCst) {
         for buf in perf_buffers.iter_mut() {
             match buf.read_events(&mut buffers) {

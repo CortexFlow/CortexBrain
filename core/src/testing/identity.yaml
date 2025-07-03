@@ -19,12 +19,8 @@ spec:
       hostNetwork: true
       containers:
       - name: identity
-        image: lorenzotettamanti/cortexflow-identity:latest-sid
-        imagePullPolicy: Never
+        image: lorenzotettamanti/cortexflow-identity:latest
         command: ["/bin/bash", "-c"]
-        env:
-        - name: IFACE
-          value: "cali8240b51b115"
         args:
           - |
             echo "Running on kernel $(uname -r)"

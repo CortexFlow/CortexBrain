@@ -24,7 +24,7 @@ use std::{ convert::TryInto, sync::{ atomic::{ AtomicBool, Ordering }, Arc }, pa
 use crate::helpers::{ display_events, display_veth_events, get_veth_channels };
 use crate::enums::IpProtocols;
 
-use tokio::{ signal, fs };
+use tokio::{ fs, signal, sync::broadcast::error };
 use anyhow::{ Context, Ok };
 use tracing_subscriber::{ fmt::format::FmtSpan, EnvFilter };
 use tracing::{ info, error, warn };
@@ -178,7 +178,6 @@ async fn event_listener(bpf_maps: (Map, Map)) -> Result<(), anyhow::Error> {
     }
     info!("Listening for events...");
 
-
     // FIXME: There seem to be a concurrency error that is causing the pod to pod logs to not work at all
     let veth_running = Arc::new(AtomicBool::new(true));
     let net_events_running = Arc::new(AtomicBool::new(true));
@@ -187,9 +186,38 @@ async fn event_listener(bpf_maps: (Map, Map)) -> Result<(), anyhow::Error> {
     let mut events_buffers = vec![BytesMut::with_capacity(1024); 10];
     //   let mut connections_buffers = vec![BytesMut::with_capacity(1024); 10];
 
+    let veth_running_signal = veth_running.clone();
+    let net_events_running_signal = net_events_running.clone();
+
     //display_events(perf_buffers, running, buffers).await;
-    display_veth_events(perf_veth_buffer, veth_running, veth_buffers).await;
-    display_events(perf_net_events_buffer, net_events_running, events_buffers).await;
-    info!("Exiting...");
+    let veth_events_displayer = tokio::spawn(async move {
+        display_veth_events(perf_veth_buffer, veth_running, veth_buffers).await;
+    });
+    let net_events_displayer = tokio::spawn(async move {
+        display_events(perf_net_events_buffer, net_events_running, events_buffers).await;
+    });
+
+    tokio::select! {
+        result = veth_events_displayer=>{
+            match result{
+                Err(e)=>error!("veth_event_displayer panicked {:?}",e),
+                std::result::Result::Ok(_) => todo!(),
+                }
+        }
+
+        result = net_events_displayer=>{
+            match result{
+                Err(e)=>error!("net_event_displayer panicked {:?}",e),
+                std::result::Result::Ok(_)  => todo!(),
+            }
+        }
+        _= signal::ctrl_c()=>{
+            info!("Triggered Exiting...");
+            veth_running_signal.store(false, Ordering::SeqCst);
+            net_events_running_signal.store(false, Ordering::SeqCst);
+        }
+
+    }
+
     Ok(())
 }
