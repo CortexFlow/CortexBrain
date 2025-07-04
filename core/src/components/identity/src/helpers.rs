@@ -1,25 +1,31 @@
+use crate::enums::IpProtocols;
+use crate::structs::{PacketLog, VethLog};
 use aya::{
-    maps::{ perf::{ PerfEventArray, PerfEventArrayBuffer }, MapData },
-    programs::{ SchedClassifier, TcAttachType },
-    util::online_cpus,
     Bpf,
+    maps::{
+        MapData,
+        perf::{PerfEventArray, PerfEventArrayBuffer},
+    },
+    programs::{SchedClassifier, TcAttachType},
+    util::online_cpus,
 };
-use crate::structs::{ PacketLog, VethLog };
 use bytes::BytesMut;
+use nix::net::if_::if_nameindex;
 use std::{
     ascii,
     borrow::BorrowMut,
     net::Ipv4Addr,
     string,
-    sync::{ atomic::{ AtomicBool, Ordering }, Arc },
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
 };
-use crate::enums::IpProtocols;
-use tracing::{ error, event, info, warn };
-use nix::net::if_::if_nameindex;
+use tracing::{error, event, info, warn};
 
-use tokio::{ fs, signal };
-use std::path::Path;
 use anyhow::Context;
+use std::path::Path;
+use tokio::{fs, signal};
 /*
  * decleare bpf path env variable
  */
@@ -47,9 +53,8 @@ impl TryFrom<u8> for IpProtocols {
 pub async fn display_events<T: BorrowMut<MapData>>(
     mut perf_buffers: Vec<PerfEventArrayBuffer<T>>,
     running: Arc<AtomicBool>,
-    mut buffers: Vec<BytesMut>
+    mut buffers: Vec<BytesMut>,
 ) {
-    info!("Triggering network events:");
     while running.load(Ordering::SeqCst) {
         for buf in perf_buffers.iter_mut() {
             match buf.read_events(&mut buffers) {
@@ -57,9 +62,8 @@ pub async fn display_events<T: BorrowMut<MapData>>(
                     for i in 0..events.read {
                         let data = &buffers[i];
                         if data.len() >= std::mem::size_of::<PacketLog>() {
-                            let pl: PacketLog = unsafe {
-                                std::ptr::read(data.as_ptr() as *const _)
-                            };
+                            let pl: PacketLog =
+                                unsafe { std::ptr::read(data.as_ptr() as *const _) };
                             let src = Ipv4Addr::from(u32::from_be(pl.src_ip));
                             let dst = Ipv4Addr::from(u32::from_be(pl.dst_ip));
                             let src_port = u16::from_be(pl.src_port as u16);
@@ -70,20 +74,12 @@ pub async fn display_events<T: BorrowMut<MapData>>(
                                 Ok(proto) => {
                                     info!(
                                         "Event Id: {} Protocol: {:?} SRC: {}:{} -> DST: {}:{}",
-                                        event_id,
-                                        proto,
-                                        src,
-                                        src_port,
-                                        dst,
-                                        dst_port
+                                        event_id, proto, src, src_port, dst, dst_port
                                     );
                                 }
-                                Err(_) =>
-                                    info!(
-                                        "Event Id: {} Protocol: Unknown ({})",
-                                        event_id,
-                                        pl.proto
-                                    ),
+                                Err(_) => {
+                                    info!("Event Id: {} Protocol: Unknown ({})", event_id, pl.proto)
+                                }
                             };
                         } else {
                             warn!("Received packet data too small: {} bytes", data.len());
@@ -104,7 +100,6 @@ pub async fn display_veth_events<T: BorrowMut<MapData>>(
     running: Arc<AtomicBool>,
     mut buffers: Vec<BytesMut>
 ) {
-    info!("Triggering veth events:");
     while running.load(Ordering::SeqCst) {
         for buf in perf_buffers.iter_mut() {
             match buf.read_events(&mut buffers) {
@@ -112,9 +107,8 @@ pub async fn display_veth_events<T: BorrowMut<MapData>>(
                     for i in 0..events.read {
                         let data = &buffers[i];
                         if data.len() >= std::mem::size_of::<VethLog>() {
-                            let vethlog: VethLog = unsafe {
-                                std::ptr::read(data.as_ptr() as *const _)
-                            };
+                            let vethlog: VethLog =
+                                unsafe { std::ptr::read(data.as_ptr() as *const _) };
 
                             let name_bytes = vethlog.name;
 
@@ -167,11 +161,10 @@ pub fn get_veth_channels() -> Vec<String> {
     if let Ok(ifaces) = if_nameindex() {
         for iface in &ifaces {
             let iface_name = iface.name().to_str().unwrap().to_owned();
-            if
-                iface_name != "eth0" &&
-                iface_name != "docker0" &&
-                iface_name != "tunl0" &&
-                iface_name != "lo"
+            if iface_name != "eth0"
+                && iface_name != "docker0"
+                && iface_name != "tunl0"
+                && iface_name != "lo"
             {
                 interfaces.push(iface_name);
             } else {
