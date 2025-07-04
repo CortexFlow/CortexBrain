@@ -18,55 +18,79 @@ spec:
       hostPID: true
       hostNetwork: true
       containers:
-      - name: identity
-        image: lorenzotettamanti/cortexflow-identity:latest
-        command: ["/bin/bash", "-c"]
-        args:
-          - |
-            echo "Running on kernel $(uname -r)"
-            if [ ! -d "/sys/fs/bpf" ]; then
-              echo "ERROR: BPF filesystem not mounted"
-              exit 1
-            else
-              echo "Checking ebpf path..."
-              ls -l /sys/fs/bpf
-            fi
-            echo "checking privileges"
-            ls -ld /sys/fs/bpf
+        - name: identity
+          image: lorenzotettamanti/cortexflow-identity:latest
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              echo "Running on kernel $(uname -r)"
+              if [ ! -d "/sys/fs/bpf" ]; then
+                echo "ERROR: BPF filesystem not mounted"
+                exit 1
+              else
+                echo "Checking ebpf path..."
+                ls -l /sys/fs/bpf
+              fi
+              echo "checking privileges"
+              ls -ld /sys/fs/bpf
 
-            echo "Running application..."
-            exec /usr/local/bin/cortexflow-identity-service || echo "Application exited with code $?"
-        volumeMounts:
-        - name: bpf
-          mountPath: /sys/fs/bpf
-          mountPropagation: Bidirectional
-          readOnly: false
-        - name: proc
-          mountPath: /host/proc
-          readOnly: false
-        - name: kernel-dev
-          mountPath: /lib/modules
-          readOnly: false
-        securityContext:
-          privileged: true
-          allowPrivilegeEscalation: true
-          capabilities:
-            add:
-            - SYS_ADMIN
-            - NET_ADMIN
-            - SYS_RESOURCE
-            - BPF
-            - SYS_PTRACE
+              echo "Running application..."
+              exec /usr/local/bin/cortexflow-identity-service || echo "Application exited with code $?"
+          volumeMounts:
+            - name: bpf
+              mountPath: /sys/fs/bpf
+              mountPropagation: Bidirectional
+              readOnly: false
+            - name: proc
+              mountPath: /host/proc
+              readOnly: false
+            - name: kernel-dev
+              mountPath: /lib/modules
+              readOnly: false
+          securityContext:
+            privileged: true
+            allowPrivilegeEscalation: true
+            capabilities:
+              add:
+                - SYS_ADMIN
+                - NET_ADMIN
+                - SYS_RESOURCE
+                - BPF
+                - SYS_PTRACE
+        - name: bpftool-control-manager
+          image: danielpacak/bpftool-runner:latest
+          command: ["/bin/bash", "-c","sleep infinity"]
+          volumeMounts:
+            - name: bpf
+              mountPath: /sys/fs/bpf
+              mountPropagation: Bidirectional
+              readOnly: false
+            - name: proc
+              mountPath: /host/proc
+              readOnly: false
+            - name: kernel-dev
+              mountPath: /lib/modules
+              readOnly: false
+          securityContext:
+            privileged: true
+            allowPrivilegeEscalation: true
+            capabilities:
+              add:
+                - SYS_ADMIN
+                - NET_ADMIN
+                - SYS_RESOURCE
+                - BPF
+                - SYS_PTRACE
       volumes:
-      - name: bpf
-        hostPath:
-          path: /sys/fs/bpf
-          type: Directory
-      - name: proc
-        hostPath:
-          path: /proc
-          type: Directory
-      - name: kernel-dev
-        hostPath:
-          path: /lib/modules
-          type: Directory
+        - name: bpf
+          hostPath:
+            path: /sys/fs/bpf
+            type: Directory
+        - name: proc
+          hostPath:
+            path: /proc
+            type: Directory
+        - name: kernel-dev
+          hostPath:
+            path: /lib/modules
+            type: Directory
