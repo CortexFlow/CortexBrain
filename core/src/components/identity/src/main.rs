@@ -1,5 +1,6 @@
-/* EDIT: TODO: this part needs an update
+/*
  * CortexBrain Identity Service
+ * Open Issues: #105 #107
  * Features:
  *   1. TCP, UDP , ICMP events tracker
  *   2. Track Connections using a PerfEventArray named ConnArray
@@ -204,7 +205,6 @@ async fn event_listener(bpf_maps: (Map, Map)) -> Result<(), anyhow::Error> {
     }
     info!("Listening for events...");
 
-    // FIXME: There seem to be a concurrency error that is causing the pod to pod logs to not work at all
     let veth_running = Arc::new(AtomicBool::new(true));
     let net_events_running = Arc::new(AtomicBool::new(true));
 

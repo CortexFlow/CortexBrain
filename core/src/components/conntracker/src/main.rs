@@ -1,4 +1,4 @@
-/* 
+/*  TODO: this part needs an update
     *
     * This file contains the code for the identity service  
     *
@@ -112,6 +112,7 @@ pub struct ConnArray {
 
 #[map(name = "EventsMap")]
 static mut EVENTS: PerfEventArray<PacketLog> = PerfEventArray::new(0);
+//TODO: ConnectionMap needs a rework after implementing issue #105
 #[map(name = "ConnectionMap")]
 pub static mut ACTIVE_CONNECTIONS: LruPerCpuHashMap<
     u16,
