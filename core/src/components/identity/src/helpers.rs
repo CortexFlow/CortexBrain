@@ -1,5 +1,6 @@
 use crate::enums::IpProtocols;
 use crate::structs::{PacketLog, VethLog};
+use aya::programs::tc::SchedClassifierLinkId;
 use aya::{
     Bpf,
     maps::{
@@ -11,6 +12,8 @@ use aya::{
 };
 use bytes::BytesMut;
 use nix::net::if_::if_nameindex;
+use std::collections::HashMap;
+use std::sync::Mutex;
 use std::{
     ascii,
     borrow::BorrowMut,
@@ -31,6 +34,7 @@ use tokio::{fs, signal};
  */
 const BPF_PATH: &str = "BPF_PATH";
 const IFACE: &str = "IFACE";
+use std::result::Result::Ok as Okk;
 
 /*
  * TryFrom Trait implementation for IpProtocols enum
@@ -96,9 +100,11 @@ pub async fn display_events<T: BorrowMut<MapData>>(
 }
 
 pub async fn display_veth_events<T: BorrowMut<MapData>>(
+    bpf: Arc<Mutex<Bpf>>,
     mut perf_buffers: Vec<PerfEventArrayBuffer<T>>,
     running: Arc<AtomicBool>,
-    mut buffers: Vec<BytesMut>
+    mut buffers: Vec<BytesMut>,
+    mut link_ids: Arc<Mutex<HashMap<String, SchedClassifierLinkId>>>,
 ) {
     while running.load(Ordering::SeqCst) {
         for buf in perf_buffers.iter_mut() {
@@ -136,6 +142,7 @@ pub async fn display_veth_events<T: BorrowMut<MapData>>(
                                         state,
                                         dev_addr
                                     );
+                                    attach_detach_veth(bpf.clone(), vethlog.event_type, veth_name, link_ids.clone()).await;
                                 }
                                 Err(_) => info!("Unknown name or corrupted field"),
                             }
@@ -153,6 +160,11 @@ pub async fn display_veth_events<T: BorrowMut<MapData>>(
     }
 }
 
+pub fn ignore_iface(iface: &str) -> bool {
+    let ignored_interfaces = ["eth0", "docker0", "tunl0", "lo"];
+    ignored_interfaces.contains(&iface)
+}
+
 //filter the interfaces,exclude docker0,eth0,lo interfaces
 pub fn get_veth_channels() -> Vec<String> {
     //filter interfaces and save the output in the
@@ -161,10 +173,7 @@ pub fn get_veth_channels() -> Vec<String> {
     if let Ok(ifaces) = if_nameindex() {
         for iface in &ifaces {
             let iface_name = iface.name().to_str().unwrap().to_owned();
-            if iface_name != "eth0"
-                && iface_name != "docker0"
-                && iface_name != "tunl0"
-                && iface_name != "lo"
+            if !ignore_iface(&iface_name)
             {
                 interfaces.push(iface_name);
             } else {
@@ -174,4 +183,51 @@ pub fn get_veth_channels() -> Vec<String> {
     }
 
     interfaces
+}
+
+async fn attach_detach_veth(bpf: Arc<Mutex<Bpf>>, event_type: u8, iface: &str, link_ids: Arc<Mutex<HashMap<String, SchedClassifierLinkId>>>) -> Result<(), anyhow::Error> {
+    info!("attach_detach_veth called: event_type={}, iface={}", event_type, iface);
+    match event_type {
+        1 => {
+            let mut bpf = bpf.lock().unwrap();
+            let program: &mut SchedClassifier = bpf
+                .program_mut("identity_classifier")
+                .ok_or_else(|| anyhow::anyhow!("program 'identity_classifier' not found"))?
+                .try_into()?;
+
+            let iface = iface.trim_end_matches('\0');
+
+            if ignore_iface(iface) {
+                info!("Skipping ignored interface: {}", iface);
+                return Ok(());
+            }
+
+            let mut link_ids = link_ids.lock().unwrap();
+            match program.attach(iface, TcAttachType::Ingress) {
+                Ok(link_id) => {
+                    info!("Program 'identity_classifier' attached to interface {}", iface);
+                    link_ids.insert(iface.to_string(), link_id);
+
+                },
+                Err(e) => error!("Error attaching program to interface {}: {:?}", iface, e),
+            }
+        }
+        2 => {
+            // INFO: Detaching occurs automatically when veth is deleted by kernel itsel
+            let mut link_ids = link_ids.lock().unwrap();
+            match link_ids.remove(iface) {
+                Some(_) => {
+                    info!("Successfully detached program from interface {}", iface);
+                }
+                None => {
+                    error!("Interface {} not found in link_ids", iface);
+                    return Err(anyhow::anyhow!("Interface {} not found in link_ids", iface));
+                }
+            }
+        }
+        _ => {
+            error!("Unknown event type: {}", event_type);
+        }
+    }
+    Ok(())
 }

@@ -14,13 +14,9 @@ mod enums;
 mod helpers;
 mod structs;
 use aya::{
-    Bpf, Ebpf,
     maps::{
-        Map, MapData,
-        perf::{PerfEventArray, PerfEventArrayBuffer},
-    },
-    programs::{KProbe, SchedClassifier, TcAttachType},
-    util::online_cpus,
+        perf::{PerfEventArray, PerfEventArrayBuffer}, Map, MapData
+    }, programs::{tc::SchedClassifierLinkId, KProbe, SchedClassifier, TcAttachType}, util::online_cpus, Bpf, Ebpf
 };
 
 use crate::enums::IpProtocols;
@@ -30,8 +26,7 @@ use std::{
     convert::TryInto,
     path::Path,
     sync::{
-        Arc,
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, Ordering}, Arc, Mutex
     },
 };
 
@@ -41,6 +36,8 @@ use tracing::{error, info, warn};
 use tracing_subscriber::{EnvFilter, fmt::format::FmtSpan};
 
 const BPF_PATH: &str = "BPF_PATH"; //BPF env path
+use std::collections::HashMap;
+use std::result::Result::Ok as Okk;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
@@ -59,6 +56,9 @@ async fn main() -> Result<(), anyhow::Error> {
     info!("Starting identity service...");
     info!("fetching data");
 
+    // To Store link_ids they can be used to detach tc
+    let link_ids = Arc::new(Mutex::new(HashMap::<String, SchedClassifierLinkId>::new()));
+
     //init conntracker data path
     let bpf_path = std::env::var(BPF_PATH).context("BPF_PATH environment variable required")?;
     let data = fs::read(Path::new(&bpf_path))
@@ -66,22 +66,19 @@ async fn main() -> Result<(), anyhow::Error> {
         .context("failed to load file from path")?;
 
     //init bpf data
-    let mut bpf = Bpf::load(&data)?;
+    let bpf = Arc::new(Mutex::new(Bpf::load(&data)?));
 
     //load veth_trace program ref veth_trace.rs
-    init_veth_tracer(&mut bpf);
-    let bpf_maps = init_bpf_maps(&mut bpf).unwrap();
+    init_veth_tracer(bpf.clone());
+    let bpf_maps = init_bpf_maps(bpf.clone()).unwrap();
 
     let interfaces = get_veth_channels();
 
-    //TODO: store the results from the veth_tracer in a hashmap (InterfacesRegistry) to make sure that the creation and deletion of veth are up to date
-    // everytime a new interface enters the InterfacesRegistry attach a bpf program with the attach_bpf_program function below
-
     info!("Found interfaces: {:?}", interfaces);
-    init_tc_classifier(&mut bpf, interfaces)
+    init_tc_classifier(bpf.clone(), interfaces, link_ids.clone())
         .context("An error occured during the execution of attach_bpf_program function")?;
 
-    event_listener(bpf_maps)
+    event_listener(bpf_maps, link_ids.clone(), bpf.clone())
         .await
         .context("Error initializing event_listener")?;
 
@@ -89,11 +86,17 @@ async fn main() -> Result<(), anyhow::Error> {
 }
 
 //attach the tc classifier program to a vector of interfaces
-pub fn init_tc_classifier(bpf: &mut Ebpf, ifaces: Vec<String>) -> Result<(), anyhow::Error> {
+pub fn init_tc_classifier(
+    bpf: Arc<Mutex<Bpf>>,
+    ifaces: Vec<String>,
+    link_ids: Arc<Mutex<HashMap<String, SchedClassifierLinkId>>>,
+) -> Result<(), anyhow::Error> {
     //this funtion initialize the tc classifier program
     info!("Loading programs");
 
-    let program: &mut SchedClassifier = bpf
+    let mut bpf_new = bpf.lock().unwrap();
+
+    let program: &mut SchedClassifier = bpf_new
         .program_mut("identity_classifier")
         .ok_or_else(|| anyhow::anyhow!("program 'identity_classifier' not found"))?
         .try_into()
@@ -105,10 +108,14 @@ pub fn init_tc_classifier(bpf: &mut Ebpf, ifaces: Vec<String>) -> Result<(), any
 
     for interface in ifaces {
         match program.attach(&interface, TcAttachType::Ingress) {
-            std::result::Result::Ok(_) => info!(
-                "Program 'identity_classifier' attached to interface {}",
-                interface
-            ),
+            Okk(link_id) => {
+                info!(
+                    "Program 'identity_classifier' attached to interface {}",
+                    interface
+                );
+                let mut map = link_ids.lock().unwrap();
+                map.insert(interface.clone(), link_id);
+            }
             Err(e) => error!(
                 "Error attaching program to interface {}: {:?}",
                 interface, e
@@ -118,11 +125,14 @@ pub fn init_tc_classifier(bpf: &mut Ebpf, ifaces: Vec<String>) -> Result<(), any
 
     Ok(())
 }
-fn init_veth_tracer(bpf: &mut Ebpf) -> Result<(), anyhow::Error> {
+
+fn init_veth_tracer(bpf: Arc<Mutex<Bpf>>) -> Result<(), anyhow::Error> {
     //this functions init the veth_tracer used to make the InterfacesRegistry
 
+    let mut bpf_new = bpf.lock().unwrap();
+
     //creation tracer
-    let veth_creation_tracer: &mut KProbe = bpf
+    let veth_creation_tracer: &mut KProbe = bpf_new
         .program_mut("veth_creation_trace")
         .ok_or_else(|| anyhow::anyhow!("program 'veth_creation_trace' not found"))?
         .try_into()?;
@@ -131,7 +141,7 @@ fn init_veth_tracer(bpf: &mut Ebpf) -> Result<(), anyhow::Error> {
     veth_creation_tracer.attach("register_netdevice", 0)?;
 
     //deletion tracer
-    let veth_deletion_tracer: &mut KProbe = bpf
+    let veth_deletion_tracer: &mut KProbe = bpf_new
         .program_mut("veth_deletion_trace")
         .ok_or_else(|| anyhow::anyhow!("program 'veth_deletion_trace' not found"))?
         .try_into()?;
@@ -147,17 +157,19 @@ fn init_veth_tracer(bpf: &mut Ebpf) -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-fn init_bpf_maps(bpf: &mut Ebpf) -> Result<(Map, Map), anyhow::Error> {
+fn init_bpf_maps(bpf: Arc<Mutex<Bpf>>) -> Result<(Map, Map), anyhow::Error> {
     // this function init the bpfs maps used in the main program
     /*
        index 0: events_map
        index 1: veth_map
     */
-    let events_map = bpf
+    let mut bpf_new = bpf.lock().unwrap();
+
+    let events_map = bpf_new
         .take_map("EventsMap")
         .ok_or_else(|| anyhow::anyhow!("EventsMap map not found"))?;
 
-    let veth_map = bpf
+    let veth_map = bpf_new
         .take_map("veth_identity_map")
         .ok_or_else(|| anyhow::anyhow!("veth_identity_map map not found"))?;
 
@@ -176,7 +188,7 @@ fn init_bpf_maps(bpf: &mut Ebpf) -> Result<(Map, Map), anyhow::Error> {
     Ok((events_map, veth_map))
 }
 
-async fn event_listener(bpf_maps: (Map, Map)) -> Result<(), anyhow::Error> {
+async fn event_listener(bpf_maps: (Map, Map), link_ids: Arc<Mutex<HashMap<String, SchedClassifierLinkId>>>, bpf: Arc<Mutex<Bpf>>) -> Result<(), anyhow::Error> {
     // this function init the event listener. Listens for veth events (creation/deletion) and network events (pod to pod communications)
     /* Doc:
 
@@ -214,10 +226,11 @@ async fn event_listener(bpf_maps: (Map, Map)) -> Result<(), anyhow::Error> {
 
     let veth_running_signal = veth_running.clone();
     let net_events_running_signal = net_events_running.clone();
+    let veth_link_ids = link_ids.clone();
 
     //display_events(perf_buffers, running, buffers).await;
     let veth_events_displayer = tokio::spawn(async move {
-        display_veth_events(perf_veth_buffer, veth_running, veth_buffers).await;
+        display_veth_events(bpf.clone(), perf_veth_buffer, veth_running, veth_buffers, veth_link_ids, ).await;
     });
     let net_events_displayer = tokio::spawn(async move {
         display_events(perf_net_events_buffer, net_events_running, events_buffers).await;
