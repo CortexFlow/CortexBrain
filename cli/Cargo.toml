@@ -2,13 +2,17 @@
 name = "cortexflow-cli"
 version = "0.1.0"
 edition = "2024"
+description = "CortexFlow command line interface made to interact with the CortexBrain core components"
+authors = ["Lorenzo Tettamanti", "Pranav Verma", "Lorenzo Bradanini"]
+documentation = "https://docs.cortexflow.org"
+homepage = "https://docs.cortexflow.org"
+repository = "https://github.com/CortexFlow/CortexBrain"
+license = "Apache-2.0"
 
 [dependencies]
 clap = { version = "4.5.38", features = ["derive"] }
 tracing = "0.1.41"
 
-#commented until first release
-
-#[[bin]]
-#name="cfcli"
-#path="src/main.rs"
+[[bin]]
+name = "cfcli"
+path = "src/main.rs"
