@@ -1,3 +1,4 @@
+
 use which::which;
 
 /// Building this crate has an undeclared dependency on the `bpf-linker` binary. This would be
@@ -12,14 +13,6 @@ use which::which;
 ///
 /// [bindeps]: https://doc.rust-lang.org/nightly/cargo/reference/unstable.html?highlight=feature#artifact-dependencies
 fn main() {
-    // TODO: Try generating bindings using bindgen
-    // bindgen::Builder::default()
-    //     .header("header.h")
-    //     .generate()
-    //     .expect("Unable to generate bindings")
-    //     .write_to_file("src/bindings.rs")
-    //     .expect("Couldn't write bindings!");
-
     let bpf_linker = which("bpf-linker").unwrap();
     println!("cargo:rerun-if-changed={}", bpf_linker.to_str().unwrap());
 }
