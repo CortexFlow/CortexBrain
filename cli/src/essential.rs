@@ -5,6 +5,8 @@ use serde::Serialize;
 use std::fs::OpenOptions;
 
 use colored::Colorize;
+use std::time::Duration;
+use std::thread;
 
 pub struct GeneralData {
     env: String,
@@ -74,10 +76,10 @@ pub fn update_cli() {
     println!("Looking for a newer version");
 }
 pub fn info(general_data: GeneralData) {
-    println!("Version: {}", GeneralData::VERSION);
-    println!("Author: {}", GeneralData::AUTHOR);
-    println!("Description:{}", GeneralData::DESCRIPTION);
-    println!("Environment: {}", general_data.get_env());
+    println!("{} {} {}","=====>".blue().bold(),"Version:", GeneralData::VERSION);
+    println!("{} {} {}","=====>".blue().bold(),"Author:", GeneralData::AUTHOR);
+    println!("{} {} {}","=====>".blue().bold(),"Description:", GeneralData::DESCRIPTION);
+    println!("{} {} {}","=====>".blue().bold(),"Environment:", general_data.get_env());
 }
 
 fn is_supported_env(env: &str) -> bool {
@@ -114,6 +116,7 @@ pub fn read_configs(config_path: PathBuf) -> String {
     match parsed_config {
         Ok(cfg) => {
             let env = &cfg["env"].as_str().unwrap().to_string();
+            thread::sleep(Duration::from_secs(1));
             println!(
                 "{} {} {:?}",
                 "[SYSTEM]".blue().bold(),
@@ -147,6 +150,7 @@ pub fn create_config_file(config_struct: MetadataConfigFile) {
     match serde_yaml::to_writer(configs, &config_struct) {
         Ok(_) => {
             println!("\n");
+            thread::sleep(Duration::from_secs(1));
             println!(
                 "{} {}{:?}",
                 "[SYSTEM]".blue().bold(),
