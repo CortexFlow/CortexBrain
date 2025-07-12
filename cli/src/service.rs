@@ -106,7 +106,7 @@ pub fn list_services(namespace: Option<String>) {
                 Ok(output) => {
                     if !output.status.success() {
                         let error = str::from_utf8(&output.stderr).unwrap_or("Unknown error");
-                        eprintln!("Error executing kubectl: {}", error);
+                        eprintln!("Error executing {}: {}", env, error);
                         std::process::exit(1);
                     }
 
@@ -148,8 +148,8 @@ pub fn list_services(namespace: Option<String>) {
                     }
                 }
                 Err(err) => {
-                    eprintln!("Failed to execute kubectl command: {}", err);
-                    eprintln!("Make sure kubectl is installed and configured properly");
+                    eprintln!("Failed to execute {} command: {}", env, err);
+                    eprintln!("Make sure {} is installed and configured properly",env);
                     std::process::exit(1);
                 }
             }
