@@ -7,13 +7,13 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-bindgen vmlinux.h -o src/bindings.rs --use-core --allowlist-type 'sk_buff'
-
-
 if ! command -v bindgen &> /dev/null; then
     echo "bindgen not found, installing..."
     cargo install bindgen-cli
+    export PATH="$HOME/.cargo/bin:$PATH" #add the ./cargo/bin directory to the PATH env variable
 fi
+
+bindgen vmlinux.h -o src/bindings.rs --use-core --allowlist-type 'sk_buff'
 
 cargo +nightly build -Z build-std=core --target bpfel-unknown-none --release --bin conntracker
 
