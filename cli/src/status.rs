@@ -1,6 +1,5 @@
 use std::process::Command;
 use std::str;
-use colored::Colorize;
 
 #[derive(Debug)]
 pub enum OutputFormat {
@@ -23,7 +22,7 @@ pub fn status_command(output_format: Option<String>, namespace: Option<String>) 
     let format = output_format.map(OutputFormat::from).unwrap_or(OutputFormat::Text);
     let ns = namespace.unwrap_or_else(|| "cortexflow".to_string());
     
-    println!("{} {} {}","=====>".blue().bold(),"Checking CortexFlow status for namespace: ", ns);
+    println!("Checking CortexFlow status for namespace: {}", ns);
     
     // namespace checking
     let namespace_status = check_namespace_exists(&ns);
@@ -87,7 +86,6 @@ pub fn status_command(output_format: Option<String>, namespace: Option<String>) 
 }
 
 fn check_namespace_exists(namespace: &str) -> bool {
-    //TODO:fix this kubectl
     let output = Command::new("kubectl")
         .args(["get", "namespace", namespace])
         .output();
@@ -99,7 +97,6 @@ fn check_namespace_exists(namespace: &str) -> bool {
 }
 
 fn get_available_namespaces() -> Vec<String> {
-    //TODO:fix this kubectl
     let output = Command::new("kubectl")
         .args(["get", "namespaces", "--no-headers", "-o", "custom-columns=NAME:.metadata.name"])
         .output();
@@ -117,7 +114,6 @@ fn get_available_namespaces() -> Vec<String> {
 }
 
 fn get_pods_status(namespace: &str) -> Vec<(String, String, String)> {
-    //TODO:fix this kubectl
     let output = Command::new("kubectl")
         .args(["get", "pods", "-n", namespace, "--no-headers"])
         .output();
@@ -145,7 +141,6 @@ fn get_pods_status(namespace: &str) -> Vec<(String, String, String)> {
 }
 
 fn get_services_status(namespace: &str) -> Vec<(String, String, String)> {
-    //TODO:fix this kubectl
     let output = Command::new("kubectl")
         .args(["get", "services", "-n", namespace, "--no-headers"])
         .output();

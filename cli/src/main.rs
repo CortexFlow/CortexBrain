@@ -10,9 +10,6 @@ use clap::command;
 use clap::{Args, Error, Parser, Subcommand};
 use tracing::debug;
 use colored::Colorize;
-use std::time::Duration;
-use std::thread;
-
 
 use crate::essential::{get_config_directory,get_startup_config_dir, info, read_configs, update_cli};
 use crate::install::install_cortexflow;
@@ -22,7 +19,6 @@ use crate::status::status_command;
 use crate::uninstall::uninstall;
 
 use crate::essential::GeneralData;
-
 
 #[derive(Parser, Debug)]
 #[command(
@@ -115,7 +111,6 @@ fn args_parser() -> Result<(), Error> {
         install_cortexflow();
         Ok(())
     } else {
-        thread::sleep(Duration::from_secs(1));
         println!("{} {}","[SYSTEM]".blue().bold(),"Founded config files".white());
         let config_file_path=get_config_directory();
         let file_path= config_file_path.unwrap().1;
