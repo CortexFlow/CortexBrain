@@ -1,5 +1,6 @@
 use crate::essential::{Environments, get_config_directory, read_configs};
 use colored::Colorize;
+use tracing::debug;
 use std::io::stdin;
 use std::process::Command;
 
@@ -9,7 +10,7 @@ use std::time::Duration;
 pub fn uninstall() {
     let file_path = get_config_directory().unwrap().1;
     let dir_config_path = get_config_directory().unwrap().0;
-    println!("file_path variable:{:?}", dir_config_path);
+    debug!("file_path variable:{:?}", dir_config_path);
     let env_from_file = read_configs(file_path.clone());
     let user_env = Environments::try_from(env_from_file.to_lowercase());
 

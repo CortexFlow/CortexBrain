@@ -52,8 +52,8 @@ impl Environments {
 
 impl GeneralData {
     pub const VERSION: &str = env!("CARGO_PKG_VERSION");
-    pub const AUTHOR: &str = "CortexFlow";
-    pub const DESCRIPTION: &str = "";
+    pub const AUTHOR: &str = env!("CARGO_PKG_AUTHORS");
+    pub const DESCRIPTION: &str = env!("CARGO_PKG_DESCRIPTION");
 
     pub fn new(env: String) -> Self {
         GeneralData {
