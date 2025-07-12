@@ -16,9 +16,13 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v3
+      
     - name: test version (dry-run) and metadata checks
+      working-directory: ./cli
       run: cargo publish --dry-run
+
     - name: Publish on crates.io
+      working-directory: ./cli
       run: cargo publish
       env:
         CARGO_REGISTRY_TOKEN: ${{secrets.CF_TOKEN_CARGO_API}}
