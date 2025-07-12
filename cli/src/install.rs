@@ -4,8 +4,11 @@ use crate::essential::Environments;
 use crate::essential::{create_config_file, create_configs, get_config_directory, read_configs};
 
 use colored::Colorize;
+use std::thread;
+use std::time::Duration;
 use tracing::debug;
 
+/* components installation function */
 fn install_cluster_components(env: String) {
     let user_env = Environments::try_from(env.to_lowercase());
     match user_env {
@@ -17,7 +20,7 @@ fn install_cluster_components(env: String) {
                 "Copying installation files".white()
             );
             copy_installation_files();
-
+            thread::sleep(Duration::from_secs(1));
             println!(
                 "{} {}",
                 "=====>".blue().bold(),
@@ -47,6 +50,7 @@ fn install_cluster_components(env: String) {
     }
 }
 
+/* main installation function */
 pub fn install_cortexflow() {
     println!(
         "{} {}",
@@ -67,6 +71,7 @@ pub fn install_cortexflow() {
     install_cluster_components(env);
 }
 
+/* Installation functions */
 fn install_components(env: String) {
     println!(
         "{} {}",
@@ -78,8 +83,9 @@ fn install_components(env: String) {
     println!(
         "{} {}",
         "=====>".blue().bold(),
-        "(1/4) Applying configmap.yaml"
+        "(1/5) Applying configmap.yaml"
     );
+    thread::sleep(Duration::from_secs(2));
     Command::new(user_env)
         .args(["apply", "-f", "configmap.yaml", "-n", "cortexflow"])
         .output()
@@ -87,8 +93,9 @@ fn install_components(env: String) {
     println!(
         "{} {}",
         "=====>".blue().bold(),
-        "(2/4) Applying configmap-role.yaml"
+        "(2/5) Applying configmap-role.yaml"
     );
+    thread::sleep(Duration::from_secs(2));
     Command::new(user_env)
         .args(["apply", "-f", "configmap-role.yaml", "-n", "default"])
         .output()
@@ -96,52 +103,45 @@ fn install_components(env: String) {
     println!(
         "{} {}",
         "=====>".blue().bold(),
-        "(3/4) Applying rolebinding.yaml"
+        "(3/5) Applying rolebinding.yaml"
     );
+    thread::sleep(Duration::from_secs(2));
     Command::new(user_env)
         .args(["apply", "-f", "rolebinding.yaml", "-n", "kube-system"])
         .output()
         .expect("error");
+    thread::sleep(Duration::from_secs(2));
     println!(
         "{} {}",
         "=====>".blue().bold(),
-        "(4/4) Applying cortexflow-rolebinding.yaml"
+        "(4/5) Applying cortexflow-rolebinding.yaml"
     );
     Command::new(user_env)
         .args(["apply", "-f", "cortexflow-rolebinding.yaml"])
         .output()
         .expect("error");
+    println!(
+        "{} {}",
+        "=====>".blue().bold(),
+        "(5/5) Installing Identity service.yaml"
+    );
+    thread::sleep(Duration::from_secs(2));
+    Command::new(user_env)
+        .args(["apply", "-f", "identity.yaml"])
+        .output()
+        .expect("error");
+    thread::sleep(Duration::from_secs(2));
 }
 fn copy_installation_files() {
-    Command::new("cp")
-        .args(["../../core/src/testing/configmap.yaml", "configmap.yaml"])
-        .output()
-        .expect("cannot import configmap installation file");
-    Command::new("cp")
-        .args([
-            "../../core/src/testing/configmap-role.yaml",
-            "configmap-role.yaml",
-        ])
-        .output()
-        .expect("cannot import configmap-role installation file");
-    Command::new("cp")
-        .args([
-            "../../core/src/testing/rolebinding.yaml",
-            "rolebinding.yaml",
-        ])
-        .output()
-        .expect("cannot import rolebinding installation file");
-    Command::new("cp")
-        .args([
-            "../../core/src/testing/cortexflow-rolebinding.yaml",
-            "cortexflow-rolebinding.yaml",
-        ])
-        .output()
-        .expect("cannot import rolebinding installation file");
-    Command::new("cp")
-        .args(["../../core/src/testing/identity.yaml", "identity.yaml"])
-        .output()
-        .expect("cannot import identity installation file");
+    copy_file("../core/src/testing/configmap.yaml", "configmap.yaml");
+    copy_file("../core/src/testing/configmap-role.yaml", "configmap-role.yaml");
+    copy_file("../core/src/testing/rolebinding.yaml", "rolebinding.yaml");
+    copy_file(
+        "../core/src/testing/cortexflow-rolebinding.yaml",
+        "cortexflow-rolebinding.yaml",
+    );
+    copy_file("../core/src/testing/identity.yaml", "identity.yaml");
+    println!("\n");
 }
 fn rm_installation_files() {
     println!(
@@ -149,24 +149,49 @@ fn rm_installation_files() {
         "=====>".blue().bold(),
         "Removing temporary installation files".white()
     );
-    Command::new("rm")
-        .args(["-rf", "configmap.yaml"])
+    rm_file("configmap.yaml");
+    rm_file("configmap-role.yaml");
+    rm_file("rolebinding.yaml");
+    rm_file("cortexflow-rolebinding.yaml");
+    rm_file("identity.yaml");
+}
+
+
+/* Auxiliary functions */
+fn copy_file(src: &str, dest: &str) {
+    let output = Command::new("cp")
+        .args([src, dest])
         .output()
-        .expect("cannot remove configmap installation file");
-    Command::new("rm")
-        .args(["-rf", "configmap-role.yaml"])
+        .expect("cannot import config file");
+
+    if !output.status.success() {
+        eprintln!(
+            "Error copying file: {} -> {}:\n{}",
+            src,
+            dest,
+            String::from_utf8_lossy(&output.stderr)
+        );
+    } else {
+        println!("✅ Copied file from {} → {}", src, dest);
+    }
+
+    thread::sleep(Duration::from_secs(2));
+}
+fn rm_file(file_to_remove: &str) {
+    let output = Command::new("rm")
+        .args(["-f", file_to_remove])
         .output()
-        .expect("cannot remove configmap-role installation file");
-    Command::new("rm")
-        .args(["-rf", "rolebinding.yaml"])
-        .output()
-        .expect("cannot remove rolebinding installation file");
-    Command::new("rm")
-        .args(["-rf", "cortexflow-rolebinding.yaml"])
-        .output()
-        .expect("cannot remove cortexflow-rolebinding installation file");
-    Command::new("rm")
-        .args(["-rf", "identity.yaml"])
-        .output()
-        .expect("cannot remove identity installation file");
+        .expect("cannot remove temporary installation file");
+
+    if !output.status.success() {
+        eprintln!(
+            "Error removing file: {}:\n{}",
+            file_to_remove,
+            String::from_utf8_lossy(&output.stderr)
+        );
+    } else {
+        println!("✅ Removed file {}", file_to_remove);
+    }
+
+    thread::sleep(Duration::from_secs(2));
 }
