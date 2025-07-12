@@ -1,6 +1,6 @@
 [package]
 name = "cortexflow-cli"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 description = "CortexFlow command line interface made to interact with the CortexBrain core components"
 authors = ["Lorenzo Tettamanti", "Pranav Verma", "Lorenzo Bradanini"]
