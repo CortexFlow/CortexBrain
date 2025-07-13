@@ -5,8 +5,10 @@ use serde::Serialize;
 use std::fs::OpenOptions;
 
 use colored::Colorize;
-use std::time::Duration;
 use std::thread;
+use std::time::Duration;
+
+use std::process::Command;
 
 pub struct GeneralData {
     env: String,
@@ -72,14 +74,52 @@ impl GeneralData {
 }
 
 pub fn update_cli() {
-    println!("Updating CortexFlow CLI");
-    println!("Looking for a newer version");
+    println!("{} {}", "=====>".blue().bold(), "Updating CortexFlow CLI");
+    println!(
+        "{} {}",
+        "=====>".blue().bold(),
+        "Looking for a newer version"
+    );
+
+    let output = Command::new("cargo")
+        .args(["update", "cortexflow-cli"])
+        .output()
+        .expect("error");
+
+    if !output.status.success() {
+        eprintln!(
+            "Error updating CLI : {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    } else {
+        println!("✅ Updated CLI");
+    }
 }
 pub fn info(general_data: GeneralData) {
-    println!("{} {} {}","=====>".blue().bold(),"Version:", GeneralData::VERSION);
-    println!("{} {} {}","=====>".blue().bold(),"Author:", GeneralData::AUTHOR);
-    println!("{} {} {}","=====>".blue().bold(),"Description:", GeneralData::DESCRIPTION);
-    println!("{} {} {}","=====>".blue().bold(),"Environment:", general_data.get_env());
+    println!(
+        "{} {} {}",
+        "=====>".blue().bold(),
+        "Version:",
+        GeneralData::VERSION
+    );
+    println!(
+        "{} {} {}",
+        "=====>".blue().bold(),
+        "Author:",
+        GeneralData::AUTHOR
+    );
+    println!(
+        "{} {} {}",
+        "=====>".blue().bold(),
+        "Description:",
+        GeneralData::DESCRIPTION
+    );
+    println!(
+        "{} {} {}",
+        "=====>".blue().bold(),
+        "Environment:",
+        general_data.get_env()
+    );
 }
 
 fn is_supported_env(env: &str) -> bool {
