@@ -149,14 +149,14 @@ fn args_parser() -> Result<(), Error> {
             }
             Some(Commands::Service(service_args)) => match service_args.service_cmd {
                 ServiceCommands::List { namespace } => {
-                    list_services(namespace);
+                    Some(list_services(namespace));
                     Ok(())
                 }
                 ServiceCommands::Describe {
                     service_name,
                     namespace,
                 } => {
-                    describe_service(service_name, namespace);
+                    describe_service(service_name, &namespace);
                     Ok(())
                 }
             },
