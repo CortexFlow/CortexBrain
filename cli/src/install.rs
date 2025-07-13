@@ -73,6 +73,15 @@ pub fn install_cortexflow() {
 
 /* Installation functions */
 fn install_components(env: String) {
+    let files_to_install = vec![
+        "configmap.yaml",
+        "configmap-role.yaml",
+        "rolebinding.yaml",
+        "cortexflow-rolebinding.yaml",
+        "identity.yaml",
+    ];
+    let tot_files = files_to_install.len();
+
     println!(
         "{} {}",
         "=====>".blue().bold(),
@@ -80,67 +89,58 @@ fn install_components(env: String) {
     );
     let user_env = env.as_str();
     debug!("Debugging env var in install components {:?}", user_env);
-    println!(
-        "{} {}",
-        "=====>".blue().bold(),
-        "(1/5) Applying configmap.yaml"
-    );
-    thread::sleep(Duration::from_secs(2));
-    Command::new(user_env)
-        .args(["apply", "-f", "configmap.yaml", "-n", "cortexflow"])
+
+    let mut i=1;
+
+    for component in files_to_install {
+            println!(
+                "{} {}{}{} {} {} {}",
+                "=====>".blue().bold(),
+                "(",
+                i,
+                "/",
+                tot_files,
+                "Applying ",
+                component
+            );
+            apply_component(component, user_env);
+            i=i+1;
+    }
+}
+
+fn apply_component(file: &str, env: &str) {
+    let output = Command::new(env)
+        .args(["apply", "-f", file])
         .output()
-        .expect("error");
-    println!(
-        "{} {}",
-        "=====>".blue().bold(),
-        "(2/5) Applying configmap-role.yaml"
-    );
-    thread::sleep(Duration::from_secs(2));
-    Command::new(user_env)
-        .args(["apply", "-f", "configmap-role.yaml", "-n", "default"])
-        .output()
-        .expect("error");
-    println!(
-        "{} {}",
-        "=====>".blue().bold(),
-        "(3/5) Applying rolebinding.yaml"
-    );
-    thread::sleep(Duration::from_secs(2));
-    Command::new(user_env)
-        .args(["apply", "-f", "rolebinding.yaml", "-n", "kube-system"])
-        .output()
-        .expect("error");
-    thread::sleep(Duration::from_secs(2));
-    println!(
-        "{} {}",
-        "=====>".blue().bold(),
-        "(4/5) Applying cortexflow-rolebinding.yaml"
-    );
-    Command::new(user_env)
-        .args(["apply", "-f", "cortexflow-rolebinding.yaml"])
-        .output()
-        .expect("error");
-    println!(
-        "{} {}",
-        "=====>".blue().bold(),
-        "(5/5) Installing Identity service.yaml"
-    );
-    thread::sleep(Duration::from_secs(2));
-    Command::new(user_env)
-        .args(["apply", "-f", "identity.yaml"])
-        .output()
-        .expect("error");
+        .expect("cannot install component from file");
+
+    if !output.status.success() {
+        eprintln!(
+            "Error installing file: {}:\n{}",
+            file,
+            String::from_utf8_lossy(&output.stderr)
+        );
+    } else {
+        println!("✅ Applied {}", file);
+    }
+
     thread::sleep(Duration::from_secs(2));
 }
+
 fn copy_installation_files() {
-    copy_file("../core/src/testing/configmap.yaml", "configmap.yaml");
-    copy_file("../core/src/testing/configmap-role.yaml", "configmap-role.yaml");
-    copy_file("../core/src/testing/rolebinding.yaml", "rolebinding.yaml");
-    copy_file(
-        "../core/src/testing/cortexflow-rolebinding.yaml",
-        "cortexflow-rolebinding.yaml",
+    download_file(
+        "https://raw.githubusercontent.com/CortexFlow/CortexBrain/refs/heads/main/core/src/testing/configmap.yaml",
     );
-    copy_file("../core/src/testing/identity.yaml", "identity.yaml");
+    download_file(
+        "https://raw.githubusercontent.com/CortexFlow/CortexBrain/refs/heads/main/core/src/testing/configmap-role.yaml",
+    );
+    download_file(
+        "https://raw.githubusercontent.com/CortexFlow/CortexBrain/refs/heads/main/core/src/testing/rolebinding.yaml",
+    );
+    download_file(
+        "https://raw.githubusercontent.com/CortexFlow/CortexBrain/refs/heads/main/core/src/testing/cortexflow-rolebinding.yaml",
+    );
+    download_file("https://raw.githubusercontent.com/CortexFlow/CortexBrain/refs/heads/main/core/src/testing/identity.yaml");
     println!("\n");
 }
 fn rm_installation_files() {
@@ -156,23 +156,21 @@ fn rm_installation_files() {
     rm_file("identity.yaml");
 }
 
-
 /* Auxiliary functions */
-fn copy_file(src: &str, dest: &str) {
-    let output = Command::new("cp")
-        .args([src, dest])
+fn download_file(src: &str) {
+    let output = Command::new("wget")
+        .args([src])
         .output()
         .expect("cannot import config file");
 
     if !output.status.success() {
         eprintln!(
-            "Error copying file: {} -> {}:\n{}",
+            "Error copying file: {}.\n{}",
             src,
-            dest,
             String::from_utf8_lossy(&output.stderr)
         );
     } else {
-        println!("✅ Copied file from {} → {}", src, dest);
+        println!("✅ Copied file from {} ", src);
     }
 
     thread::sleep(Duration::from_secs(2));
