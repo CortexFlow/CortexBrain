@@ -70,9 +70,10 @@ CortexBrain provides a simple installation for users thanks to his command line 
    cargo install cortexflow-cli
    ```
    You can find the installation guide in the [official documentation](https://docs.cortexflow.org)
+- Start your local cluster
 - Install CortexBrain components:
    ```bash
-   cfcli install -- --env kubernetes
+   cfcli install
    ```
 - List all the installed services:
    ```bash
@@ -93,7 +94,7 @@ CortexBrain provides a simple installation for users thanks to his command line 
 
    | **Feature**              | **Requirements**                                                                 |
    | ------------------------- | -------------------------------------------------------------------------------- |
-   | **CortexBrain Core**      | - Kubernetes or Minikube v1.34.0  <br> - Linux Ubuntu system (mandatory for core development)  <br> - Rust programming language (rustc >= 1.85.0)|
+   | **CortexBrain Core**      | - Kubernetes or Minikube v1.34.0  <br> - Linux system with kernel version >= 5.15 (mandatory for core development)  <br> - Rust programming language (rustc >= 1.85.0) preferably a **nightly** |
    | **CortexBrain Dashboard** | - npm v10.7.0  <br> - React v18.2.0  <br> - Electron v33.2.0                      |
 
 ## **⚛️ Core Development:**  
@@ -105,13 +106,19 @@ CortexBrain provides a simple installation for users thanks to his command line 
    - Install [Minikube](https://minikube.sigs.k8s.io/docs/start/?arch=%2Fwindows%2Fx86-64%2Fstable%2F.exe+download) or any other local kubernetes environment 
    - Run minikube (or your local environment)
       ```bash
-      minikube start
+         minikube start
       ```
-   - Run the installation script:
+   - Install the CLI:
       ```bash
-         cd Scripts
-         ./install.sh
+         cargo install cortexflow-cli
       ```
+   - Install the core components:
+      ```bash
+         cfcli install
+      ```
+
+
+
 - ## **📈 Dashboard Development:**  
    - Install [Node.js](https://nodejs.org/en/download)
    - Open the dashboard folder and install the required packages 
@@ -126,8 +133,8 @@ CortexBrain provides a simple installation for users thanks to his command line 
 
 
 # 💪🏻 Contributing
-Do you think the project is missing something? Contributing is the best way to show your skills and leave your mark in a project.
-If you have knowledge in DevOps/Kubernetes, networking, security or you really enjoy maintaining a repository please write an email to lorenzotettamanti5@gmail.com
+Do you think the project is missing something? Contributing is the best way to show your skills and leave your mark on a project.
+If you know DevOps/Kubernetes, networking, security, or you enjoy maintaining a repository, please write an email to lorenzotettamanti5@gmail.com
    | **Role**              | **Skills** | **Tasks** | **Related Issues and Milestones** |
    | ------------------------- | ------------------------------------------------------------------------- | --------------- |--------|
    | **CortexBrain Core Developer**      | - Kubernetes  <br> - Networks  <br> - Rust programming language | - Work alongside us to build and optimize the core functionalities (Client,DNS,Proxy,Telemetry,etc..) <br>                | - [Rust](https://github.com/CortexFlow/CortexBrain/labels/rust) <br> - [Core](https://github.com/CortexFlow/CortexBrain/milestone/1) <br> - [eBPF](https://github.com/CortexFlow/CortexBrain/labels/ebpf)
