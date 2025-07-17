@@ -18,4 +18,3 @@ bindgen vmlinux.h -o src/bindings.rs --use-core --allowlist-type 'sk_buff'
 cargo +nightly build -Z build-std=core --target bpfel-unknown-none --release --bin conntracker
 
 rm -f vmlinux.h
-rm -f src/bindings.rs
