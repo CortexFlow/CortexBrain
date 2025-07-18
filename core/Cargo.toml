@@ -14,7 +14,7 @@ members = [
     "src/components/maps",
     "src/components/conntracker",
     "xtask",
-    "src/components/identity",
+    "src/components/identity", "src/components/metrics_tracer", "src/components/metrics",
 ]
 
 [dependencies]

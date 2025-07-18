@@ -334,7 +334,6 @@ pub fn try_veth_deletion_trace(ctx: ProbeContext) -> Result<u32, i64> {
 
 
 
-
 #[classifier]
 pub fn identity_classifier(ctx: TcContext) -> i32 {
     match try_identity_classifier(ctx) {
