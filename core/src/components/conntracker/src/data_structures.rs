@@ -11,13 +11,6 @@ pub struct PacketLog {
     pub pid: u64,
 }
 
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub struct NetnsLog {
-    pub netns: u32,
-    pub pid: u64,
-}
-
 // This structure is only for active connections
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -36,15 +29,14 @@ pub struct VethLog {
     pub state: u64, //state var type: long unsigned int
     pub dev_addr: [u32; 8],
     pub event_type: u8, //i choose 1 for veth creation or 2 for veth destruction
-    //pub netns: u32,
-    //pub ns_common_ptr : usize,
+    pub netns: u32,
+    pub pid: u32
+
 }
 
 #[map(name = "EventsMap")]
 pub static mut EVENTS: PerfEventArray<PacketLog> = PerfEventArray::new(0);
 
-#[map(name = "NetnsMap")]
-pub static mut NET_EVENTS: PerfEventArray<NetnsLog> = PerfEventArray::new(0);
 //TODO: ConnectionMap needs a rework after implementing issue #105
 #[map(name = "ConnectionMap")]
 pub static mut ACTIVE_CONNECTIONS: LruPerCpuHashMap<u16, ConnArray> =

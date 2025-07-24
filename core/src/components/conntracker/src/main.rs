@@ -28,10 +28,8 @@ use aya_ebpf::{
 use aya_log_ebpf::info;
 
 use crate::bindings::{net, net_device, ns_common, possible_net_t};
-use crate::data_structures::{ConnArray, NetnsLog, PacketLog, VethLog};
-use crate::data_structures::{
-    ACTIVE_CONNECTIONS, CONNTRACKER, EVENTS, NET_EVENTS, VETH_EVENTS,
-};
+use crate::data_structures::{ConnArray, PacketLog, VethLog};
+use crate::data_structures::{ACTIVE_CONNECTIONS, CONNTRACKER, EVENTS, VETH_EVENTS};
 /*
     * ETHERNET TYPE II FRAME:
     * Reference: https://it.wikipedia.org/wiki/Frame_Ethernet
@@ -151,6 +149,18 @@ fn read_linux_inner_value<T: Copy>(ptr: *const u8, offset: usize) -> Result<T, i
     Ok(inner_value)
 }
 
+fn extract_netns_inum(net_device_pointer: *const u8) -> Result<u32, i64> {
+    let possible_net_t_offset = 280;
+
+    let net = read_linux_inner_struct::<net>(net_device_pointer, possible_net_t_offset)?;
+
+    let ns_common_offset = 120;
+
+    let inum_offset = 16;
+    let inum_ptr = read_linux_inner_value::<u32>(net as *const u8, ns_common_offset + inum_offset)?;
+    Ok(inum_ptr)
+}
+
 //mode selection:
 //1->veth_creation_tracer
 //2->veth_deletion_tracer
@@ -180,6 +190,9 @@ pub fn try_veth_tracer(ctx: ProbeContext, mode: u8) -> Result<u32, i64> {
     let dev_addr_array: [u32; 8] =
         read_linux_inner_value::<[u32; 8]>(net_device_pointer as *const u8, dev_addr_offset)?;
 
+    let inum: u32 = extract_netns_inum(net_device_pointer as *const u8)?;
+    let pid: u32 = (bpf_get_current_pid_tgid() << 32) as u32; //extracting lower 32 bit corresponding to the PID
+
     //buffer copying for array types
     name_buf.copy_from_slice(&name_array);
     dev_addr_buf.copy_from_slice(&dev_addr_array);
@@ -190,7 +203,8 @@ pub fn try_veth_tracer(ctx: ProbeContext, mode: u8) -> Result<u32, i64> {
         state: state.into(),
         dev_addr: dev_addr_buf,
         event_type: mode,
-        //netns: inum,
+        netns: inum,
+        pid,
     };
 
     //send the data to the userspace
