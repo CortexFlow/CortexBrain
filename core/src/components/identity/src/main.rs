@@ -7,37 +7,43 @@
  *   3. Track veth creation and deletion events
  *
  */
-#![allow(warnings)]
 #![allow(unused_mut)]
+#![allow(warnings)]
 
 mod enums;
 mod helpers;
 mod structs;
 use aya::{
+    Bpf,
     maps::{
-        perf::{PerfEventArray, PerfEventArrayBuffer}, Map, MapData
-    }, programs::{tc::SchedClassifierLinkId, KProbe, SchedClassifier, TcAttachType}, util::online_cpus, Bpf, Ebpf
+        Map, MapData,
+        perf::{PerfEventArray, PerfEventArrayBuffer},
+    },
+    programs::{KProbe, SchedClassifier, TcAttachType, tc::SchedClassifierLinkId},
+    util::online_cpus,
 };
+use libc::signal;
 
-use crate::enums::IpProtocols;
 use crate::helpers::{display_events, display_veth_events, get_veth_channels};
 use bytes::BytesMut;
 use std::{
     convert::TryInto,
-    path::Path,
+    path::{Path, PathBuf},
     sync::{
-        atomic::{AtomicBool, Ordering}, Arc, Mutex
+        Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
     },
 };
 
-use anyhow::{Context, Ok};
-use tokio::{fs, signal, sync::broadcast::error};
-use tracing::{error, info, warn};
+use anyhow::{Context, Error, Ok};
+use tokio::{fs, signal};
+use tracing::{error, info};
 use tracing_subscriber::{EnvFilter, fmt::format::FmtSpan};
 
 const BPF_PATH: &str = "BPF_PATH"; //BPF env path
+const PIN_MAP_PATH: &str = "PIN_MAP_PATH";
+
 use std::collections::HashMap;
-use std::result::Result::Ok as Okk;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
@@ -67,26 +73,50 @@ async fn main() -> Result<(), anyhow::Error> {
 
     //init bpf data
     let bpf = Arc::new(Mutex::new(Bpf::load(&data)?));
+    let bpf_map_save_path =
+        std::env::var(PIN_MAP_PATH).context("BPF_PATH environment variable required")?;
 
-    //load veth_trace program ref veth_trace.rs
-    init_veth_tracer(bpf.clone());
-    let bpf_maps = init_bpf_maps(bpf.clone()).unwrap();
+    match init_bpf_maps(bpf.clone()) {
+        std::result::Result::Ok(bpf_maps) => {
+            info!("Successfully loaded bpf maps");
 
-    let interfaces = get_veth_channels();
+            //TODO: save the bpf maps in a Vec instead of using a tuple
+            match map_pinner(&bpf_maps, &bpf_map_save_path.into()).await {
+                std::result::Result::Ok(_) => {
+                    info!("maps pinned successfully");
+                    //load veth_trace program ref veth_trace.rs
+                    init_veth_tracer(bpf.clone()).await?;
 
-    info!("Found interfaces: {:?}", interfaces);
-    init_tc_classifier(bpf.clone(), interfaces, link_ids.clone())
-        .context("An error occured during the execution of attach_bpf_program function")?;
+                    let interfaces = get_veth_channels();
 
-    event_listener(bpf_maps, link_ids.clone(), bpf.clone())
-        .await
-        .context("Error initializing event_listener")?;
+                    info!("Found interfaces: {:?}", interfaces);
+                    init_tc_classifier(bpf.clone(), interfaces, link_ids.clone())
+                        .await
+                        .context(
+                            "An error occured during the execution of attach_bpf_program function",
+                        )?;
+
+                    event_listener(bpf_maps, link_ids.clone(), bpf.clone())
+                        .await
+                        .context("Error initializing event_listener")?;
+                }
+                Err(e) => {
+                    error!("Error while pinning bpf_maps: {}", e);
+                    signal::ctrl_c();
+                }
+            }
+        }
+        Err(e) => {
+            error!("Error while loading bpf maps {}", e);
+            signal::ctrl_c();
+        }
+    }
 
     Ok(())
 }
 
 //attach the tc classifier program to a vector of interfaces
-pub fn init_tc_classifier(
+async fn init_tc_classifier(
     bpf: Arc<Mutex<Bpf>>,
     ifaces: Vec<String>,
     link_ids: Arc<Mutex<HashMap<String, SchedClassifierLinkId>>>,
@@ -108,7 +138,7 @@ pub fn init_tc_classifier(
 
     for interface in ifaces {
         match program.attach(&interface, TcAttachType::Ingress) {
-            Okk(link_id) => {
+            std::result::Result::Ok(link_id) => {
                 info!(
                     "Program 'identity_classifier' attached to interface {}",
                     interface
@@ -126,7 +156,7 @@ pub fn init_tc_classifier(
     Ok(())
 }
 
-fn init_veth_tracer(bpf: Arc<Mutex<Bpf>>) -> Result<(), anyhow::Error> {
+async fn init_veth_tracer(bpf: Arc<Mutex<Bpf>>) -> Result<(), anyhow::Error> {
     //this functions init the veth_tracer used to make the InterfacesRegistry
 
     let mut bpf_new = bpf.lock().unwrap();
@@ -138,7 +168,10 @@ fn init_veth_tracer(bpf: Arc<Mutex<Bpf>>) -> Result<(), anyhow::Error> {
         .try_into()?;
     veth_creation_tracer.load()?;
 
-    veth_creation_tracer.attach("register_netdevice", 0)?;
+    match veth_creation_tracer.attach("register_netdevice", 0) {
+        std::result::Result::Ok(_) => info!("veth_creation_tracer program attached successfully"),
+        Err(e) => error!("Error attaching veth_creation_tracer program {:?}", e),
+    }
 
     //deletion tracer
     let veth_deletion_tracer: &mut KProbe = bpf_new
@@ -188,7 +221,11 @@ fn init_bpf_maps(bpf: Arc<Mutex<Bpf>>) -> Result<(Map, Map), anyhow::Error> {
     Ok((events_map, veth_map))
 }
 
-async fn event_listener(bpf_maps: (Map, Map), link_ids: Arc<Mutex<HashMap<String, SchedClassifierLinkId>>>, bpf: Arc<Mutex<Bpf>>) -> Result<(), anyhow::Error> {
+async fn event_listener(
+    bpf_maps: (Map, Map),
+    link_ids: Arc<Mutex<HashMap<String, SchedClassifierLinkId>>>,
+    bpf: Arc<Mutex<Bpf>>,
+) -> Result<(), anyhow::Error> {
     // this function init the event listener. Listens for veth events (creation/deletion) and network events (pod to pod communications)
     /* Doc:
 
@@ -198,6 +235,14 @@ async fn event_listener(bpf_maps: (Map, Map), link_ids: Arc<Mutex<HashMap<String
     */
 
     info!("Preparing perf_buffers and perf_arrays");
+
+    //TODO: try to change from PerfEventArray to a RingBuffer data structure
+    //let m0=bpf_maps[0];
+    //let m1 = bpf_maps[1];
+    //let mut ring1=RingBuf::try_from(m0)?;
+    //let mut ring2=RingBuf::try_from(m1)?;
+
+    //TODO:create an helper function that initialize the data structures and the running
     // init PerfEventArrays
     let mut perf_veth_array: PerfEventArray<MapData> = PerfEventArray::try_from(bpf_maps.1)?;
     let mut perf_net_events_array: PerfEventArray<MapData> = PerfEventArray::try_from(bpf_maps.0)?;
@@ -230,7 +275,14 @@ async fn event_listener(bpf_maps: (Map, Map), link_ids: Arc<Mutex<HashMap<String
 
     //display_events(perf_buffers, running, buffers).await;
     let veth_events_displayer = tokio::spawn(async move {
-        display_veth_events(bpf.clone(), perf_veth_buffer, veth_running, veth_buffers, veth_link_ids, ).await;
+        display_veth_events(
+            bpf.clone(),
+            perf_veth_buffer,
+            veth_running,
+            veth_buffers,
+            veth_link_ids,
+        )
+        .await;
     });
     let net_events_displayer = tokio::spawn(async move {
         display_events(perf_net_events_buffer, net_events_running, events_buffers).await;
@@ -257,6 +309,31 @@ async fn event_listener(bpf_maps: (Map, Map), link_ids: Arc<Mutex<HashMap<String
         }
 
     }
+
+    Ok(())
+}
+
+//TODO: save bpf maps path in the cli metadata
+//takes an array of bpf maps and pin them to persiste session data
+//TODO: change maps type with a Vec<Map> instead of (Map,Map). This method is only for fast development and it's not optimized
+
+//chmod 700 <path> to setup the permissions to pin maps TODO:add this permission in the CLI
+async fn map_pinner(maps: &(Map, Map), path: &PathBuf) -> Result<(), Error> {
+    
+    //FIXME: add exception for already pinned maps 
+    if !path.exists() {
+        error!("Pin path {:?} does not exist. Creating it...", path);
+        let _ = fs::create_dir_all(path)
+            .await
+            .map_err(|e| error!("Failed to create directory: {}", e));
+    }
+
+    // Costruisci i path completi per le due mappe
+    let map1_path = path.join("events_map");
+    let map2_path = path.join("veth_map");
+
+    maps.0.pin(&map1_path)?;
+    maps.1.pin(&map2_path)?;
 
     Ok(())
 }
