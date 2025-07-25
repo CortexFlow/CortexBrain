@@ -214,7 +214,6 @@ pub fn try_veth_tracer(ctx: ProbeContext, mode: u8) -> Result<u32, i64> {
 
     Ok(0)
 }
-
 #[classifier]
 pub fn identity_classifier(ctx: TcContext) -> i32 {
     match try_identity_classifier(ctx) {
