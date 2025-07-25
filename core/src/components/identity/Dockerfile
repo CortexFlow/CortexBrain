@@ -30,6 +30,7 @@ COPY conntracker /usr/src/cortexbrain-identity-service/conntracker
 
 # Set environment variable
 ENV BPF_PATH="/usr/src/cortexbrain-identity-service/conntracker"
+ENV PIN_MAP_PATH="/sys/fs/bpf/cortexbrain-identity-service/"
 
 # Default command
 CMD ["cortexflow-identity-service"]

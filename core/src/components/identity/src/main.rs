@@ -22,24 +22,27 @@ use aya::{
     programs::{KProbe, SchedClassifier, TcAttachType, tc::SchedClassifierLinkId},
     util::online_cpus,
 };
+use libc::signal;
 
 use crate::helpers::{display_events, display_veth_events, get_veth_channels};
 use bytes::BytesMut;
 use std::{
     convert::TryInto,
-    path::Path,
+    path::{Path, PathBuf},
     sync::{
         Arc, Mutex,
         atomic::{AtomicBool, Ordering},
     },
 };
 
-use anyhow::{Context, Ok};
+use anyhow::{Context, Error, Ok};
 use tokio::{fs, signal};
 use tracing::{error, info};
 use tracing_subscriber::{EnvFilter, fmt::format::FmtSpan};
 
 const BPF_PATH: &str = "BPF_PATH"; //BPF env path
+const PIN_MAP_PATH: &str = "PIN_MAP_PATH";
+
 use std::collections::HashMap;
 
 #[tokio::main]
@@ -70,24 +73,38 @@ async fn main() -> Result<(), anyhow::Error> {
 
     //init bpf data
     let bpf = Arc::new(Mutex::new(Bpf::load(&data)?));
+    let bpf_map_save_path =
+        std::env::var(PIN_MAP_PATH).context("BPF_PATH environment variable required")?;
 
     match init_bpf_maps(bpf.clone()) {
         std::result::Result::Ok(bpf_maps) => {
             info!("Successfully loaded bpf maps");
 
-            //load veth_trace program ref veth_trace.rs
-            init_veth_tracer(bpf.clone()).await?;
+            //TODO: save the bpf maps in a Vec instead of using a tuple
+            match map_pinner(&bpf_maps, &bpf_map_save_path.into()).await {
+                std::result::Result::Ok(_) => {
+                    info!("maps pinned successfully");
+                    //load veth_trace program ref veth_trace.rs
+                    init_veth_tracer(bpf.clone()).await?;
 
-            let interfaces = get_veth_channels();
+                    let interfaces = get_veth_channels();
 
-            info!("Found interfaces: {:?}", interfaces);
-            init_tc_classifier(bpf.clone(), interfaces, link_ids.clone())
-                .await
-                .context("An error occured during the execution of attach_bpf_program function")?;
+                    info!("Found interfaces: {:?}", interfaces);
+                    init_tc_classifier(bpf.clone(), interfaces, link_ids.clone())
+                        .await
+                        .context(
+                            "An error occured during the execution of attach_bpf_program function",
+                        )?;
 
-            event_listener(bpf_maps, link_ids.clone(), bpf.clone())
-                .await
-                .context("Error initializing event_listener")?;
+                    event_listener(bpf_maps, link_ids.clone(), bpf.clone())
+                        .await
+                        .context("Error initializing event_listener")?;
+                }
+                Err(e) => {
+                    error!("Error while pinning bpf_maps: {}", e);
+                    signal::ctrl_c();
+                }
+            }
         }
         Err(e) => {
             error!("Error while loading bpf maps {}", e);
@@ -218,6 +235,14 @@ async fn event_listener(
     */
 
     info!("Preparing perf_buffers and perf_arrays");
+
+    //TODO: try to change from PerfEventArray to a RingBuffer data structure
+    //let m0=bpf_maps[0];
+    //let m1 = bpf_maps[1];
+    //let mut ring1=RingBuf::try_from(m0)?;
+    //let mut ring2=RingBuf::try_from(m1)?;
+
+    //TODO:create an helper function that initialize the data structures and the running
     // init PerfEventArrays
     let mut perf_veth_array: PerfEventArray<MapData> = PerfEventArray::try_from(bpf_maps.1)?;
     let mut perf_net_events_array: PerfEventArray<MapData> = PerfEventArray::try_from(bpf_maps.0)?;
@@ -284,6 +309,31 @@ async fn event_listener(
         }
 
     }
+
+    Ok(())
+}
+
+//TODO: save bpf maps path in the cli metadata
+//takes an array of bpf maps and pin them to persiste session data
+//TODO: change maps type with a Vec<Map> instead of (Map,Map). This method is only for fast development and it's not optimized
+
+//chmod 700 <path> to setup the permissions to pin maps TODO:add this permission in the CLI
+async fn map_pinner(maps: &(Map, Map), path: &PathBuf) -> Result<(), Error> {
+    
+    //FIXME: add exception for already pinned maps 
+    if !path.exists() {
+        error!("Pin path {:?} does not exist. Creating it...", path);
+        let _ = fs::create_dir_all(path)
+            .await
+            .map_err(|e| error!("Failed to create directory: {}", e));
+    }
+
+    // Costruisci i path completi per le due mappe
+    let map1_path = path.join("events_map");
+    let map2_path = path.join("veth_map");
+
+    maps.0.pin(&map1_path)?;
+    maps.1.pin(&map2_path)?;
 
     Ok(())
 }
