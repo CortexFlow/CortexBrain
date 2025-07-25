@@ -191,7 +191,7 @@ pub fn try_veth_tracer(ctx: ProbeContext, mode: u8) -> Result<u32, i64> {
         read_linux_inner_value::<[u32; 8]>(net_device_pointer as *const u8, dev_addr_offset)?;
 
     let inum: u32 = extract_netns_inum(net_device_pointer as *const u8)?;
-    let pid: u32 = (bpf_get_current_pid_tgid() << 32) as u32; //extracting lower 32 bit corresponding to the PID
+    let pid: u32 = bpf_get_current_pid_tgid() as u32; //extracting lower 32 bit corresponding to the PID
 
     //buffer copying for array types
     name_buf.copy_from_slice(&name_array);
@@ -249,7 +249,7 @@ fn try_identity_classifier(ctx: TcContext) -> Result<(), i64> {
     ); //14+IHL-Lenght+0
     let proto = u8::from_be(ctx.load::<u8>(PROTOCOL_T0TAL_BYTES_OFFSET).map_err(|_| 1)?);
 
-    let pid = bpf_get_current_pid_tgid() & 0xFFFFFFFF;
+    let pid: u32 = bpf_get_current_pid_tgid() as u32; 
 
     //not logging internal communication packets
     //TODO: do not log internal communications such as minikube dashboard packets or kubectl api packets

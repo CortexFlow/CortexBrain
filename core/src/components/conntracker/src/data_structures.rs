@@ -8,7 +8,7 @@ pub struct PacketLog {
     pub src_port: u16,
     pub dst_ip: u32,
     pub dst_port: u16,
-    pub pid: u64,
+    pub pid: u32
 }
 
 // This structure is only for active connections
