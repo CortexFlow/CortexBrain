@@ -11,9 +11,10 @@
   color: #0e0e0e;
 }
 .md-typeset h1 {
-  font-size: xx-large;
+  font-size: xxx-large;
   font-weight: 800;
   color: #0e0e0e;
+  margin-bottom: 30px;
 }
 
 [data-md-color-scheme="slate"] .md-typeset h1 {
@@ -30,11 +31,22 @@
   color: #7D88EC;
 }
 
+[data-md-color-scheme="slate"] .md-header {
+  background-color: #1C1C1C;
+}
+
+[data-md-color-scheme="slate"] .md-main {
+  background-color: #1C1C1C;
+}
+
+[data-md-color-scheme="slate"] .md-tabs {
+  background-color: #1C1C1C;
+}
+
 [data-md-color-scheme="slate"] .md-typeset h4 {
   font-weight: 800;
   color: #7D88EC;
 }
-
 
 .md-search__form {
   border-radius: 30px;

@@ -27,6 +27,11 @@ theme:
       toggle:
         icon: material/weather-sunny
         name: Switch to light mode
+  
+  markdown_extensions:
+    - toc:
+        permalink: true
+
 
   features:
     - navigation.instant
@@ -36,6 +41,10 @@ theme:
     - search.suggest
     - search.highlight
     - toc.integrate
+    - navigation.tracking
+    - navigation.sections
+    - toc.follow
+
 
 extra_css:
   - stylesheets/style.css

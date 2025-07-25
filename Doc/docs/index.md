@@ -44,7 +44,7 @@ The execution flow of a BPF program can be resumed in four key steps:
 This rigorous process ensures safety and maximum performance by molding itself with an event-driven approach, and so can be used as a foundation of an efficient monitoring system (Metrics and Observability in the graph above) and a fast networking plugin that we refer to in the illustration above as Identity Service.
 
 
-## **CortexBrain components**
+# **CortexBrain components**
 Cortexflow core components, also referred to as CortexBrain components, are composed of a list of services and utilities that empower users to efficiently observe networking events and resource usage. It also includes a command line interface (CLI) referred to as cfcli (cortexflow-cli) and a dashboard. Every component is carefully and detaily documented below.
 
 ## **CLI**

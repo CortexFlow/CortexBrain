@@ -1,13 +1,19 @@
 !!! warning
     CortexFlow is currently under active development and, therefore, is not yet available to the public for production use. If you are a developer and would like to contribute or try out CortexFlow, feel free to reach out to us.
 
-## **Guided Installation**
+###
+
+# **Guided Installation**
+
 CortexFlow provides a command line interface (CLI) to dynamically interact with all the CortexBrain services.
-### **CLI Installation**
+
+## **CLI Installation**
 CortexFlow CLI is hosted using cargo package manager. The current vesion is **0.1.2**. The installation comes very easy thanks to cargo install
+
 ```bash
    cargo install cortexflow-cli
 ```
+
 ### **Components Installation**
 Once you have installed the CLI you can run the following command to install **all** the CortexBrain components  
 ``` bash
@@ -23,7 +29,8 @@ During the installation you must enter your cluster environment, right now **Kub
 
 For a more comprehensive guide and internals you can read the [command list]() in the [CLI section]()
 
-## **Manual Installation**
+
+# **Manual Installation**
 The manual installation allows users to install the CortexBrain components directly from the manifests' files. If you are a newbie this is not recommended. For newbies and users the recommended installation is the **Guided Installation** :
 
 **Clone** the repository to your local machine.
@@ -38,10 +45,10 @@ The manual installation allows users to install the CortexBrain components direc
    | **CortexBrain Core**      | - Kubernetes or Minikube v1.34.0  <br> - Linux system with kernel version >= 5.15 (mandatory for core development)  <br> - Rust programming language (rustc >= 1.85.0) preferably a **nightly** version |
    | **CortexBrain Dashboard** | - npm v10.7.0  <br> - React v18.2.0  <br> - Electron v33.2.0                      |
 
-# Getting Started for developers
+## Getting Started for developers
 Actually CortexBrain encorporates two major projects the **Core** and the **Dashboard**. Being open-source empowers CortexFlow ecosystem to naturally evolve and adapt to the latest challenges. If you are interested in mantaining the CortexFlow ecosystem or collaborate with the team, below you can find a detailed guide to get started.
 
-## **Example of core development with Minikube**  
+### **Example of core development with Minikube**  
 
 ### **Environment Preparatives: Installing system requirements and dependencies**
 CortexBrain contains the core CortexFlow functionalities and it's developed around the Linux kernel thanks to the eBPF technology. The get started with the core development you must install the following linux packages:
@@ -79,7 +86,7 @@ For RedHat/CentOS/Fedora based distributions you can copy and paste the followin
       cfcli install 
    ```
 
-## **Dashboard Development**  
+### **Dashboard Development**  
 
 1.  Install [Node.js](https://nodejs.org/en/download)
 2.  Open the dashboard folder and install the required packages 
