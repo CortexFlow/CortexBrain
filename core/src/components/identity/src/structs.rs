@@ -6,11 +6,12 @@
 #[derive(Clone, Copy)]
 pub struct PacketLog {
     pub proto: u8,
-    pub  src_ip: u32,
-    pub  src_port: u16,
+    pub src_ip: u32,
+    pub src_port: u16,
     pub dst_ip: u32,
     pub dst_port: u16,
     pub event_id: u16,
+    pub pid : u32
 }
 /*
  * Connection Array that contains the hash_id associated with an active connection
@@ -32,6 +33,8 @@ unsafe impl aya::Pod for ConnArray {}
 pub struct VethLog {
     pub name: [u8; 16],
     pub state: u64,
-    pub dev_addr: [u32;8],
+    pub dev_addr: [u32; 8],
     pub event_type: u8,
+    pub netns: u32,
+    pub pid: u32,
 }

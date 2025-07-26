@@ -33,8 +33,6 @@ use tokio::{fs, signal};
  * decleare bpf path env variable
  */
 const BPF_PATH: &str = "BPF_PATH";
-const IFACE: &str = "IFACE";
-use std::result::Result::Ok as Okk;
 
 /*
  * TryFrom Trait implementation for IpProtocols enum
@@ -62,7 +60,7 @@ pub async fn display_events<T: BorrowMut<MapData>>(
     while running.load(Ordering::SeqCst) {
         for buf in perf_buffers.iter_mut() {
             match buf.read_events(&mut buffers) {
-                Ok(events) => {
+                std::result::Result::Ok(events) => {
                     for i in 0..events.read {
                         let data = &buffers[i];
                         if data.len() >= std::mem::size_of::<PacketLog>() {
@@ -72,10 +70,10 @@ pub async fn display_events<T: BorrowMut<MapData>>(
                             let dst = Ipv4Addr::from(u32::from_be(pl.dst_ip));
                             let src_port = u16::from_be(pl.src_port as u16);
                             let dst_port = u16::from_be(pl.dst_port as u16);
-                            let event_id = pl.event_id;
+                            let event_id = pl.pid;
 
                             match IpProtocols::try_from(pl.proto) {
-                                Ok(proto) => {
+                                std::result::Result::Ok(proto) => {
                                     info!(
                                         "Event Id: {} Protocol: {:?} SRC: {}:{} -> DST: {}:{}",
                                         event_id, proto, src, src_port, dst, dst_port
@@ -109,7 +107,7 @@ pub async fn display_veth_events<T: BorrowMut<MapData>>(
     while running.load(Ordering::SeqCst) {
         for buf in perf_buffers.iter_mut() {
             match buf.read_events(&mut buffers) {
-                Ok(events) => {
+                std::result::Result::Ok(events) => {
                     for i in 0..events.read {
                         let data = &buffers[i];
                         if data.len() >= std::mem::size_of::<VethLog>() {
@@ -123,6 +121,7 @@ pub async fn display_veth_events<T: BorrowMut<MapData>>(
                             let state = vethlog.state;
 
                             let dev_addr = dev_addr_bytes;
+                            let netns = vethlog.netns;
                             let mut event_type = String::new();
                             match vethlog.event_type {
                                 1 => {
@@ -134,15 +133,22 @@ pub async fn display_veth_events<T: BorrowMut<MapData>>(
                                 _ => warn!("unknown event_type"),
                             }
                             match name {
-                                Ok(veth_name) => {
+                                std::result::Result::Ok(veth_name) => {
                                     info!(
-                                        "Triggered action: register_netdevice event_type:{:?} Manipulated veth: {:?} state:{:?} dev_addr:{:?}",
+                                        "[{}] Triggered action: register_netdevice event_type:{:?} Manipulated veth: {:?} state:{:?} dev_addr:{:?}",
+                                        netns,
                                         event_type,
                                         veth_name.trim_end_matches("\0").to_string(),
                                         state,
                                         dev_addr
                                     );
-                                    attach_detach_veth(bpf.clone(), vethlog.event_type, veth_name, link_ids.clone()).await;
+                                    attach_detach_veth(
+                                        bpf.clone(),
+                                        vethlog.event_type,
+                                        veth_name,
+                                        link_ids.clone(),
+                                    )
+                                    .await;
                                 }
                                 Err(_) => info!("Unknown name or corrupted field"),
                             }
@@ -173,8 +179,7 @@ pub fn get_veth_channels() -> Vec<String> {
     if let Ok(ifaces) = if_nameindex() {
         for iface in &ifaces {
             let iface_name = iface.name().to_str().unwrap().to_owned();
-            if !ignore_iface(&iface_name)
-            {
+            if !ignore_iface(&iface_name) {
                 interfaces.push(iface_name);
             } else {
                 info!("skipping interface {:?}", iface_name);
@@ -185,8 +190,16 @@ pub fn get_veth_channels() -> Vec<String> {
     interfaces
 }
 
-async fn attach_detach_veth(bpf: Arc<Mutex<Bpf>>, event_type: u8, iface: &str, link_ids: Arc<Mutex<HashMap<String, SchedClassifierLinkId>>>) -> Result<(), anyhow::Error> {
-    info!("attach_detach_veth called: event_type={}, iface={}", event_type, iface);
+async fn attach_detach_veth(
+    bpf: Arc<Mutex<Bpf>>,
+    event_type: u8,
+    iface: &str,
+    link_ids: Arc<Mutex<HashMap<String, SchedClassifierLinkId>>>,
+) -> Result<(), anyhow::Error> {
+    info!(
+        "attach_detach_veth called: event_type={}, iface={}",
+        event_type, iface
+    );
     match event_type {
         1 => {
             let mut bpf = bpf.lock().unwrap();
@@ -204,11 +217,13 @@ async fn attach_detach_veth(bpf: Arc<Mutex<Bpf>>, event_type: u8, iface: &str, l
 
             let mut link_ids = link_ids.lock().unwrap();
             match program.attach(iface, TcAttachType::Ingress) {
-                Ok(link_id) => {
-                    info!("Program 'identity_classifier' attached to interface {}", iface);
+                std::result::Result::Ok(link_id) => {
+                    info!(
+                        "Program 'identity_classifier' attached to interface {}",
+                        iface
+                    );
                     link_ids.insert(iface.to_string(), link_id);
-
-                },
+                }
                 Err(e) => error!("Error attaching program to interface {}: {:?}", iface, e),
             }
         }
