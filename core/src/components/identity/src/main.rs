@@ -190,6 +190,7 @@ async fn init_veth_tracer(bpf: Arc<Mutex<Bpf>>) -> Result<(), anyhow::Error> {
     Ok(())
 }
 
+//TODO: move this functions in a dedicated module named "maps-handler"
 fn init_bpf_maps(bpf: Arc<Mutex<Bpf>>) -> Result<(Map, Map), anyhow::Error> {
     // this function init the bpfs maps used in the main program
     /*
