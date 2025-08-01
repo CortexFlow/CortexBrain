@@ -1,0 +1,16 @@
+syntax = "proto3";
+package agent;
+
+message RequestActiveConnections{
+    optional string pod_ip = 2 ;
+}
+message ActiveConnectionResponse{
+    string status = 1;
+}
+
+//declare agent api 
+service Agent{
+    //active connections endpoint 
+    rpc ActiveConnections(RequestActiveConnections) returns (ActiveConnectionResponse);
+}
+
