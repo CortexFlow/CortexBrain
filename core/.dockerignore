@@ -1,0 +1,7 @@
+src/components/kernel
+src/components/loadbalancer
+src/components/proxy
+src/components/xdp
+src/components/maps
+src/components/xtask
+src/shared

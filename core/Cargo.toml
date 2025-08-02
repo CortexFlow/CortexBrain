@@ -1,20 +1,17 @@
-[package]
-name = "core"
-version = "0.1.0"
-edition = "2021"  # Rust edition, don't change
-
 [workspace]
+resolver = "3"
 members = [
-    "src/components/kernel",
-    "src/components/loadbalancer",
+    #"src/components/kernel",
+    #"src/components/loadbalancer",
     "api",
-    "src/shared",
-    "src/components/proxy",
-    "src/components/xdp",
-    "src/components/maps",
+    #"src/shared",
+    #"src/components/proxy",
+    #"src/components/xdp",
+    #"src/components/maps",
     "src/components/conntracker",
-    "xtask",
+    #"xtask",
     "src/components/identity",
-    "src/components/metrics_tracer",
-    "src/components/metrics",
+    #"src/components/metrics_tracer",
+    #"src/components/metrics",
 ]
+

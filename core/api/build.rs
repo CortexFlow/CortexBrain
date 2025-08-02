@@ -11,7 +11,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .build_server(true)
         .file_descriptor_set_path(out_dir.join("agent_api_descriptor.bin"))
         .out_dir("./src")
-        .compile_protos(&[proto_file], &["proto"])?;
+        .compile_protos(&[proto_file], &["protos"])?;
 
     Ok(())
 }
