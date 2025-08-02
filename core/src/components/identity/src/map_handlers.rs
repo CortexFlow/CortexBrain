@@ -1,12 +1,12 @@
-use std::path::PathBuf;
-use std::sync::Mutex;
-use std::sync::Arc;
 use anyhow::Error;
-use aya::maps::Map;
+use anyhow::Ok;
 use aya::Bpf;
-use tracing::{error};
+use aya::maps::Map;
+use std::path::PathBuf;
+use std::sync::Arc;
+use std::sync::Mutex;
 use tokio::fs;
-
+use tracing::error;
 
 pub fn init_bpf_maps(bpf: Arc<Mutex<Bpf>>) -> Result<(Map, Map), anyhow::Error> {
     // this function init the bpfs maps used in the main program
@@ -45,8 +45,7 @@ pub fn init_bpf_maps(bpf: Arc<Mutex<Bpf>>) -> Result<(Map, Map), anyhow::Error> 
 //TODO: chmod 700 <path> to setup the permissions to pin maps TODO:add this permission in the CLI
 //TODO: add bpf mounts during cli installation
 pub async fn map_pinner(maps: &(Map, Map), path: &PathBuf) -> Result<(), Error> {
-    
-    //FIXME: add exception for already pinned maps 
+    //FIXME: add exception for already pinned maps
     if !path.exists() {
         error!("Pin path {:?} does not exist. Creating it...", path);
         let _ = fs::create_dir_all(path)
