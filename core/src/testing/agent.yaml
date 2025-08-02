@@ -34,8 +34,11 @@ spec:
               echo "checking privileges"
               ls -ld /sys/fs/bpf
 
+              echo "checking if conntracker path"
+              ls -l /usr/src/cortexbrain-agent/conntracker
+
               echo "Running application..."
-              exec /usr/local/bin/cortexflow-agent || echo "Application exited with code $?"
+              exec /usr/local/bin/agent-api || echo "Application exited with code $?"
           volumeMounts:
             - name: bpf
               mountPath: /sys/fs/bpf
@@ -84,5 +87,5 @@ spec:
     name: agent-server-port
     port: 9090
     targetPort: 9090
-  type: ClusterIP
+  type: NodePort
 ---

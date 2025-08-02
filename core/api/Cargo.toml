@@ -15,6 +15,7 @@ identity = { path = "../src/components/identity" }
 tonic-reflection = "0.14.0"
 tonic-build = "0.14.0"
 dotenv = "0.15.0"
+tracing-subscriber = "0.3.19"
 
 [build-dependencies]
 tonic-build = "0.14.0"

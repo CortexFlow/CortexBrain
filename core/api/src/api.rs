@@ -35,7 +35,7 @@ const BPF_PATH: &str = "BPF_PATH";
 impl Default for AgentApi {
     fn default() -> Self {
         let bpf_path = std::env::var(BPF_PATH).context("BPF_PATH variable not found").unwrap();
-        let data = fs::read(Path::new(&bpf_path)).context("Cannot load load from path").unwrap();
+        let data = fs::read(Path::new(&bpf_path)).context("Cannot load data from path").unwrap();
 
         AgentApi {
             name: "CortexFlow-Agent".to_string(),

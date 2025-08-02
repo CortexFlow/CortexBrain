@@ -50,7 +50,7 @@ COPY --from=builder /usr/src/app/agent/target/release/identity /usr/local/bin/id
 COPY conntracker /usr/src/cortexbrain-agent/conntracker
 
 # Set env vars for your app
-ENV BPF_PATH="/usr/src/cortexbrain-identity-service/conntracker"
+ENV BPF_PATH="/usr/src/cortexbrain-agent/conntracker"
 ENV PIN_MAP_PATH="/sys/fs/bpf/cortexbrain-identity-service/"
 
 # Default command
