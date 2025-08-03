@@ -1,0 +1,18 @@
+kind: NetworkChaos
+apiVersion: chaos-mesh.org/v1alpha1
+metadata:
+  namespace: cortexflow
+  name: test
+spec:
+  selector:
+    namespaces:
+      - cortexflow
+    labelSelectors:
+      app: cortexflow-metrics
+  mode: all
+  action: loss
+  duration: 60s
+  loss:
+    loss: '20'
+    correlation: '0'
+  direction: to

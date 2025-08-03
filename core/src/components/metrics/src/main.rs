@@ -1,39 +1,32 @@
 use aya::{
     Ebpf,
     maps::{
-        Map, MapData,
+         MapData,
         perf::{PerfEventArray, PerfEventArrayBuffer},
     },
-    programs::{KProbe, SchedClassifier, TcAttachType, tc::SchedClassifierLinkId},
+    programs::{KProbe},
     util::online_cpus,
 };
 
-use aya_log::EbpfLogger;
 use bytes::BytesMut;
 use std::{
     convert::TryInto,
     env, fs,
-    net::Ipv4Addr,
     path::Path,
     sync::{
-        Arc, Mutex,
         atomic::{AtomicBool, Ordering},
     },
 };
 
 use anyhow::{Context, Ok};
-use tokio::{signal, sync::broadcast::error};
-use tracing::{error, info, warn};
+use tokio::{signal};
+use tracing::{error, info};
 use tracing_subscriber::{EnvFilter, fmt::format::FmtSpan};
 
 const BPF_PATH: &str = "BPF_PATH"; //BPF env path
-use std::collections::HashMap;
 
-#[repr(C)]
-#[derive(Clone, Copy)]
-struct NetworkMetrics {
-    src_addr: u32,
-}
+mod structs;
+use crate::structs::NetworkMetrics;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
@@ -74,7 +67,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     match program.attach("tcp_identify_packet_loss", 0) {
         std::result::Result::Ok(_) => {
-            info!("program attacched successfully to the tcp_identify_packet_loss kprobe ")
+            info!("program attached successfully to the tcp_identify_packet_loss kprobe ")
         }
         Err(e) => error!(
             "An error occured while attaching the program to the tcp_identify_packet_loss kprobe. {:?} ",
@@ -115,10 +108,18 @@ pub async fn display_metrics_map(
                         let data = &buffers[i];
                         if data.len() >= std::mem::size_of::<NetworkMetrics>() {
                             let net_metrics: NetworkMetrics =
-                                unsafe { std::ptr::read(data.as_ptr() as *const _) };
-                            let src = Ipv4Addr::from(u32::from_be(net_metrics.src_addr));
-
-                            info!("Detected packet loss SRC: {}", src);
+                                unsafe { std::ptr::read_unaligned(data.as_ptr() as *const _) };
+                            let sk_drop_count = net_metrics.sk_drops;
+                            let sk_err = net_metrics.sk_err;
+                            let sk_err_soft = net_metrics.sk_err_soft;
+                            let sk_backlog_len = net_metrics.sk_backlog_len;
+                            let sk_wmem_queued = net_metrics.sk_wmem_queued;
+                            let sk_ack_backlog = net_metrics.sk_ack_backlog;
+                            let sk_rcvbuf = net_metrics.sk_rcvbuf;
+                            info!(
+                                "sk_drops: {}, sk_err: {}, sk_err_soft: {}, sk_backlog_len: {}, sk_wmem_queued: {}, sk_ack_backlog: {}, sk_rcvbuf: {}",
+                                sk_drop_count, sk_err, sk_err_soft, sk_backlog_len, sk_wmem_queued, sk_ack_backlog, sk_rcvbuf
+                            );
                         }
                     }
                 }

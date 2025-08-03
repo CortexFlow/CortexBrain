@@ -19,7 +19,7 @@ spec:
       hostNetwork: true
       containers:
         - name: metrics
-          image: lorenzotettamanti/cortexflow-metrics:latest
+          image: metrics:0.0.1
           command: ["/bin/bash", "-c"]
           args:
             - |
