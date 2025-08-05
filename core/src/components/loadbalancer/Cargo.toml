@@ -8,12 +8,12 @@ anyhow = "1.0.98"
 aya = "0.13.1"
 aya-log = "0.2.1"
 log = "0.4.27"
-tokio = { version = "1.44.2", features = ["full"] }
+tokio = { version = "1.47.1", features = ["full"] }
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
 bytemuck = {version ="1.23.0",features = ["derive"]}
 serde = "1.0.219"
-serde_json = "1.0.140"
+serde_json = "1.0.142"
 prometheus = "0.14.0"
 lazy_static = "1.5.0"
 kube = "1.1.0"
