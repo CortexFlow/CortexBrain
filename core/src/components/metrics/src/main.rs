@@ -113,12 +113,12 @@ pub async fn display_metrics_map(
                             let sk_err = net_metrics.sk_err;
                             let sk_err_soft = net_metrics.sk_err_soft;
                             let sk_backlog_len = net_metrics.sk_backlog_len;
-                            let sk_wmem_queued = net_metrics.sk_wmem_queued;
+                            let sk_write_memory_queued = net_metrics.sk_write_memory_queued;
                             let sk_ack_backlog = net_metrics.sk_ack_backlog;
-                            let sk_rcvbuf = net_metrics.sk_rcvbuf;
+                            let sk_receive_buffer_size = net_metrics.sk_receive_buffer_size;
                             info!(
-                                "sk_drops: {}, sk_err: {}, sk_err_soft: {}, sk_backlog_len: {}, sk_wmem_queued: {}, sk_ack_backlog: {}, sk_rcvbuf: {}",
-                                sk_drop_count, sk_err, sk_err_soft, sk_backlog_len, sk_wmem_queued, sk_ack_backlog, sk_rcvbuf
+                                "sk_drops: {}, sk_err: {}, sk_err_soft: {}, sk_backlog_len: {}, sk_write_memory_queued: {}, sk_ack_backlog: {}, sk_receive_buffer_size: {}",
+                                sk_drop_count, sk_err, sk_err_soft, sk_backlog_len, sk_write_memory_queued, sk_ack_backlog, sk_receive_buffer_size
                             );
                         }
                     }
