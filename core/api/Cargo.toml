@@ -1,0 +1,27 @@
+[package]
+name = "api"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0.98"
+prost = "0.14.1"
+tokio = { version = "1.47.0", features = ["full"] }
+tonic = "0.14.0"
+tonic-prost = "0.14.0"
+tracing = "0.1.41"
+aya = "0.13.1"
+identity = { path = "../src/components/identity" }
+tonic-reflection = "0.14.0"
+tonic-build = "0.14.0"
+dotenv = "0.15.0"
+tracing-subscriber = "0.3.19"
+
+[build-dependencies]
+tonic-build = "0.14.0"
+tonic-prost-build = "0.14.0"
+
+
+[[bin]]
+name = "agent-api"
+path = "src/main.rs"

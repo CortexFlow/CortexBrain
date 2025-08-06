@@ -1,3 +1,5 @@
+//TODO: add a identity-monitor module
+//TODO: add an example with test pods during installation
 mod essential;
 mod install;
 mod logs;
