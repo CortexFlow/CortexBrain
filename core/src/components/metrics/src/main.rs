@@ -1,39 +1,34 @@
 use aya::{
     Ebpf,
     maps::{
-        Map, MapData,
+         MapData,
         perf::{PerfEventArray, PerfEventArrayBuffer},
     },
-    programs::{KProbe, SchedClassifier, TcAttachType, tc::SchedClassifierLinkId},
+    programs::{KProbe},
     util::online_cpus,
 };
 
-use aya_log::EbpfLogger;
 use bytes::BytesMut;
 use std::{
     convert::TryInto,
     env, fs,
-    net::Ipv4Addr,
     path::Path,
     sync::{
-        Arc, Mutex,
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool},
     },
 };
 
 use anyhow::{Context, Ok};
-use tokio::{signal, sync::broadcast::error};
-use tracing::{error, info, warn};
+use tokio::{signal};
+use tracing::{error, info};
 use tracing_subscriber::{EnvFilter, fmt::format::FmtSpan};
 
 const BPF_PATH: &str = "BPF_PATH"; //BPF env path
-use std::collections::HashMap;
 
-#[repr(C)]
-#[derive(Clone, Copy)]
-struct NetworkMetrics {
-    src_addr: u32,
-}
+mod helpers;
+use crate::helpers::display_metrics_map;
+
+mod structs;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
@@ -74,7 +69,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     match program.attach("tcp_identify_packet_loss", 0) {
         std::result::Result::Ok(_) => {
-            info!("program attacched successfully to the tcp_identify_packet_loss kprobe ")
+            info!("program attached successfully to the tcp_identify_packet_loss kprobe ")
         }
         Err(e) => error!(
             "An error occured while attaching the program to the tcp_identify_packet_loss kprobe. {:?} ",
@@ -97,36 +92,6 @@ async fn main() -> Result<(), anyhow::Error> {
         display_metrics_map(net_perf_buffer, running, buffers).await;
     });
 
-
     signal::ctrl_c().await?;
     Ok(())
-}
-
-pub async fn display_metrics_map(
-    mut perf_buffers: Vec<PerfEventArrayBuffer<MapData>>,
-    running: AtomicBool,
-    mut buffers: Vec<BytesMut>,
-) {
-    while running.load(Ordering::SeqCst) {
-        for buf in perf_buffers.iter_mut() {
-            match buf.read_events(&mut buffers) {
-                std::result::Result::Ok(events) => {
-                    for i in 0..events.read {
-                        let data = &buffers[i];
-                        if data.len() >= std::mem::size_of::<NetworkMetrics>() {
-                            let net_metrics: NetworkMetrics =
-                                unsafe { std::ptr::read(data.as_ptr() as *const _) };
-                            let src = Ipv4Addr::from(u32::from_be(net_metrics.src_addr));
-
-                            info!("Detected packet loss SRC: {}", src);
-                        }
-                    }
-                }
-                Err(e) => {
-                    error!("Error reading events: {:?}", e);
-                }
-            }
-        }
-        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-    }
 }

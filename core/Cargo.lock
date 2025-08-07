@@ -54,6 +54,7 @@ dependencies = [
  "tonic-prost-build",
  "tonic-reflection",
  "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
