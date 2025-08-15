@@ -87,5 +87,6 @@ spec:
     name: agent-server-port
     port: 9090
     targetPort: 9090
+    appProtocol: grpc
   type: NodePort
 ---
