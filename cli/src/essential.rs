@@ -148,6 +148,7 @@ pub fn create_configs() -> MetadataConfigFile {
     };
     configs
 }
+//TODO: add here and explaination of what read_configs returns
 pub fn read_configs(config_path: PathBuf) -> String {
     let config = fs::File::open(config_path).unwrap();
     let parsed_config: Result<serde_yaml::Value, serde_yaml::Error> =
@@ -205,6 +206,7 @@ pub fn create_config_file(config_struct: MetadataConfigFile) {
         ),
     }
 }
+//TODO: add here an explanation of what are config_dir and file_path
 pub fn get_config_directory() -> Result<(PathBuf, PathBuf), ()> {
     let dirs = ProjectDirs::from("org", "cortexflow", "cfcli")
         .expect("Cannot determine the config directory");
@@ -222,3 +224,4 @@ pub fn get_startup_config_dir() -> bool {
         })
         .unwrap_or(false)
 }
+// TODO: add save to config function
