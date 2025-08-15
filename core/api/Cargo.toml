@@ -21,6 +21,9 @@ tracing-subscriber = "0.3.19"
 tonic-build = "0.14.0"
 tonic-prost-build = "0.14.0"
 
+[lib]
+name = "agent_api"
+path = "src/lib.rs"
 
 [[bin]]
 name = "agent-api"
