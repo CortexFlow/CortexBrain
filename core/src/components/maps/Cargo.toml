@@ -10,7 +10,7 @@ path = "src/lib.rs"
 [dependencies]
 aya-ebpf = { git = "https://github.com/aya-rs/aya" }
 aya-log-ebpf = { git = "https://github.com/aya-rs/aya" }
-bytemuck = {version ="1.23.0",features = ["derive"]}
+bytemuck = {version ="1.23.2",features = ["derive"]}
 network-types = "0.0.8"
 
 [build-dependencies]
