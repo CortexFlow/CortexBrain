@@ -4,10 +4,20 @@ pub struct RequestActiveConnections {
     #[prost(string, optional, tag = "2")]
     pub pod_ip: ::core::option::Option<::prost::alloc::string::String>,
 }
-#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+/// TODO: the complete Response will be able to return all the context below
+///
+/// * "Event Id: {} Protocol: {:?} SRC: {}:{} -> DST: {}:{}",
+/// * event_id, proto, src, src_port, dst, dst_port
+#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ActiveConnectionResponse {
     #[prost(string, tag = "1")]
     pub status: ::prost::alloc::string::String,
+    /// for simplicity right now we only return event_id and src
+    #[prost(map = "string, string", tag = "2")]
+    pub events: ::std::collections::HashMap<
+        ::prost::alloc::string::String,
+        ::prost::alloc::string::String,
+    >,
 }
 /// Generated client implementations.
 pub mod agent_client {
