@@ -1,17 +1,16 @@
+#![allow(warnings)]
 use crate::enums::IpProtocols;
 use crate::structs::{PacketLog, VethLog};
 use aya::programs::tc::SchedClassifierLinkId;
 use aya::{
     Bpf,
-    maps::{
-        MapData,
-        perf::{PerfEventArrayBuffer},
-    },
+    maps::{MapData, perf::PerfEventArrayBuffer},
     programs::{SchedClassifier, TcAttachType},
 };
 use bytes::BytesMut;
 use nix::net::if_::if_nameindex;
 use std::collections::HashMap;
+use std::result::Result::Ok;
 use std::sync::Mutex;
 use std::{
     borrow::BorrowMut,
@@ -46,6 +45,7 @@ impl TryFrom<u8> for IpProtocols {
     }
 }
 
+/* helper functions to read and log net events in the container */
 pub async fn display_events<T: BorrowMut<MapData>>(
     mut perf_buffers: Vec<PerfEventArrayBuffer<T>>,
     running: Arc<AtomicBool>,
