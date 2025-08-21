@@ -17,6 +17,40 @@ spec:
     spec:
       hostPID: true
       hostNetwork: true
+      initContainers:
+        - name: bpf-map-permissions
+          image: ubuntu:24.04
+          command: ["/bin/bash","-c"]
+          args: 
+            - |
+              echo "mounting the bpf path "
+              mount -t bpf bpf /sys/fs/bpf
+              
+              echo "checking permissions"
+              ls -ld /sys/fs/bpf
+
+          volumeMounts:
+            - name: bpf
+              mountPath: /sys/fs/bpf
+              mountPropagation: Bidirectional
+              readOnly: false
+            - name: proc
+              mountPath: /host/proc
+              readOnly: false
+            - name: kernel-dev
+              mountPath: /lib/modules
+              readOnly: false
+          securityContext:
+              runAsUser: 0
+              privileged: true
+              allowPrivilegeEscalation: true
+              capabilities:
+                add:
+                  - SYS_ADMIN
+                  - NET_ADMIN
+                  - SYS_RESOURCE
+                  - BPF
+                  - SYS_PTRACE 
       containers:
         - name: identity
           image: lorenzotettamanti/cortexflow-identity:latest
@@ -36,6 +70,13 @@ spec:
 
               echo "Running application..."
               exec /usr/local/bin/cortexflow-identity-service || echo "Application exited with code $?"
+          resources:
+              limits:
+                cpu: "1"
+                memory: "200Mi"
+              requests:
+                cpu: "1"
+                memory: "100Mi"
           volumeMounts:
             - name: bpf
               mountPath: /sys/fs/bpf
@@ -71,6 +112,13 @@ spec:
             - name: kernel-dev
               mountPath: /lib/modules
               readOnly: false
+          resources:
+            limits:
+              cpu: "1"
+              memory: "200Mi"
+            requests:
+              cpu: "1"
+              memory: "100Mi"
           securityContext:
             privileged: true
             allowPrivilegeEscalation: true
