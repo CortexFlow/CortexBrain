@@ -1,30 +1,31 @@
-//TODO: add a identity-monitor module
 //TODO: add an example with test pods during installation
 mod essential;
 mod install;
 mod logs;
+mod monitoring;
 mod service;
 mod status;
 mod uninstall;
 
-
 use clap::command;
 use clap::{Args, Error, Parser, Subcommand};
-use tracing::debug;
 use colored::Colorize;
-use std::time::Duration;
+use std::result::Result::Ok;
 use std::thread;
+use std::time::Duration;
+use tracing::debug;
 
-
-use crate::essential::{get_config_directory,get_startup_config_dir, info, read_configs, update_cli};
+use crate::essential::{
+    get_config_directory, get_startup_config_dir, info, read_configs, update_cli,
+};
 use crate::install::install_cortexflow;
 use crate::logs::logs_command;
+use crate::monitoring::{list_features, monitor_identity_events};
 use crate::service::{describe_service, list_services};
 use crate::status::status_command;
 use crate::uninstall::uninstall;
 
 use crate::essential::GeneralData;
-
 
 #[derive(Parser, Debug)]
 #[command(
@@ -60,6 +61,8 @@ enum Commands {
     Status(StatusArgs),
     #[command(name = "logs")]
     Logs(LogsArgs),
+    #[command(name = "monitoring")]
+    Monitor(MonitorArgs),
 }
 #[derive(Args, Debug, Clone)]
 struct SetArgs {
@@ -70,6 +73,22 @@ struct SetArgs {
 struct ServiceArgs {
     #[command(subcommand)]
     service_cmd: ServiceCommands,
+}
+
+// cfcli monitor <args>
+#[derive(Args, Debug, Clone)]
+struct MonitorArgs {
+    #[command(subcommand)]
+    monitor_cmd: MonitorCommands,
+}
+
+//monitoring subcommands
+#[derive(Subcommand, Debug, Clone)]
+enum MonitorCommands {
+    #[command(name = "list")]
+    List,
+    #[command(name = "connections")]
+    Connections,
 }
 
 #[derive(Subcommand, Debug, Clone)]
@@ -105,22 +124,30 @@ struct LogsArgs {
     namespace: Option<String>,
 }
 
-fn args_parser() -> Result<(), Error> {
+async fn args_parser() -> Result<(), Error> {
     let args = Cli::parse();
 
     //get the environment from the config file metadata
 
     let config_dir = get_startup_config_dir();
-    
-    if !config_dir{
-        eprintln!("{} {}","[SYSTEM]".blue().bold(),"Config files not found. Please proceed with the installation");
+
+    if !config_dir {
+        eprintln!(
+            "{} {}",
+            "[SYSTEM]".blue().bold(),
+            "Config files not found. Please proceed with the installation"
+        );
         install_cortexflow();
         Ok(())
     } else {
         thread::sleep(Duration::from_secs(1));
-        println!("{} {}","[SYSTEM]".blue().bold(),"Founded config files".white());
-        let config_file_path=get_config_directory();
-        let file_path= config_file_path.unwrap().1;
+        println!(
+            "{} {}",
+            "[SYSTEM]".blue().bold(),
+            "Founded config files".white()
+        );
+        let config_file_path = get_config_directory();
+        let file_path = config_file_path.unwrap().1;
         let env = read_configs(file_path.to_path_buf());
         let general_data = GeneralData::new(env);
         debug!("Arguments {:?}", args.cmd);
@@ -170,6 +197,16 @@ fn args_parser() -> Result<(), Error> {
                 logs_command(logs_args.service, logs_args.component, logs_args.namespace);
                 Ok(())
             }
+            Some(Commands::Monitor(monitor_args)) => match monitor_args.monitor_cmd {
+                MonitorCommands::List => {
+                    let _ = list_features().await;
+                    Ok(())
+                }
+                MonitorCommands::Connections => {
+                    let _ = monitor_identity_events().await;
+                    Ok(())
+                },
+            },
             None => {
                 eprintln!("CLI unknown argument. Cli arguments passed: {:?}", args.cmd);
                 Ok(())
@@ -178,6 +215,7 @@ fn args_parser() -> Result<(), Error> {
     }
 }
 
-fn main() {
-    let _ = args_parser();
+#[tokio::main]
+async fn main() {
+    let _ = args_parser().await;
 }
