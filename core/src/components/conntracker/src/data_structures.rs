@@ -1,4 +1,7 @@
-use aya_ebpf::{macros::map, maps::{LruPerCpuHashMap, PerfEventArray}};
+use aya_ebpf::{
+    macros::map,
+    maps::{LruPerCpuHashMap, PerfEventArray},
+};
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -34,7 +37,7 @@ pub struct VethLog {
 
 }
 
-#[map(name = "EventsMap")]
+#[map(name = "EventsMap", pinning = "by_name")]
 pub static mut EVENTS: PerfEventArray<PacketLog> = PerfEventArray::new(0);
 
 //TODO: ConnectionMap needs a rework after implementing issue #105

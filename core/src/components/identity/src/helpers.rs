@@ -1,34 +1,27 @@
+#![allow(warnings)]
 use crate::enums::IpProtocols;
 use crate::structs::{PacketLog, VethLog};
 use aya::programs::tc::SchedClassifierLinkId;
 use aya::{
     Bpf,
-    maps::{
-        MapData,
-        perf::{PerfEventArray, PerfEventArrayBuffer},
-    },
+    maps::{MapData, perf::PerfEventArrayBuffer},
     programs::{SchedClassifier, TcAttachType},
-    util::online_cpus,
 };
 use bytes::BytesMut;
 use nix::net::if_::if_nameindex;
 use std::collections::HashMap;
+use std::result::Result::Ok;
 use std::sync::Mutex;
 use std::{
-    ascii,
     borrow::BorrowMut,
     net::Ipv4Addr,
-    string,
     sync::{
         Arc,
         atomic::{AtomicBool, Ordering},
     },
 };
-use tracing::{error, event, info, warn};
+use tracing::{error, info, warn};
 
-use anyhow::Context;
-use std::path::Path;
-use tokio::{fs, signal};
 /*
  * decleare bpf path env variable
  */
@@ -52,6 +45,7 @@ impl TryFrom<u8> for IpProtocols {
     }
 }
 
+/* helper functions to read and log net events in the container */
 pub async fn display_events<T: BorrowMut<MapData>>(
     mut perf_buffers: Vec<PerfEventArrayBuffer<T>>,
     running: Arc<AtomicBool>,
@@ -142,13 +136,22 @@ pub async fn display_veth_events<T: BorrowMut<MapData>>(
                                         state,
                                         dev_addr
                                     );
-                                    attach_detach_veth(
+                                    match attach_detach_veth(
                                         bpf.clone(),
                                         vethlog.event_type,
                                         veth_name,
                                         link_ids.clone(),
                                     )
-                                    .await;
+                                    .await
+                                    {
+                                        std::result::Result::Ok(_) => {
+                                            info!("Attach/Detach veth function attached correctly")
+                                        }
+                                        Err(e) => error!(
+                                            "Error attaching Attach/Detach function. Error : {}",
+                                            e
+                                        ),
+                                    }
                                 }
                                 Err(_) => info!("Unknown name or corrupted field"),
                             }

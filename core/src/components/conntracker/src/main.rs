@@ -72,6 +72,7 @@ use crate::data_structures::{ACTIVE_CONNECTIONS, CONNTRACKER, EVENTS, VETH_EVENT
 
 */
 
+//TODO: move all these parameters in a dedicated ENUM
 const IPV4_ETHERTYPE: u16 = 0x0800;
 
 //IPV4 STACK

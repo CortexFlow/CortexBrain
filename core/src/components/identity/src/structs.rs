@@ -1,23 +1,26 @@
+use bytemuck_derive::Zeroable;
+
 /*
  * Structure PacketLog
  * This structure is used to store the packet information
  */
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Zeroable)]
 pub struct PacketLog {
     pub proto: u8,
     pub src_ip: u32,
     pub src_port: u16,
     pub dst_ip: u32,
     pub dst_port: u16,
-    pub event_id: u16,
-    pub pid : u32
+    pub pid: u32,
 }
+unsafe impl aya::Pod for PacketLog {}
+
 /*
  * Connection Array that contains the hash_id associated with an active connection
  */
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Zeroable)]
 pub struct ConnArray {
     pub src_ip: u32,
     pub dst_ip: u32,
