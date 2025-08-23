@@ -77,7 +77,7 @@ async fn main() -> Result<(), anyhow::Error> {
     //init bpf data
     let bpf = Arc::new(Mutex::new(Bpf::load(&data)?));
     let bpf_map_save_path =
-        std::env::var(PIN_MAP_PATH).context("BPF_PATH environment variable required")?;
+        std::env::var(PIN_MAP_PATH).context("PIN_MAP_PATH environment variable required")?;
 
     match init_bpf_maps(bpf.clone()) {
         std::result::Result::Ok(bpf_maps) => {

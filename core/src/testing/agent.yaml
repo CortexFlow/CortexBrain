@@ -37,6 +37,9 @@ spec:
               echo "checking if conntracker path"
               ls -l /usr/src/cortexbrain-agent/conntracker
 
+              echo "checking if the bpf maps are reachable"
+              ls -l /sys/fs/bpf/maps
+
               echo "Running application..."
               exec /usr/local/bin/agent-api || echo "Application exited with code $?"
           volumeMounts:
@@ -87,5 +90,7 @@ spec:
     name: agent-server-port
     port: 9090
     targetPort: 9090
+    appProtocol: grpc
+    nodePort: 30092
   type: NodePort
 ---

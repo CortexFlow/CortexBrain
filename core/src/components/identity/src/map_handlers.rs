@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::Mutex;
 use tokio::fs;
-use tracing::error;
+use tracing::info;
 
 pub fn init_bpf_maps(bpf: Arc<Mutex<Bpf>>) -> Result<(Map, Map), anyhow::Error> {
     // this function init the bpfs maps used in the main program
@@ -42,20 +42,23 @@ pub fn init_bpf_maps(bpf: Arc<Mutex<Bpf>>) -> Result<(Map, Map), anyhow::Error> 
 //TODO: save bpf maps path in the cli metadata
 //takes an array of bpf maps and pin them to persiste session data
 //TODO: change maps type with a Vec<Map> instead of (Map,Map). This method is only for fast development and it's not optimized
-//TODO: chmod 700 <path> to setup the permissions to pin maps TODO:add this permission in the CLI
 //TODO: add bpf mounts during cli installation
 pub async fn map_pinner(maps: &(Map, Map), path: &PathBuf) -> Result<(), Error> {
-    //FIXME: add exception for already pinned maps
+    // check if the map exists
     if !path.exists() {
-        error!("Pin path {:?} does not exist. Creating it...", path);
-        let _ = fs::create_dir_all(path)
-            .await
-            .map_err(|e| error!("Failed to create directory: {}", e));
+        info!("Pin path {:?} does not exist. Creating it...", path);
+        fs::create_dir_all(&path).await?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).await?;
+        }
     }
 
     let map1_path = path.join("events_map");
     let map2_path = path.join("veth_map");
 
+    // maps pinning
     maps.0.pin(&map1_path)?;
     maps.1.pin(&map2_path)?;
 

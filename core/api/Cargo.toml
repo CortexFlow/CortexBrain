@@ -14,13 +14,18 @@ aya = "0.13.1"
 identity = { path = "../src/components/identity" }
 tonic-reflection = "0.14.0"
 tonic-build = "0.14.0"
-dotenv = "0.15.0"
 tracing-subscriber = "0.3.19"
+tokio-stream = "0.1.17"
+bytemuck = {version ="1.23.0"}
+bytemuck_derive = "1.10.1"
 
 [build-dependencies]
 tonic-build = "0.14.0"
 tonic-prost-build = "0.14.0"
 
+[lib]
+name = "agent_api"
+path = "src/lib.rs"
 
 [[bin]]
 name = "agent-api"
