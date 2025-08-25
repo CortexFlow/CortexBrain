@@ -21,7 +21,6 @@ anyhow = "1.0.98"
 api = { path = "../core/api" }
 tonic = "0.14.1"
 tonic-reflection = "0.14.1"
-tokio-stream = "0.1.17"
 prost-types = "0.14.1"
 prost = "0.14.1"
 
