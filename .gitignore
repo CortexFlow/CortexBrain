@@ -172,9 +172,6 @@ skbuff.rs
 admission-webhook.yaml
 certificate-manager.yaml
 client-deployment.yaml
-dns-deployment.yaml
-proxy-injector.yaml
-core/src/components/conntracker/src/bindings.rs
 
 # Claude AI assistant working files
 CLAUDE.md
