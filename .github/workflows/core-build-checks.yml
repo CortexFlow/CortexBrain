@@ -18,15 +18,14 @@ jobs:
       uses: docker/setup-buildx-action@v3
       
     - name: Install Rust toolchain
-      uses: actions-rs/toolchain@v1
+      uses: dtolnay/rust-toolchain@master
       with:
         toolchain: nightly
-        target: bpfel-unknown-none
-        override: true
+        targets: bpfel-unknown-none
         components: rustfmt, clippy
         
     - name: Install stable Rust for bindgen
-      uses: actions-rs/toolchain@v1
+      uses: dtolnay/rust-toolchain@master
       with:
         toolchain: stable
         
