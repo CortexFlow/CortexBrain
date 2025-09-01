@@ -20,10 +20,15 @@ jobs:
     - name: Install Rust toolchain
       uses: actions-rs/toolchain@v1
       with:
-        toolchain: stable
+        toolchain: nightly
         target: bpfel-unknown-none
         override: true
         components: rustfmt, clippy
+        
+    - name: Install stable Rust for bindgen
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
         
     - name: Install BPF dependencies
       run: |
@@ -34,7 +39,17 @@ jobs:
           libelf-dev \
           libpcap-dev \
           build-essential \
-          libbpf-dev
+          libbpf-dev \
+          linux-tools-generic \
+          linux-tools-common
+          
+    - name: Install bindgen-cli
+      run: cargo install bindgen-cli
+      
+    - name: Setup bpftool symlink
+      run: |
+        sudo ln -sf /usr/lib/linux-tools/*/bpftool /usr/local/bin/bpftool || \
+        sudo ln -sf /usr/lib/linux-tools-*/bpftool /usr/local/bin/bpftool
           
     - name: Build CortexFlow Agent
       run: |
