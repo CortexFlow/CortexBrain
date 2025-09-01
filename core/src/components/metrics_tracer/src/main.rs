@@ -41,8 +41,8 @@ fn try_metrics_tracer(ctx: ProbeContext) -> Result<u32, i64> {
     let sk_err = unsafe { bpf_probe_read_kernel::<i32>(sk_pointer.add(sk_err_offset) as *const i32).map_err(|_| 1)? };
     let sk_err_soft = unsafe { bpf_probe_read_kernel::<i32>(sk_pointer.add(sk_err_soft_offset) as *const i32).map_err(|_| 1)? };
     let sk_backlog_len = unsafe { bpf_probe_read_kernel::<i32>(sk_pointer.add(sk_backlog_len_offset) as *const i32).map_err(|_| 1)? };
-    let sk_write_memory_queued = unsafe { bpf_probe_read_kernel::<i32>(sk_pointer.add(sk_wmem_queued_offset) as *const i32).map_err(|_| 1)? };
-    let sk_receive_buffer_size = unsafe { bpf_probe_read_kernel::<i32>(sk_pointer.add(sk_rcvbuf_offset) as *const i32).map_err(|_| 1)? };
+    let sk_write_memory_queued = unsafe { bpf_probe_read_kernel::<i32>(sk_pointer.add(sk_write_memory_queued_offset) as *const i32).map_err(|_| 1)? };
+    let sk_receive_buffer_size = unsafe { bpf_probe_read_kernel::<i32>(sk_pointer.add(sk_receive_buffer_size_offset) as *const i32).map_err(|_| 1)? };
     let sk_ack_backlog = unsafe { bpf_probe_read_kernel::<u32>(sk_pointer.add(sk_ack_backlog_offset) as *const u32).map_err(|_| 1)? };
     let sk_drops = unsafe { bpf_probe_read_kernel::<i32>(sk_pointer.add(sk_drops_offset) as *const i32).map_err(|_| 1)? };
 

@@ -93,12 +93,12 @@ jobs:
           exit 1
         fi
         
-        # Check metrics (currently expected to fail)
+        # Check metrics
         if docker images | grep -q "metrics"; then
           echo "✅ metrics image found"
         else
-          echo "⚠️  metrics image not found (known issue with eBPF build)"
-          # Don't exit 1 for metrics until eBPF build is fixed
+          echo "❌ metrics image not found"
+          exit 1
         fi
         
     - name: Verify builds completed successfully
