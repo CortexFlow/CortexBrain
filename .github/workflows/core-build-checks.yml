@@ -39,7 +39,8 @@ jobs:
           build-essential \
           libbpf-dev \
           linux-tools-generic \
-          linux-tools-common
+          linux-tools-common \
+          protobuf-compiler
           
     - name: Install bindgen-cli
       run: cargo install bindgen-cli
