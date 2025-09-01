@@ -1,0 +1,72 @@
+name: Core Build Checks
+
+on:
+  pull_request:
+    branches: [ main, PreReleaseMain ]
+  push:
+    branches: [ main, PreReleaseMain ]
+
+jobs:
+  build-core-components:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      
+    - name: Install Rust toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        target: bpfel-unknown-none
+        override: true
+        components: rustfmt, clippy
+        
+    - name: Install BPF dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          clang \
+          llvm \
+          libelf-dev \
+          libpcap-dev \
+          build-essential \
+          libbpf-dev
+          
+    - name: Build CortexFlow Agent
+      run: |
+        cd core
+        chmod +x agent-api-build.sh
+        # Build without pushing - modify the script to skip interactive parts
+        ./agent-api-build.sh
+        
+    - name: Build CortexFlow Identity
+      run: |
+        cd core/src/components/identity
+        chmod +x build-identity.sh
+        ./build-identity.sh
+        
+    - name: Build CortexFlow Metrics
+      run: |
+        cd core/src/components/metrics
+        chmod +x build-metrics.sh
+        ./build-metrics.sh
+        
+    - name: Verify Docker images were built
+      run: |
+        docker images | grep -E "(cortexflow-agent|identity|metrics)"
+        echo "✅ All core components built successfully"
+        
+    - name: Run basic tests if available
+      run: |
+        cd core
+        if [ -f "Cargo.toml" ]; then
+          cargo test --workspace
+        fi
+        
+    - name: Cleanup build artifacts
+      run: |
+        docker system prune -f
