@@ -42,8 +42,10 @@ jobs:
           linux-tools-common \
           protobuf-compiler
           
-    - name: Install bindgen-cli
-      run: cargo install bindgen-cli
+    - name: Install bindgen-cli and bpf-linker
+      run: |
+        cargo install bindgen-cli
+        cargo install bpf-linker
       
     - name: Setup bpftool symlink
       run: |
