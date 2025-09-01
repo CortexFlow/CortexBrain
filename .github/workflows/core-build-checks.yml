@@ -76,20 +76,29 @@ jobs:
         echo "Listing all Docker images:"
         docker images
         echo "Checking for core component images..."
+        
+        # Check cortexflow-agent
         if docker images | grep -q "cortexflow-agent"; then
           echo "✅ cortexflow-agent image found"
         else
           echo "❌ cortexflow-agent image not found"
+          exit 1
         fi
+        
+        # Check identity
         if docker images | grep -q "identity"; then
           echo "✅ identity image found" 
         else
           echo "❌ identity image not found"
+          exit 1
         fi
+        
+        # Check metrics (currently expected to fail)
         if docker images | grep -q "metrics"; then
           echo "✅ metrics image found"
         else
-          echo "❌ metrics image not found"
+          echo "⚠️  metrics image not found (known issue with eBPF build)"
+          # Don't exit 1 for metrics until eBPF build is fixed
         fi
         
     - name: Verify builds completed successfully
