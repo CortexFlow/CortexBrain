@@ -20,9 +20,8 @@ jobs:
     - name: Install Rust toolchain
       uses: dtolnay/rust-toolchain@master
       with:
-        toolchain: nightly-2024-02-15
-        targets: bpfel-unknown-none
-        components: rustfmt, clippy
+        toolchain: nightly
+        components: rustfmt, clippy, rust-src
         
     - name: Install stable Rust for bindgen
       uses: dtolnay/rust-toolchain@master
