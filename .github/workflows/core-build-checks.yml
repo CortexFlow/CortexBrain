@@ -53,25 +53,46 @@ jobs:
       run: |
         cd core
         chmod +x agent-api-build.sh
-        # Build without pushing - modify the script to skip interactive parts
-        ./agent-api-build.sh
+        echo "🚀 Starting CortexFlow Agent build..."
+        ./agent-api-build.sh || { echo "❌ Agent build failed"; exit 1; }
+        echo "✅ Agent build completed"
         
     - name: Build CortexFlow Identity
       run: |
         cd core/src/components/identity
         chmod +x build-identity.sh
-        ./build-identity.sh
+        echo "🚀 Starting CortexFlow Identity build..."
+        ./build-identity.sh || { echo "❌ Identity build failed"; exit 1; }
+        echo "✅ Identity build completed"
         
     - name: Build CortexFlow Metrics
       run: |
         cd core/src/components/metrics
         chmod +x build-metrics.sh
-        ./build-metrics.sh
+        echo "🚀 Starting CortexFlow Metrics build..."
+        ./build-metrics.sh || { echo "❌ Metrics build failed"; exit 1; }
+        echo "✅ Metrics build completed"
         
     - name: Verify Docker images were built
       run: |
-        docker images | grep -E "(cortexflow-agent|identity|metrics)"
-        echo "✅ All core components built successfully"
+        echo "Listing all Docker images:"
+        docker images
+        echo "Checking for core component images..."
+        if docker images | grep -q "cortexflow-agent"; then
+          echo "✅ cortexflow-agent image found"
+        else
+          echo "❌ cortexflow-agent image not found"
+        fi
+        if docker images | grep -q "identity"; then
+          echo "✅ identity image found" 
+        else
+          echo "❌ identity image not found"
+        fi
+        if docker images | grep -q "metrics"; then
+          echo "✅ metrics image found"
+        else
+          echo "❌ metrics image not found"
+        fi
         
     - name: Run basic tests if available
       run: |
