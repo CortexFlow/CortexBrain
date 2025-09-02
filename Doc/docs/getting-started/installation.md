@@ -17,7 +17,7 @@ CortexFlow CLI is hosted using cargo package manager. The current vesion is **0.
 ### **Components Installation**
 Once you have installed the CLI you can run the following command to install **all** the CortexBrain components  
 ``` bash
-   cfcli install
+   cfcli install cortexflow
 ```
 cfcli stores relevant information to interoperates with your cluster environment, up to now these information are limited to the cluster environment. 
 
