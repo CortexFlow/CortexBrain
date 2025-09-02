@@ -89,8 +89,10 @@ plugins:
 
 nav:
   - Home: index.md
-  - Getting Started: installation/installation.md
-  - Tools: tools/tools.md
+  - Getting Started: getting-started/installation.md
+  - CLI: 
+    - cfcli/overview.md
+    - cfcli/Agent-API-Overview.md
   - Test Report: 
     - test-report/test-report.md
     - Reports:
