@@ -6,12 +6,12 @@ use tonic_reflection::pb::v1::{
 };
 use crate::agent::agent_client::AgentClient;
 
-
+const AGENT_IP : &str = "http://127.0.0.1:9090";
 
 pub async fn connect_to_client() -> Result<AgentClient<Channel>, Error> {
     //this methods force a HTTP/2 connection from a static string
     //FIXME: this will require an update to ensure a protected connection
-    let channel = Channel::from_static("http://192.168.49.2:30092")
+    let channel = Channel::from_static(AGENT_IP)
         .connect()
         .await?;
     let client = AgentClient::new(channel);
@@ -20,7 +20,7 @@ pub async fn connect_to_client() -> Result<AgentClient<Channel>, Error> {
 
 pub async fn connect_to_server_reflection() -> Result<ServerReflectionClient<Channel>, Error> {
     //this methods force a HTTP/2 connection from a static string
-    let channel = Channel::from_static("http://192.168.49.2:30092")
+    let channel = Channel::from_static(AGENT_IP)
         .connect()
         .await?;
     let client = ServerReflectionClient::new(channel);
