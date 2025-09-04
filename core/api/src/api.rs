@@ -19,7 +19,7 @@ use tokio::task;
 use crate::agent::{agent_server::Agent, ActiveConnectionResponse, RequestActiveConnections};
 use aya::maps::Map;
 use bytemuck_derive::Zeroable;
-use identity::enums::IpProtocols;
+use cortexflow_identity::enums::IpProtocols;
 use std::net::Ipv4Addr;
 use tracing::warn;
 
