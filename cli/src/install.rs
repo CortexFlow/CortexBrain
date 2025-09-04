@@ -127,12 +127,13 @@ fn install_components(env: String) {
 
     for component in files_to_install {
         println!(
-            "{} {}{}{} {} {} {}",
+            "{} {}{}{}{} {} {} {}",
             "=====>".blue().bold(),
             "(",
             i,
             "/",
             tot_files,
+            ")",
             "Applying ",
             component
         );
