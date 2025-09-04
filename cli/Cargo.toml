@@ -19,7 +19,7 @@ serde_yaml = "0.9.34"
 tracing = "0.1.41"
 tokio = "1.47.0"
 anyhow = "1.0.98"
-api = { path = "../core/api" }
+api = { path = "../core/api",version = "0.1.0"}
 tonic = "0.14.1"
 tonic-reflection = "0.14.1"
 prost-types = "0.14.1"
