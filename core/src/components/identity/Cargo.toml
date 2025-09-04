@@ -10,8 +10,8 @@ bytes = "1.4"
 tokio = { version = "1", features = ["full"] }
 anyhow = "1.0"
 tracing = "0.1.41"
-tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
-libc = "0.2.172"
+tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
+libc = "0.2.175"
 bytemuck = {version ="1.23.0",features = ["derive"]}
 bytemuck_derive = "1.10.1"
 
