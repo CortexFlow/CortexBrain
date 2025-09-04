@@ -44,6 +44,8 @@ theme:
     - navigation.tracking
     - navigation.sections
     - toc.follow
+    - content.tabs.link
+
 
 
 extra_css:
@@ -79,6 +81,8 @@ markdown_extensions:
   - pymdownx.inlinehilite
   - pymdownx.snippets
   - pymdownx.keys
+  - pymdownx.tabbed:
+      alternate_style: true
 plugins:
   - tags:
   - search:
@@ -92,7 +96,9 @@ nav:
   - Getting Started: getting-started/installation.md
   - CLI: 
     - cfcli/overview.md
+    - cfcli/quick-start-guide.md
     - cfcli/Agent-API-Overview.md
+    
   - Test Report: 
     - test-report/test-report.md
     - Reports:
