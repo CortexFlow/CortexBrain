@@ -1,5 +1,5 @@
 [package]
-name = "identity"
+name = "cortexflow_identity"
 version = "0.1.0"
 edition = "2024"
 
