@@ -71,8 +71,3 @@ This document describes the available commands and provides a quick reference ta
 | `cfcli monitoring connections` | Monitoring / Status  | Displays logged connections from the Identity service                       |
 
 ---
-
-## Examples
-### How to interact with the cortexflow agent
-!!! warning
-    This part is work in progress
