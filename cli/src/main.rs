@@ -22,7 +22,7 @@ use crate::essential::{
     read_configs,
     update_cli,
 };
-use crate::install::{install_cortexflow, install_simple_example};
+use crate::install::{ install_cortexflow, install_simple_example };
 use crate::logs::logs_command;
 use crate::monitoring::{ list_features, monitor_identity_events };
 use crate::service::{ describe_service, list_services };
@@ -50,17 +50,17 @@ enum Commands {
     #[command(name = "set-env")] SetEnv(SetArgs),
     #[command(name = "get-env")]
     GetEnv,
-    #[command(name = "install")] Install(InstallArgs),
-    #[command(name = "uninstall")]
+    #[command(name = "install", about = "Manage installation")] Install(InstallArgs),
+    #[command(name = "uninstall", about = "Manage uninstallation")]
     Uninstall,
-    #[command(name = "update")]
+    #[command(name = "update", about="Check for updates")]
     Update,
-    #[command(name = "info")]
+    #[command(name = "info", about="Check core info")]
     Info,
-    #[command(name = "service")] Service(ServiceArgs),
-    #[command(name = "status")] Status(StatusArgs),
-    #[command(name = "logs")] Logs(LogsArgs),
-    #[command(name = "monitoring")] Monitor(MonitorArgs),
+    #[command(name = "service",about="Manage services")] Service(ServiceArgs),
+    #[command(name = "status", about="Check components status")] Status(StatusArgs),
+    #[command(name = "logs",about="Check services logs")] Logs(LogsArgs),
+    #[command(name = "monitoring", about = "Monitoring commands")] Monitor(MonitorArgs),
 }
 #[derive(Args, Debug, Clone)]
 struct SetArgs {
@@ -82,29 +82,35 @@ struct InstallArgs {
 //install subcommands
 #[derive(Subcommand, Debug, Clone)]
 enum InstallCommands {
-    #[command(name = "cortexflow")]
+    #[command(name = "cortexflow", about = "Install all the CortexBrain core components")]
     All,
-    #[command(name = "simple-example")]
+    #[command(
+        name = "simple-example",
+        about = "Deploys a simple example contained in deploy-test-pod.yaml"
+    )]
     TestPods,
 }
 
 //monitoring subcommands
 #[derive(Subcommand, Debug, Clone)]
 enum MonitorCommands {
-    #[command(name = "list")]
+    #[command(name = "list", about = "List all the agent API available functions")]
     List,
-    #[command(name = "connections")]
+    #[command(
+        name = "connections",
+        about = "Monitor the recent connections detected by the identity service"
+    )]
     Connections,
 }
 
 //service subcommands
 #[derive(Subcommand, Debug, Clone)]
 enum ServiceCommands {
-    #[command(name = "list")] List {
+    #[command(name = "list",about="Check services list")] List {
         #[arg(long)]
         namespace: Option<String>,
     },
-    #[command(name = "describe")] Describe {
+    #[command(name = "describe", about="Describe service")] Describe {
         service_name: String,
         #[arg(long)]
         namespace: Option<String>,
