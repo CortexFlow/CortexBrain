@@ -2,6 +2,12 @@
 name = "cortexflow_identity"
 version = "0.1.0"
 edition = "2024"
+description = "CortexFlow identity service package"
+license = "Apache-2.0"
+readme = "../README.md"
+documentation = "https://docs.cortexflow.org"
+homepage = "https://docs.cortexflow.org"
+repository = "https://github.com/CortexFlow/CortexBrain"
 
 [dependencies]
 aya = "0.13.1"
