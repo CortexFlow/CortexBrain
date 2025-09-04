@@ -1,13 +1,14 @@
 [package]
 name = "cortexflow-cli"
-version = "0.1.2"
+version = "0.1.3"
 edition = "2024"
 description = "CortexFlow command line interface made to interact with the CortexBrain core components"
-authors = ["Lorenzo Tettamanti", "Pranav Verma", "Lorenzo Bradanini"]
+authors = ["Lorenzo Tettamanti", "Pranav Verma", "Lorenzo Bradanini","Siddharth Sutar","Andrea Bozzo"]
 documentation = "https://docs.cortexflow.org"
 homepage = "https://docs.cortexflow.org"
 repository = "https://github.com/CortexFlow/CortexBrain"
 license = "Apache-2.0"
+readme = "../README.md"
 
 [dependencies]
 clap = { version = "4.5.38", features = ["derive"] }
