@@ -23,7 +23,7 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /usr/src/cortexbrain-identity-service
 
 # Copy the compiled binary
-COPY --from=builder /usr/src/app/identity-service/target/release/identity /usr/local/bin/cortexflow-identity-service
+COPY --from=builder /usr/src/app/identity-service/target/release/cortexflow_identity /usr/local/bin/cortexflow-identity-service
 
 # Copy configuration files
 COPY conntracker /usr/src/cortexbrain-identity-service/conntracker
