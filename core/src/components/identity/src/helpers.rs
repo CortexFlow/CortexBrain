@@ -60,10 +60,10 @@ pub async fn display_events<T: BorrowMut<MapData>>(
                         if data.len() >= std::mem::size_of::<PacketLog>() {
                             let pl: PacketLog =
                                 unsafe { std::ptr::read(data.as_ptr() as *const _) };
-                            let src = Ipv4Addr::from(u32::from_be(pl.src_ip));
-                            let dst = Ipv4Addr::from(u32::from_be(pl.dst_ip));
-                            let src_port = u16::from_be(pl.src_port as u16);
-                            let dst_port = u16::from_be(pl.dst_port as u16);
+                            let src = reverse_be_addr(pl.src_ip);
+                            let dst = reverse_be_addr(pl.dst_ip);
+                            let src_port = u16::from_be(pl.src_port);
+                            let dst_port = u16::from_be(pl.dst_port);
                             let event_id = pl.pid;
 
                             match IpProtocols::try_from(pl.proto) {
@@ -89,6 +89,13 @@ pub async fn display_events<T: BorrowMut<MapData>>(
         }
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
     }
+}
+
+pub fn reverse_be_addr(addr: u32) -> Ipv4Addr {
+    let mut octects = addr.to_be_bytes();
+    let [a,b,c,d] = [octects[3], octects[2], octects[1], octects[0]];
+    let reversed_ip = Ipv4Addr::new(a, b, c, d);
+    reversed_ip
 }
 
 pub async fn display_veth_events<T: BorrowMut<MapData>>(

@@ -237,19 +237,19 @@ fn try_identity_classifier(ctx: TcContext) -> Result<(), i64> {
     let ip_header_len = ihl * 4; //returns the header lenght in bytes
 
     //get the source ip,destination ip and connection id
-    let src_ip = u32::from_be(ctx.load::<u32>(SRC_T0TAL_BYTES_OFFSET).map_err(|_| 1)?); // ETH+SOURCE_ADDRESS
+    let src_ip = ctx.load::<u32>(SRC_T0TAL_BYTES_OFFSET).map_err(|_| 1)?; // ETH+SOURCE_ADDRESS
     let src_port = u16::from_be(
         ctx.load::<u16>(ETH_STACK_BYTES + ip_header_len + SRC_PORT_OFFSET_FROM_IP_HEADER)
             .map_err(|_| 1)?,
     ); //14+IHL-Lenght+0
-    let dst_ip = u32::from_be(ctx.load::<u32>(DST_T0TAL_BYTES_OFFSET).map_err(|_| 1)?); // ETH+ DESTINATION_ADDRESS
+    let dst_ip = ctx.load::<u32>(DST_T0TAL_BYTES_OFFSET).map_err(|_| 1)?; // ETH+ DESTINATION_ADDRESS
     let dst_port = u16::from_be(
         ctx.load::<u16>(ETH_STACK_BYTES + ip_header_len + DST_PORT_OFFSET_FROM_IP_HEADER)
             .map_err(|_| 1)?,
     ); //14+IHL-Lenght+0
     let proto = u8::from_be(ctx.load::<u8>(PROTOCOL_T0TAL_BYTES_OFFSET).map_err(|_| 1)?);
 
-    let pid: u32 = bpf_get_current_pid_tgid() as u32; 
+    let pid: u32 = bpf_get_current_pid_tgid() as u32;
 
     //not logging internal communication packets
     //TODO: do not log internal communications such as minikube dashboard packets or kubectl api packets
