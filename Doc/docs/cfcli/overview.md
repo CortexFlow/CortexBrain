@@ -7,7 +7,7 @@ The tool is called **`cfcli`**.
 This document describes the available commands and provides a quick reference table.
 
 
-## 📦 Setup Commands
+## Setup Commands
 
 - **`cfcli install cortexflow`**  
   Installs **all** CortexBrain core components.  
@@ -19,7 +19,7 @@ This document describes the available commands and provides a quick reference ta
   Uninstalls **all** CortexBrain components.  
 
 
-## ⚙️ CLI Management Commands
+## CLI Management Commands
 
 - **`cfcli update`**  
   Checks if the current `cfcli` version is up to date.  
@@ -32,13 +32,13 @@ This document describes the available commands and provides a quick reference ta
     - installation environment (Kubernetes, Docker, etc.)  
 
 
-## 📝 Logging Commands
+## Logging Commands
 
 - **`cfcli logs`**  
   Retrieves logs for a specified pod.  
 
 
-## 📊 Monitoring and Status Commands
+## Monitoring and Status Commands
 
 - **`cfcli status`**  
   Performs a health check of the CortexBrain core:  
@@ -56,7 +56,7 @@ This document describes the available commands and provides a quick reference ta
     - Shows the most recent detected events.  
 
 
-## 📑 Command Reference Table
+## Command Reference Table
 
 | Command                        | Category             | Description                                                                 |
 |--------------------------------|----------------------|-----------------------------------------------------------------------------|
@@ -69,5 +69,3 @@ This document describes the available commands and provides a quick reference ta
 | `cfcli status`                 | Monitoring / Status  | Runs a health check and validates the `cortexflow` namespace                |
 | `cfcli monitoring list`        | Monitoring / Status  | Lists CortexFlow agent endpoints                                            |
 | `cfcli monitoring connections` | Monitoring / Status  | Displays logged connections from the Identity service                       |
-
----
