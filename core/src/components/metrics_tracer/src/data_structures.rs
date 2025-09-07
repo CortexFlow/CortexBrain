@@ -39,12 +39,12 @@ pub struct TimeStampEvent {
 }
 
 // Map: connect-start timestamp by socket pointer
-#[map(name = "START")]
+#[map(name = "time_stamp_start")]
 pub static mut TIME_STAMP_START: HashMap<*mut core::ffi::c_void, TimeStampStartInfo> =
     HashMap::<*mut core::ffi::c_void, TimeStampStartInfo>::with_max_entries(4096, 0);
 
 // Perf event channel for emitting Event to userspace
-#[map(name = "EVENTS")]
+#[map(name = "time_stamp_events")]
 pub static mut TIME_STAMP_EVENTS: PerfEventArray<TimeStampEvent> = PerfEventArray::<TimeStampEvent>::new(0);
 
 #[map(name = "net_metrics")]
