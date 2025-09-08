@@ -88,16 +88,21 @@ async fn main() -> Result<(), anyhow::Error> {
                 std::result::Result::Ok(_) => {
                     info!("maps pinned successfully");
                     //load veth_trace program ref veth_trace.rs
-                    init_veth_tracer(bpf.clone()).await?;
+                    {
+                        init_veth_tracer(bpf.clone()).await?;
+                    }
 
                     let interfaces = get_veth_channels();
 
                     info!("Found interfaces: {:?}", interfaces);
-                    init_tc_classifier(bpf.clone(), interfaces, link_ids.clone())
-                        .await
-                        .context(
-                            "An error occured during the execution of attach_bpf_program function",
-                        )?;
+                    
+                    {
+                        init_tc_classifier(bpf.clone(), interfaces, link_ids.clone())
+                            .await
+                            .context(
+                                "An error occured during the execution of attach_bpf_program function",
+                            )?;
+                    }
 
                     event_listener(bpf_maps, link_ids.clone(), bpf.clone())
                         .await

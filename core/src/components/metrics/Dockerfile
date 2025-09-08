@@ -30,6 +30,7 @@ COPY metrics_tracer /usr/src/cortexbrain-metrics/metrics_tracer
 
 # Set environment variable
 ENV BPF_PATH="/usr/src/cortexbrain-metrics/metrics_tracer"
+ENV PIN_MAP_PATH="/sys/fs/bpf/trace_maps"
 
 # Default command
 CMD ["cortexflow-metrics"]
