@@ -4,6 +4,17 @@ pub struct RequestActiveConnections {
     #[prost(string, optional, tag = "2")]
     pub pod_ip: ::core::option::Option<::prost::alloc::string::String>,
 }
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct ConnectionEvent {
+    #[prost(string, tag = "1")]
+    pub event_id: ::prost::alloc::string::String,
+    /// e.g., "192.168.1.1:8080" (src_ip:src_port)
+    #[prost(string, tag = "2")]
+    pub src_ip_port: ::prost::alloc::string::String,
+    /// e.g., "10.0.0.1:80" (dst_ip:dst_port)
+    #[prost(string, tag = "3")]
+    pub dst_ip_port: ::prost::alloc::string::String,
+}
 /// TODO: the complete Response will be able to return all the context below
 ///
 /// * "Event Id: {} Protocol: {:?} SRC: {}:{} -> DST: {}:{}",
@@ -12,12 +23,9 @@ pub struct RequestActiveConnections {
 pub struct ActiveConnectionResponse {
     #[prost(string, tag = "1")]
     pub status: ::prost::alloc::string::String,
-    /// for simplicity right now we only return event_id and src
-    #[prost(map = "string, string", tag = "2")]
-    pub events: ::std::collections::HashMap<
-        ::prost::alloc::string::String,
-        ::prost::alloc::string::String,
-    >,
+    /// List of connection events
+    #[prost(message, repeated, tag = "2")]
+    pub events: ::prost::alloc::vec::Vec<ConnectionEvent>,
 }
 /// Generated client implementations.
 pub mod agent_client {
