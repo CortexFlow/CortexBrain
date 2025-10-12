@@ -1,6 +1,8 @@
 syntax = "proto3";
 package agent;
 
+import "google/protobuf/empty.proto";
+
 message RequestActiveConnections{
     optional string pod_ip = 2 ;
 }
@@ -16,5 +18,16 @@ message ActiveConnectionResponse{
 service Agent{
     //active connections endpoint 
     rpc ActiveConnections(RequestActiveConnections) returns (ActiveConnectionResponse);
+    //create blocklist endpoint
+    rpc AddIpToBlocklist(AddIpToBlocklistRequest) returns (BlocklistResponse);
+    rpc CheckBlocklist(google.protobuf.Empty) returns (BlocklistResponse);
 }
 
+message AddIpToBlocklistRequest{
+    optional string ip = 1 ;
+}
+
+message BlocklistResponse{
+    string status = 1 ;
+    map<string,string> events = 2 ;
+}
