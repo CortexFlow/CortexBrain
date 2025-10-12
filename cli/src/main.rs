@@ -1,3 +1,4 @@
+#![allow(warnings)]
 //TODO: add an example with test pods during installation
 mod essential;
 mod install;
@@ -6,6 +7,7 @@ mod monitoring;
 mod service;
 mod status;
 mod uninstall;
+mod policies;
 
 use clap::command;
 use clap::{ Args, Error, Parser, Subcommand };
@@ -26,6 +28,7 @@ use crate::monitoring::{ list_features, monitor_identity_events, MonitorArgs, Mo
 use crate::service::{ ServiceCommands, ServiceArgs, describe_service, list_services };
 use crate::status::{ StatusArgs, status_command };
 use crate::uninstall::uninstall;
+use crate::policies::{ PoliciesCommands, PoliciesArgs, create_blocklist, check_blocklist };
 
 use crate::essential::GeneralData;
 
@@ -59,6 +62,7 @@ enum Commands {
     #[command(name = "status", about = "Check components status")] Status(StatusArgs),
     #[command(name = "logs", about = "Check services logs")] Logs(LogsArgs),
     #[command(name = "monitoring", about = "Monitoring commands")] Monitor(MonitorArgs),
+    #[command(name = "policy", about = "Network Policies")] Policies(PoliciesArgs),
 }
 #[derive(Args, Debug, Clone)]
 struct SetArgs {
@@ -141,25 +145,31 @@ async fn args_parser() -> Result<(), Error> {
             Some(Commands::Monitor(monitor_args)) => {
                 match monitor_args.monitor_cmd {
                     MonitorCommands::List => {
-                        match monitor_args.flags {
-                            None => {
-                                let _ = list_features().await;
-                                Ok(())
-                            }
-                            Some(exclude_flag) => {
-                                println!("Inserted flag: {}", exclude_flag);
-                                Ok(())
-                            }
-                        }
+                        let _ = list_features().await;
+                        Ok(())
                     }
                     MonitorCommands::Connections => {
-                        match monitor_args.flags {
+                        let _ = monitor_identity_events().await;
+                        Ok(())
+                    }
+                }
+            }
+            Some(Commands::Policies(policies_args)) => {
+                match policies_args.policy_cmd {
+                    PoliciesCommands::CheckBlocklist => {
+                        let _ = check_blocklist().await;
+                        Ok(())
+                    }
+                    PoliciesCommands::CreateBlocklist => {
+                        // pass the ip as a monitoring flag
+                        match policies_args.flags {
                             None => {
-                                let _ = monitor_identity_events().await;
+                                println!("Insert at least one ip to create a blocklist");
                                 Ok(())
                             }
                             Some(exclude_flag) => {
-                                println!("Inserted flag: {}", exclude_flag);
+                                println!("inserted ip: {} ", exclude_flag);
+                                let _ = create_blocklist(&exclude_flag).await;
                                 Ok(())
                             }
                         }
