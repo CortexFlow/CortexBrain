@@ -30,8 +30,8 @@ pub enum MonitorCommands {
 pub struct MonitorArgs {
     #[command(subcommand)]
     pub monitor_cmd: MonitorCommands,
-    #[arg(long, short)]
-    pub flags: Option<String>,
+    //#[arg(long, short)]
+    //pub flags: Option<String>,
 }
 
 pub async fn list_features() -> Result<(), Error> {
