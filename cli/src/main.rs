@@ -1,3 +1,4 @@
+#![allow(warnings)]
 //TODO: add an example with test pods during installation
 mod essential;
 mod install;
@@ -6,13 +7,12 @@ mod monitoring;
 mod service;
 mod status;
 mod uninstall;
+mod policies;
 
 use clap::command;
 use clap::{ Args, Error, Parser, Subcommand };
 use colored::Colorize;
 use std::result::Result::Ok;
-use std::thread;
-use std::time::Duration;
 use tracing::debug;
 
 use crate::essential::{
@@ -22,12 +22,13 @@ use crate::essential::{
     read_configs,
     update_cli,
 };
-use crate::install::{ install_cortexflow, install_simple_example };
-use crate::logs::logs_command;
-use crate::monitoring::{ list_features, monitor_identity_events };
-use crate::service::{ describe_service, list_services };
-use crate::status::status_command;
+use crate::install::{ InstallArgs, InstallCommands, install_cortexflow, install_simple_example };
+use crate::logs::{ LogsArgs, logs_command };
+use crate::monitoring::{ list_features, monitor_identity_events, MonitorArgs, MonitorCommands };
+use crate::service::{ ServiceCommands, ServiceArgs, describe_service, list_services };
+use crate::status::{ StatusArgs, status_command };
 use crate::uninstall::uninstall;
+use crate::policies::{ PoliciesCommands, PoliciesArgs, create_blocklist, check_blocklist };
 
 use crate::essential::GeneralData;
 
@@ -53,93 +54,19 @@ enum Commands {
     #[command(name = "install", about = "Manage installation")] Install(InstallArgs),
     #[command(name = "uninstall", about = "Manage uninstallation")]
     Uninstall,
-    #[command(name = "update", about="Check for updates")]
+    #[command(name = "update", about = "Check for updates")]
     Update,
-    #[command(name = "info", about="Check core info")]
+    #[command(name = "info", about = "Check core info")]
     Info,
-    #[command(name = "service",about="Manage services")] Service(ServiceArgs),
-    #[command(name = "status", about="Check components status")] Status(StatusArgs),
-    #[command(name = "logs",about="Check services logs")] Logs(LogsArgs),
+    #[command(name = "service", about = "Manage services")] Service(ServiceArgs),
+    #[command(name = "status", about = "Check components status")] Status(StatusArgs),
+    #[command(name = "logs", about = "Check services logs")] Logs(LogsArgs),
     #[command(name = "monitoring", about = "Monitoring commands")] Monitor(MonitorArgs),
+    #[command(name = "policy", about = "Network Policies")] Policies(PoliciesArgs),
 }
 #[derive(Args, Debug, Clone)]
 struct SetArgs {
     val: String,
-}
-
-#[derive(Args, Debug, Clone)]
-struct ServiceArgs {
-    #[command(subcommand)]
-    service_cmd: ServiceCommands,
-}
-
-//install args
-#[derive(Args, Debug, Clone)]
-struct InstallArgs {
-    #[command(subcommand)]
-    install_cmd: InstallCommands,
-}
-//install subcommands
-#[derive(Subcommand, Debug, Clone)]
-enum InstallCommands {
-    #[command(name = "cortexflow", about = "Install all the CortexBrain core components")]
-    All,
-    #[command(
-        name = "simple-example",
-        about = "Deploys a simple example contained in deploy-test-pod.yaml"
-    )]
-    TestPods,
-}
-
-//monitoring subcommands
-#[derive(Subcommand, Debug, Clone)]
-enum MonitorCommands {
-    #[command(name = "list", about = "List all the agent API available functions")]
-    List,
-    #[command(
-        name = "connections",
-        about = "Monitor the recent connections detected by the identity service"
-    )]
-    Connections,
-}
-
-//service subcommands
-#[derive(Subcommand, Debug, Clone)]
-enum ServiceCommands {
-    #[command(name = "list",about="Check services list")] List {
-        #[arg(long)]
-        namespace: Option<String>,
-    },
-    #[command(name = "describe", about="Describe service")] Describe {
-        service_name: String,
-        #[arg(long)]
-        namespace: Option<String>,
-    },
-}
-
-// cfcli monitor <args>
-#[derive(Args, Debug, Clone)]
-struct MonitorArgs {
-    #[command(subcommand)]
-    monitor_cmd: MonitorCommands,
-}
-
-#[derive(Args, Debug, Clone)]
-struct StatusArgs {
-    #[arg(long)]
-    output: Option<String>,
-    #[arg(long)]
-    namespace: Option<String>,
-}
-
-#[derive(Args, Debug, Clone)]
-struct LogsArgs {
-    #[arg(long)]
-    service: Option<String>,
-    #[arg(long)]
-    component: Option<String>,
-    #[arg(long)]
-    namespace: Option<String>,
 }
 
 async fn args_parser() -> Result<(), Error> {
@@ -158,7 +85,6 @@ async fn args_parser() -> Result<(), Error> {
         install_cortexflow();
         Ok(())
     } else {
-        thread::sleep(Duration::from_secs(1));
         println!("{} {}", "[SYSTEM]".blue().bold(), "Founded config files".white());
         let config_file_path = get_config_directory();
         let file_path = config_file_path.unwrap().1;
@@ -216,7 +142,7 @@ async fn args_parser() -> Result<(), Error> {
                 logs_command(logs_args.service, logs_args.component, logs_args.namespace);
                 Ok(())
             }
-            Some(Commands::Monitor(monitor_args)) =>
+            Some(Commands::Monitor(monitor_args)) => {
                 match monitor_args.monitor_cmd {
                     MonitorCommands::List => {
                         let _ = list_features().await;
@@ -227,6 +153,29 @@ async fn args_parser() -> Result<(), Error> {
                         Ok(())
                     }
                 }
+            }
+            Some(Commands::Policies(policies_args)) => {
+                match policies_args.policy_cmd {
+                    PoliciesCommands::CheckBlocklist => {
+                        let _ = check_blocklist().await;
+                        Ok(())
+                    }
+                    PoliciesCommands::CreateBlocklist => {
+                        // pass the ip as a monitoring flag
+                        match policies_args.flags {
+                            None => {
+                                println!("Insert at least one ip to create a blocklist");
+                                Ok(())
+                            }
+                            Some(exclude_flag) => {
+                                println!("inserted ip: {} ", exclude_flag);
+                                let _ = create_blocklist(&exclude_flag).await;
+                                Ok(())
+                            }
+                        }
+                    }
+                }
+            }
             None => {
                 eprintln!("CLI unknown argument. Cli arguments passed: {:?}", args.cmd);
                 Ok(())

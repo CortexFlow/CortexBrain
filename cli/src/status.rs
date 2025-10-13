@@ -4,6 +4,9 @@ use std::str;
 
 use crate::essential::{Environments, get_config_directory, read_configs};
 
+use clap::Args;
+
+
 #[derive(Debug)]
 pub enum OutputFormat {
     Text,
@@ -19,6 +22,14 @@ impl From<String> for OutputFormat {
             _ => OutputFormat::Text,
         }
     }
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct StatusArgs {
+    #[arg(long)]
+    pub output: Option<String>,
+    #[arg(long)]
+    pub namespace: Option<String>,
 }
 
 pub fn status_command(output_format: Option<String>, namespace: Option<String>) {

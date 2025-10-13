@@ -175,3 +175,5 @@ client-deployment.yaml
 
 # Claude AI assistant working files
 CLAUDE.md
+
+bindings.rs

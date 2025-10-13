@@ -8,6 +8,28 @@ use std::thread;
 use std::time::Duration;
 use tracing::debug;
 
+use clap::command;
+use clap::{ Args, Subcommand };
+
+//install subcommands
+#[derive(Subcommand, Debug, Clone)]
+pub enum InstallCommands {
+    #[command(name = "cortexflow", about = "Install all the CortexBrain core components")]
+    All,
+    #[command(
+        name = "simple-example",
+        about = "Deploys a simple example contained in deploy-test-pod.yaml"
+    )]
+    TestPods,
+}
+
+//install args
+#[derive(Args, Debug, Clone)]
+pub struct InstallArgs {
+    #[command(subcommand)]
+    pub install_cmd: InstallCommands,
+}
+
 /* components installation function */
 fn install_cluster_components(env: String) {
     let user_env = Environments::try_from(env.to_lowercase());
@@ -77,7 +99,6 @@ pub fn install_simple_example() {
     let env = read_configs(file_path);
     install_simple_example_component(env);
 }
-
 
 /* install example component */
 fn install_example(env: String) {

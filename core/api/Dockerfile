@@ -52,6 +52,7 @@ COPY conntracker /usr/src/cortexbrain-agent/conntracker
 # Set env vars for your app
 ENV BPF_PATH="/usr/src/cortexbrain-agent/conntracker"
 ENV PIN_MAP_PATH="/sys/fs/bpf/cortexbrain-identity-service/"
+ENV PIN_BLOCKLIST_MAP_PATH="/sys/fs/bpf/cortexbrain-agent/"
 
 # Default command
 CMD ["agent-api"]

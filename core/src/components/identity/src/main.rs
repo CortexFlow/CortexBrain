@@ -17,31 +17,21 @@ mod map_handlers;
 
 use aya::{
     Bpf,
-    maps::{
-        Map, MapData,
-        perf::{PerfEventArray, PerfEventArrayBuffer},
-    },
-    programs::{KProbe, SchedClassifier, TcAttachType, tc::SchedClassifierLinkId},
+    maps::{ Map, MapData, perf::{ PerfEventArray, PerfEventArrayBuffer } },
+    programs::{ KProbe, SchedClassifier, TcAttachType, tc::SchedClassifierLinkId },
     util::online_cpus,
 };
 
-use crate::helpers::{display_events, display_veth_events, get_veth_channels};
-use crate::map_handlers::{init_bpf_maps,map_pinner};
+use crate::helpers::{ display_events, display_veth_events, get_veth_channels };
+use crate::map_handlers::{ init_bpf_maps, map_pinner };
 
 use bytes::BytesMut;
-use std::{
-    convert::TryInto,
-    path::Path,
-    sync::{
-        Arc, Mutex,
-        atomic::{AtomicBool, Ordering},
-    },
-};
+use std::{ convert::TryInto, path::Path, sync::{ Arc, Mutex, atomic::{ AtomicBool, Ordering } } };
 
-use anyhow::{Context, Ok};
-use tokio::{fs, signal};
-use tracing::{error, info};
-use tracing_subscriber::{EnvFilter, fmt::format::FmtSpan};
+use anyhow::{ Context, Ok };
+use tokio::{ fs, signal };
+use tracing::{ error, info };
+use tracing_subscriber::{ EnvFilter, fmt::format::FmtSpan };
 
 const BPF_PATH: &str = "BPF_PATH"; //BPF env path
 const PIN_MAP_PATH: &str = "PIN_MAP_PATH";
@@ -51,7 +41,8 @@ use std::collections::HashMap;
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
     //init tracing subscriber
-    tracing_subscriber::fmt()
+    tracing_subscriber
+        ::fmt()
         .with_max_level(tracing::Level::INFO)
         .with_target(false)
         .with_level(true)
@@ -70,14 +61,13 @@ async fn main() -> Result<(), anyhow::Error> {
 
     //init conntracker data path
     let bpf_path = std::env::var(BPF_PATH).context("BPF_PATH environment variable required")?;
-    let data = fs::read(Path::new(&bpf_path))
-        .await
-        .context("failed to load file from path")?;
+    let data = fs::read(Path::new(&bpf_path)).await.context("failed to load file from path")?;
 
     //init bpf data
     let bpf = Arc::new(Mutex::new(Bpf::load(&data)?));
-    let bpf_map_save_path =
-        std::env::var(PIN_MAP_PATH).context("PIN_MAP_PATH environment variable required")?;
+    let bpf_map_save_path = std::env
+        ::var(PIN_MAP_PATH)
+        .context("PIN_MAP_PATH environment variable required")?;
 
     match init_bpf_maps(bpf.clone()) {
         std::result::Result::Ok(bpf_maps) => {
@@ -103,10 +93,13 @@ async fn main() -> Result<(), anyhow::Error> {
                                 "An error occured during the execution of attach_bpf_program function",
                             )?;
                     }
+                    init_tc_classifier(bpf.clone(), interfaces, link_ids.clone()).await.context(
+                        "An error occured during the execution of attach_bpf_program function"
+                    )?;
 
-                    event_listener(bpf_maps, link_ids.clone(), bpf.clone())
-                        .await
-                        .context("Error initializing event_listener")?;
+                    event_listener(bpf_maps, link_ids.clone(), bpf.clone()).await.context(
+                        "Error initializing event_listener"
+                    )?;
                 }
                 Err(e) => {
                     error!("Error while pinning bpf_maps: {}", e);
@@ -127,7 +120,7 @@ async fn main() -> Result<(), anyhow::Error> {
 async fn init_tc_classifier(
     bpf: Arc<Mutex<Bpf>>,
     ifaces: Vec<String>,
-    link_ids: Arc<Mutex<HashMap<String, SchedClassifierLinkId>>>,
+    link_ids: Arc<Mutex<HashMap<String, SchedClassifierLinkId>>>
 ) -> Result<(), anyhow::Error> {
     //this funtion initialize the tc classifier program
     info!("Loading programs");
@@ -140,24 +133,16 @@ async fn init_tc_classifier(
         .try_into()
         .context("Failed to init SchedClassifier program")?;
 
-    program
-        .load()
-        .context("Failed to load identity_classifier program")?;
+    program.load().context("Failed to load identity_classifier program")?;
 
     for interface in ifaces {
         match program.attach(&interface, TcAttachType::Ingress) {
             std::result::Result::Ok(link_id) => {
-                info!(
-                    "Program 'identity_classifier' attached to interface {}",
-                    interface
-                );
+                info!("Program 'identity_classifier' attached to interface {}", interface);
                 let mut map = link_ids.lock().unwrap();
                 map.insert(interface.clone(), link_id);
             }
-            Err(e) => error!(
-                "Error attaching program to interface {}: {:?}",
-                interface, e
-            ),
+            Err(e) => error!("Error attaching program to interface {}: {:?}", interface, e),
         }
     }
 
@@ -186,9 +171,7 @@ async fn init_veth_tracer(bpf: Arc<Mutex<Bpf>>) -> Result<(), anyhow::Error> {
         .program_mut("veth_deletion_trace")
         .ok_or_else(|| anyhow::anyhow!("program 'veth_deletion_trace' not found"))?
         .try_into()?;
-    veth_deletion_tracer
-        .load()
-        .context("Failed to load deletetion_tracer program")?;
+    veth_deletion_tracer.load().context("Failed to load deletetion_tracer program")?;
 
     match veth_deletion_tracer.attach("unregister_netdevice_queue", 0) {
         std::result::Result::Ok(_) => info!("veth_deletion_trace program attached successfully"),
@@ -198,11 +181,10 @@ async fn init_veth_tracer(bpf: Arc<Mutex<Bpf>>) -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-
 async fn event_listener(
-    bpf_maps: (Map, Map),
+    bpf_maps: (Map, Map, Map),
     link_ids: Arc<Mutex<HashMap<String, SchedClassifierLinkId>>>,
-    bpf: Arc<Mutex<Bpf>>,
+    bpf: Arc<Mutex<Bpf>>
 ) -> Result<(), anyhow::Error> {
     // this function init the event listener. Listens for veth events (creation/deletion) and network events (pod to pod communications)
     /* Doc:
@@ -258,9 +240,8 @@ async fn event_listener(
             perf_veth_buffer,
             veth_running,
             veth_buffers,
-            veth_link_ids,
-        )
-        .await;
+            veth_link_ids
+        ).await;
     });
     let net_events_displayer = tokio::spawn(async move {
         display_events(perf_net_events_buffer, net_events_running, events_buffers).await;

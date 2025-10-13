@@ -5,6 +5,20 @@ use colored::Colorize;
 
 use crate::essential::{Environments, get_config_directory, read_configs};
 
+use clap::Args;
+
+
+#[derive(Args, Debug, Clone)]
+pub struct LogsArgs {
+    #[arg(long)]
+    pub service: Option<String>,
+    #[arg(long)]
+    pub component: Option<String>,
+    #[arg(long)]
+    pub namespace: Option<String>,
+}
+
+
 #[derive(Debug, Clone)]
 pub enum Component {
     ControlPlane,
