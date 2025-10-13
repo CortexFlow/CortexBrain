@@ -16,7 +16,7 @@ use tokio::sync::mpsc;
 use tokio::task;
 
 // *  contains agent api configuration
-use crate::agent::{agent_server::Agent, ActiveConnectionResponse, RequestActiveConnections};
+use crate::agent::{agent_server::Agent, ActiveConnectionResponse, RequestActiveConnections, ConnectionEvent};
 use aya::maps::Map;
 use bytemuck_derive::Zeroable;
 use cortexflow_identity::enums::IpProtocols;
@@ -38,19 +38,19 @@ unsafe impl aya::Pod for PacketLog {}
 pub struct AgentApi {
     //* event_rx is an istance of a mpsc receiver.
     //* is used to receive the data from the transmitter (tx)
-    event_rx: Mutex<mpsc::Receiver<Result<HashMap<String, String>, Status>>>,
-    event_tx: mpsc::Sender<Result<HashMap<String, String>, Status>>,
+    event_rx: Mutex<mpsc::Receiver<Result<Vec<ConnectionEvent>, Status>>>,
+    event_tx: mpsc::Sender<Result<Vec<ConnectionEvent>, Status>>,
 }
 
 //* Event sender trait. Takes an event from a map and send that to the mpsc channel
 //* using the send_map function
 #[async_trait]
 pub trait EventSender: Send + Sync + 'static {
-    async fn send_event(&self, event: HashMap<String, String>);
+    async fn send_event(&self, event: Vec<ConnectionEvent>);
     async fn send_map(
         &self,
-        map: HashMap<String, String>,
-        tx: mpsc::Sender<Result<HashMap<String, String>, Status>>,
+        map: Vec<ConnectionEvent>,
+        tx: mpsc::Sender<Result<Vec<ConnectionEvent>, Status>>,
     ) {
         let status = Status::new(tonic::Code::Ok, "success");
         let event = Ok(map);
@@ -58,10 +58,11 @@ pub trait EventSender: Send + Sync + 'static {
         let _ = tx.send(event).await;
     }
 }
+
 // send event function. takes an HashMap and send that using mpsc event_tx
 #[async_trait]
 impl EventSender for AgentApi {
-    async fn send_event(&self, event: HashMap<String, String>) {
+    async fn send_event(&self, event: Vec<ConnectionEvent>) {
         self.send_map(event, self.event_tx.clone()).await;
     }
 }
@@ -130,17 +131,18 @@ impl Default for AgentApi {
                                             "Event Id: {} Protocol: {:?} SRC: {}:{} -> DST: {}:{}",
                                             event_id, proto, src, src_port, dst, dst_port
                                         );
-                                                info!("creating hashmap for the aggregated data");
-                                                let mut evt = HashMap::new();
-                                                // insert event in the hashmap
-                                                info!("Inserting events into the hashmap");
+                                                info!("creating vector for the aggregated data");
+                                                let mut evt = Vec::new();
+                                                // insert event in the vector
+                                                info!("Inserting events into the vector");
                                                 //TODO: use a Arc<str> or Box<str> type instead of String type.
                                                 //The data doesn't need to implement any .copy() or .clone() trait
                                                 // using an Arc<str> type will also waste less resources
-                                                evt.insert(
-                                                    format!("{:?}", event_id.to_string()),
-                                                    format!("{:?}", src.to_string()),
-                                                );
+                                                evt.push(ConnectionEvent {
+                                                    event_id: event_id.to_string(),
+                                                    src_ip_port: format!("{}:{}", src, src_port),
+                                                    dst_ip_port: format!("{}:{}", dst, dst_port),
+                                                });
                                                 info!("sending events to the MPSC channel");
                                                 let _ = tx.send(Ok(evt)).await;
                                             }
@@ -160,8 +162,12 @@ impl Default for AgentApi {
                                 }
                             } else if events.read == 0 {
                                 info!("[Agent/API] 0 Events found");
-                                let mut evt = HashMap::new();
-                                evt.insert("0".to_string(), "0".to_string());
+                                let mut evt = Vec::new();
+                                evt.push(ConnectionEvent {
+                                    event_id: "0".to_string(),
+                                    src_ip_port: "0:0".to_string(),
+                                    dst_ip_port: "0:0".to_string(),
+                                });
                                 let _ = tx.send(Ok(evt)).await;
                             }
                         }
@@ -192,12 +198,12 @@ impl Agent for AgentApi {
         let req = request.into_inner();
 
         //create the hashmap to process events from the mpsc channel queue
-        let mut aggregated_events: HashMap<String, String> = HashMap::new();
+        let mut aggregated_events: Vec<ConnectionEvent> = Vec::new();
 
         //aggregate events
         while let Ok(evt) = self.event_rx.lock().unwrap().try_recv() {
-            if let Ok(map) = evt {
-                aggregated_events.extend(map);
+            if let Ok(vec) = evt {
+                aggregated_events.extend(vec);
             }
         }
 
