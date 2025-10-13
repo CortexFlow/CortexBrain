@@ -93,9 +93,6 @@ async fn main() -> Result<(), anyhow::Error> {
                                 "An error occured during the execution of attach_bpf_program function",
                             )?;
                     }
-                    init_tc_classifier(bpf.clone(), interfaces, link_ids.clone()).await.context(
-                        "An error occured during the execution of attach_bpf_program function"
-                    )?;
 
                     event_listener(bpf_maps, link_ids.clone(), bpf.clone()).await.context(
                         "Error initializing event_listener"
