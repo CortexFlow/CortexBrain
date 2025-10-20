@@ -13,6 +13,8 @@ use crate::agent::ActiveConnectionResponse;
 use crate::agent::RequestActiveConnections;
 use crate::agent::BlocklistResponse;
 use crate::agent::AddIpToBlocklistRequest;
+use crate::agent::RmIpFromBlocklistRequest;
+use crate::agent::RmIpFromBlocklistResponse;
 
 pub async fn send_active_connection_request(
     mut client: AgentClient<Channel>
@@ -49,5 +51,15 @@ pub async fn send_check_blocklist_request(
 ) -> Result<Response<BlocklistResponse>, Error> {
     let request = Request::new(());
     let response = client.check_blocklist(request).await?;
+    Ok(response)
+}
+
+pub async fn remove_ip_from_blocklist_request(
+    mut client: AgentClient<Channel>,
+    ip: &str
+) -> Result<Response<RmIpFromBlocklistResponse>, Error> {
+    let ip = ip.to_string();
+    let request = Request::new(RmIpFromBlocklistRequest { ip });
+    let response = client.rm_ip_from_blocklist(request).await?;
     Ok(response)
 }
