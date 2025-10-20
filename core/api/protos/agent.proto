@@ -23,11 +23,17 @@ message ActiveConnectionResponse{
 
 //declare agent api 
 service Agent{
-    //active connections endpoint 
+    
+    // active connections endpoint 
     rpc ActiveConnections(RequestActiveConnections) returns (ActiveConnectionResponse);
-    //create blocklist endpoint
+    
+    // create blocklist endpoint
     rpc AddIpToBlocklist(AddIpToBlocklistRequest) returns (BlocklistResponse);
     rpc CheckBlocklist(google.protobuf.Empty) returns (BlocklistResponse);
+
+    // remove ip from blocklist endpoint
+    rpc RmIpFromBlocklist(RmIpFromBlocklistRequest) returns (RmIpFromBlocklistResponse);
+
 }
 
 message AddIpToBlocklistRequest{
@@ -36,5 +42,12 @@ message AddIpToBlocklistRequest{
 
 message BlocklistResponse{
     string status = 1 ;
+    map<string,string> events = 2 ;
+}
+message RmIpFromBlocklistRequest{
+    string ip = 1 ;
+}
+message RmIpFromBlocklistResponse{
+    string status = 1;
     map<string,string> events = 2 ;
 }
