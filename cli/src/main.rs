@@ -28,7 +28,13 @@ use crate::monitoring::{ list_features, monitor_identity_events, MonitorArgs, Mo
 use crate::service::{ ServiceCommands, ServiceArgs, describe_service, list_services };
 use crate::status::{ StatusArgs, status_command };
 use crate::uninstall::uninstall;
-use crate::policies::{ PoliciesCommands, PoliciesArgs, create_blocklist, check_blocklist };
+use crate::policies::{
+    PoliciesCommands,
+    PoliciesArgs,
+    create_blocklist,
+    check_blocklist,
+    remove_ip,
+};
 
 use crate::essential::GeneralData;
 
@@ -164,12 +170,25 @@ async fn args_parser() -> Result<(), Error> {
                         // pass the ip as a monitoring flag
                         match policies_args.flags {
                             None => {
-                                println!("Insert at least one ip to create a blocklist");
+                                println!("{}","Insert at least one ip to create a blocklist".red());
                                 Ok(())
                             }
                             Some(exclude_flag) => {
                                 println!("inserted ip: {} ", exclude_flag);
                                 let _ = create_blocklist(&exclude_flag).await;
+                                Ok(())
+                            }
+                        }
+                    }
+                    PoliciesCommands::RemoveIpFromBlocklist => {
+                        match policies_args.flags {
+                            None => {
+                                println!("{}","Insert at least one ip to remove from the blocklist".red());
+                                Ok(())
+                            }
+                            Some(ip) => {
+                                println!("Inserted ip: {}", ip);
+                                let _ = remove_ip(&ip).await;
                                 Ok(())
                             }
                         }
