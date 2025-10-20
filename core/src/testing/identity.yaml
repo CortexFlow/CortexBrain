@@ -53,7 +53,7 @@ spec:
                   - SYS_PTRACE 
       containers:
         - name: identity
-          image: lorenzotettamanti/cortexflow-identity:latest
+          image: lorenzotettamanti/cortexflow-identity:0.1.1-beta.2
           command: ["/bin/bash", "-c"]
           args:
             - |
