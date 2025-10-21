@@ -96,7 +96,22 @@ pub async fn monitor_identity_events() -> Result<(), Error> {
             println!("{} {}", "=====>".blue().bold(), "Connected to CortexFlow Client".green());
             match send_active_connection_request(client).await {
                 Ok(response) => {
-                    println!("{:?}", response.into_inner().events);
+                    let resp = response.into_inner();
+                    if resp.events.is_empty() {
+                        println!("{} No events found", "=====>".blue().bold());
+                    } else {
+                        println!("{} Found {} events", "=====>".blue().bold(), resp.events.len());
+                        for (i, ev) in resp.events.iter().enumerate() {
+                            println!(
+                                "{} Event[{}] id: {}  src: {}  dst: {}",
+                                "=====>".blue().bold(),
+                                i,
+                                ev.event_id,
+                                ev.src_ip_port,
+                                ev.dst_ip_port
+                            );
+                        }
+                    }
                 }
                 Err(e) => {
                     println!(

@@ -1,6 +1,6 @@
 [package]
 name = "cortexflow_agent_api"
-version = "0.1.1-beta.0"
+version = "0.1.1-beta.1"
 edition = "2021"
 description = "CortexFlow agent API"
 authors = ["Lorenzo Tettamanti", "Pranav Verma", "Lorenzo Bradanini","Siddharth Sutar","Andrea Bozzo"]
