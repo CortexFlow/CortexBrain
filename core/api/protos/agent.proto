@@ -13,9 +13,6 @@ message ConnectionEvent {
     string dst_ip_port = 3;  // e.g., "10.0.0.1:80" (dst_ip:dst_port)
 }
 
-// TODO: the complete Response will be able to return all the context below
-//* "Event Id: {} Protocol: {:?} SRC: {}:{} -> DST: {}:{}",
-//* event_id, proto, src, src_port, dst, dst_port
 message ActiveConnectionResponse{
     string status = 1;
     repeated ConnectionEvent events = 2;  // List of connection events
