@@ -181,13 +181,6 @@ impl Default for AgentApi {
                                 }
                             } else if events.read == 0 {
                                 info!("[Agent/API] 0 Events found");
-                                let mut evt = Vec::new();
-                                evt.push(ConnectionEvent {
-                                    event_id: "0".to_string(),
-                                    src_ip_port: "0:0".to_string(),
-                                    dst_ip_port: "0:0".to_string(),
-                                });
-                                let _ = tx.send(Ok(evt)).await;
                             }
                         }
                         Err(e) => {
