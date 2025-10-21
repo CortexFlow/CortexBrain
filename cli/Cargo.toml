@@ -23,7 +23,7 @@ tonic = "0.14.1"
 tonic-reflection = "0.14.1"
 prost-types = "0.14.1"
 prost = "0.14.1"
-cortexflow_agent_api = "0.1.1-beta.1"
+cortexflow_agent_api = "0.1.1-beta.2"
 
 [[bin]]
 name = "cfcli"
