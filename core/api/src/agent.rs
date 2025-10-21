@@ -15,10 +15,6 @@ pub struct ConnectionEvent {
     #[prost(string, tag = "3")]
     pub dst_ip_port: ::prost::alloc::string::String,
 }
-/// TODO: the complete Response will be able to return all the context below
-///
-/// * "Event Id: {} Protocol: {:?} SRC: {}:{} -> DST: {}:{}",
-/// * event_id, proto, src, src_port, dst, dst_port
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ActiveConnectionResponse {
     #[prost(string, tag = "1")]
