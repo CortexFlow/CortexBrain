@@ -3,7 +3,7 @@ use anyhow::Context;
 use chrono::Local;
 use prost::bytes::BytesMut;
 use std::str::FromStr;
-use std::{sync::Mutex };
+use std::{ sync::Mutex };
 use tonic::{ Request, Response, Status };
 use tracing::info;
 
@@ -24,6 +24,8 @@ use crate::agent::{
     RequestActiveConnections,
     AddIpToBlocklistRequest,
     BlocklistResponse,
+    RmIpFromBlocklistRequest,
+    RmIpFromBlocklistResponse,
 };
 use aya::maps::Map;
 use bytemuck_derive::Zeroable;
@@ -58,7 +60,7 @@ pub trait EventSender: Send + Sync + 'static {
     async fn send_map(
         &self,
         map: Vec<ConnectionEvent>,
-        tx: mpsc::Sender<Result<Vec<ConnectionEvent>, Status>>,
+        tx: mpsc::Sender<Result<Vec<ConnectionEvent>, Status>>
     ) {
         let status = Status::new(tonic::Code::Ok, "success");
         let event = Ok(map);
@@ -289,8 +291,8 @@ impl Agent for AgentApi {
         for item in blocklist_map.iter() {
             let (k, v) = item.unwrap();
             // convert keys and values from [u8;4] to String
-            let key = String::from_utf8(k.to_vec()).unwrap();
-            let value = String::from_utf8(v.to_vec()).unwrap();
+            let key = Ipv4Addr::from(k).to_string();
+            let value = Ipv4Addr::from(k).to_string();
             converted_blocklist_map.insert(key, value);
         }
 
@@ -324,13 +326,50 @@ impl Agent for AgentApi {
         for item in blocklist_map.iter() {
             let (k, v) = item.unwrap();
             // convert keys and values from [u8;4] to String
-            let key = String::from_utf8(k.to_vec()).unwrap();
-            let value = String::from_utf8(v.to_vec()).unwrap();
+            let key = Ipv4Addr::from(k).to_string();
+            let value = Ipv4Addr::from(k).to_string();
             converted_blocklist_map.insert(key, value);
         }
         Ok(
             Response::new(BlocklistResponse {
                 status: "success".to_string(),
+                events: converted_blocklist_map,
+            })
+        )
+    }
+    async fn rm_ip_from_blocklist(
+        &self,
+        request: Request<RmIpFromBlocklistRequest>
+    ) -> Result<Response<RmIpFromBlocklistResponse>, Status> {
+        //read request
+        let req = request.into_inner();
+        info!("Removing ip from blocklist map");
+        //open blocklist map
+        let mapdata = MapData::from_pin("/sys/fs/bpf/maps/blocklist_map").expect(
+            "cannot open blocklist_map Mapdata"
+        );
+        let blocklist_mapdata = Map::HashMap(mapdata); //load mapdata
+        let mut blocklist_map: ayaHashMap<MapData, [u8; 4], [u8; 4]> = ayaHashMap
+            ::try_from(blocklist_mapdata)
+            .unwrap();
+        //remove the address
+        let ip_to_remove = req.ip;
+        let u8_4_ip_to_remove = Ipv4Addr::from_str(&ip_to_remove).unwrap().octets();
+        blocklist_map.remove(&u8_4_ip_to_remove);
+
+        //convert the maps with a buffer to match the protobuffer types
+        let mut converted_blocklist_map: HashMap<String, String> = HashMap::new();
+        for item in blocklist_map.iter() {
+            let (k, v) = item.unwrap();
+            // convert keys and values from [u8;4] to String
+            let key = Ipv4Addr::from(k).to_string();
+            let value = Ipv4Addr::from(k).to_string();
+            converted_blocklist_map.insert(key, value);
+        }
+
+        Ok(
+            Response::new(RmIpFromBlocklistResponse {
+                status: "Ip removed from blocklist".to_string(),
                 events: converted_blocklist_map,
             })
         )
