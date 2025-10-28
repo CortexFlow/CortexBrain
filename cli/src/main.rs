@@ -37,6 +37,8 @@ use crate::policies::{
 };
 
 use crate::essential::GeneralData;
+use crate::essential::update_config_metadata;
+
 
 #[derive(Parser, Debug)]
 #[command(
@@ -175,7 +177,10 @@ async fn args_parser() -> Result<(), Error> {
                             }
                             Some(exclude_flag) => {
                                 println!("inserted ip: {} ", exclude_flag);
+                                //insert the ip in the blocklist
                                 let _ = create_blocklist(&exclude_flag).await;
+                                //update the config metadata
+                                let _ = update_config_metadata(&exclude_flag);
                                 Ok(())
                             }
                         }
