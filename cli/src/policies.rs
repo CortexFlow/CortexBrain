@@ -46,15 +46,17 @@ pub async fn create_blocklist(ip: &str) -> Result<(), Error> {
                         "Error:",
                         e
                     );
+                    return Err(e)
                 }
             }
         }
-        Err(_) => {
+        Err(e) => {
             println!(
                 "{} {}",
                 "=====>".blue().bold(),
                 "Failed to connect to CortexFlow Client".red()
             );
+            return Err(e)
         }
     }
     Ok(())
@@ -78,15 +80,17 @@ pub async fn check_blocklist() -> Result<(), Error> {
                         "Error:",
                         e
                     );
+                    return Err(e);
                 }
             }
         }
-        Err(_) => {
+        Err(e) => {
             println!(
                 "{} {}",
                 "=====>".blue().bold(),
                 "Failed to connect to CortexFlow Client".red()
             );
+            return Err(e);
         }
     }
     Ok(())
@@ -108,15 +112,17 @@ pub async fn remove_ip(ip:&str) -> Result<(), Error> {
                         "Error:",
                         e
                     );
+                    return Err(e);
                 }
             }
         }
-        Err(_) => {
+        Err(e) => {
             println!(
                 "{} {}",
                 "=====>".blue().bold(),
                 "Failed to connect to CortexFlow Client".red()
             );
+            return Err(e);
         }
     }
     Ok(())
