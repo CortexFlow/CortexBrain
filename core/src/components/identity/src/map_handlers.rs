@@ -2,17 +2,23 @@ use anyhow::Error;
 use anyhow::Ok;
 use aya::Bpf;
 use aya::maps::Map;
+use std::net::Ipv4Addr;
 use std::path::PathBuf;
+use std::str::FromStr;
 use std::sync::Arc;
 use std::sync::Mutex;
 use tokio::fs;
-use tracing::info;
+use tracing::{error, info};
+use aya::maps::HashMap;
+use k8s_openapi::api::core::v1::ConfigMap;
+use kube::{Api, Client};
 
 pub fn init_bpf_maps(bpf: Arc<Mutex<Bpf>>) -> Result<(Map, Map, Map), anyhow::Error> {
     // this function init the bpfs maps used in the main program
     /*
        index 0: events_map
        index 1: veth_map
+       index 2: blocklist map
     */
     let mut bpf_new = bpf.lock().unwrap();
 
@@ -28,18 +34,8 @@ pub fn init_bpf_maps(bpf: Arc<Mutex<Bpf>>) -> Result<(Map, Map, Map), anyhow::Er
         .take_map("Blocklist")
         .ok_or_else(|| anyhow::anyhow!("Blocklist map not found"))?;
 
-    /* EDIT: this part is paused right now
-       info!("loading bpf connections map");
+    //
 
-       //init connection map
-       let connections_map_raw = bpf
-           .take_map("ConnectionMap")
-           .context("failed to take connections map")?;
-
-       let connection_tracker_map = bpf
-           .take_map("ConnectionTrackerMap")
-           .context("failed to take ConnectionTrackerMap map")?;
-    */
     Ok((events_map, veth_map, blocklist_map))
 }
 
@@ -69,4 +65,43 @@ pub async fn map_pinner(maps: &(Map, Map, Map), path: &PathBuf) -> Result<(), Er
     maps.2.pin(&map3_path)?;
 
     Ok(())
+}
+pub async fn populate_blocklist(map: &mut Map) -> Result<(), Error> {
+    let client = Client::try_default().await.unwrap();
+    let namespace = "cortexflow";
+    let configmap = "cortexbrain-client-config";
+
+    let mut blocklist_map =HashMap::<_, [u8; 4],[u8;4]>::try_from(map)?;
+
+
+    let api: Api<ConfigMap> = Api::namespaced(client, namespace);
+    match api.get(configmap).await {
+        std::result::Result::Ok(configs) => {
+            info!("Configmap : {} loaded correctly ", configmap);
+            info!("[CONFIGMAP]: {:?} ", configs);
+            if let Some(data) = configs.data {
+                if let Some(blocklist) = data.get("blocklist") {
+                    match serde_yaml::from_str::<Vec<String>>(&blocklist) {
+                        std::result::Result::Ok(addresses) => {
+                            info!("Inserting addresses: {:?}", addresses);
+
+                            for item in addresses{
+                                let addr = Ipv4Addr::from_str(&item)?.octets();
+                                let _ = blocklist_map.insert(addr,addr,0);
+                            }
+
+                        }
+                        std::result::Result::Err(e) => {
+                            error!("Error during blocklist addresses import: {}", e);
+                        }
+                    }
+                }
+            }
+            Ok(())
+        }
+        std::result::Result::Err(e) => {
+            error!("An error occured while reading configmap: {}", e);
+            return Err(e.into());
+        }
+    }
 }

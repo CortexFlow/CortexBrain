@@ -23,7 +23,7 @@ use aya::{
 };
 
 use crate::helpers::{ display_events, display_veth_events, get_veth_channels };
-use crate::map_handlers::{ init_bpf_maps, map_pinner };
+use crate::map_handlers::{ init_bpf_maps, map_pinner,populate_blocklist };
 
 use bytes::BytesMut;
 use std::{ convert::TryInto, path::Path, sync::{ Arc, Mutex, atomic::{ AtomicBool, Ordering } } };
@@ -70,7 +70,7 @@ async fn main() -> Result<(), anyhow::Error> {
         .context("PIN_MAP_PATH environment variable required")?;
 
     match init_bpf_maps(bpf.clone()) {
-        std::result::Result::Ok(bpf_maps) => {
+        std::result::Result::Ok(mut bpf_maps) => {
             info!("Successfully loaded bpf maps");
 
             //TODO: save the bpf maps in a Vec instead of using a tuple
@@ -85,6 +85,10 @@ async fn main() -> Result<(), anyhow::Error> {
                     let interfaces = get_veth_channels();
 
                     info!("Found interfaces: {:?}", interfaces);
+
+                    {
+                        populate_blocklist(&mut bpf_maps.2).await;
+                    }
                     
                     {
                         init_tc_classifier(bpf.clone(), interfaces, link_ids.clone())
