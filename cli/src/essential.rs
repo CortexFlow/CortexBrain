@@ -1,9 +1,16 @@
-use std::{ fs, io::stdin, path::PathBuf, process::exit };
+use std::collections::BTreeMap;
+use std::ptr::read;
+//TODO: Check if is possible to use the get_config_path function. Check for reusable components
+use std::{fs, io::stdin, path::PathBuf, process::exit};
 
 use directories::ProjectDirs;
+use k8s_openapi::api::core::v1::ConfigMap;
+use k8s_openapi::serde_json::json;
+use kube::Config;
 use prost_types::MethodDescriptorProto;
 use serde::Serialize;
-use std::fs::{ Metadata, OpenOptions };
+use std::fs::{Metadata, OpenOptions};
+use std::result::Result::Ok;
 
 use colored::Colorize;
 use std::thread;
@@ -11,12 +18,14 @@ use std::time::Duration;
 
 use std::process::Command;
 
+use kube::api::{Api, ObjectMeta, Patch, PatchParams, PostParams};
+use kube::client::Client;
+
 pub struct GeneralData {
     env: String,
 }
 #[derive(Serialize)]
 pub struct MetadataConfigFile {
-    env: String,
     blocklist: Vec<String>,
 }
 #[derive(Debug)]
@@ -98,130 +107,138 @@ fn is_supported_env(env: &str) -> bool {
     matches!(env.to_lowercase().trim(), "kubernetes" | "k8s")
 }
 
+//FIXME: fix this
 pub fn create_configs() -> MetadataConfigFile {
-    let mut user_input: String = String::new();
-
     let mut blocklist: Vec<String> = Vec::new();
     blocklist.push("".to_string());
 
-    println!(
-        "{} {}",
-        "=====>".blue().bold(),
-        "Insert your cluster environment (e.g. Kubernetes)".white()
-    );
-    stdin().read_line(&mut user_input).unwrap();
-    let cluster_environment = user_input.trim().to_string();
-
-    if !is_supported_env(&cluster_environment) {
-        eprintln!(
-            "Cannot save cluster environment data. Installation aborted. Please insert supported environment"
-        );
-        exit(1);
-    }
-
-    let configs = MetadataConfigFile {
-        env: cluster_environment,
-        blocklist,
-    };
+    let configs = MetadataConfigFile { blocklist };
     configs
 }
-//TODO: add here and explaination of what read_configs returns
-pub fn read_configs(config_path: PathBuf) -> String {
-    let config = fs::File::open(config_path).unwrap();
-    let parsed_config: Result<serde_yaml::Value, serde_yaml::Error> = serde_yaml::from_reader(
-        config
-    );
+pub async fn read_configs() -> Result<Vec<String>, anyhow::Error> {
+    let client = Client::try_default().await?;
+    let namespace = "cortexflow";
+    let configmap = "cortexbrain-client-config";
+    let api: Api<ConfigMap> = Api::namespaced(client, namespace);
 
-    match parsed_config {
-        Ok(cfg) => {
-            let env = &cfg["env"].as_str().unwrap().to_string();
-            thread::sleep(Duration::from_secs(1));
-            println!(
-                "{} {} {:?}",
-                "[SYSTEM]".blue().bold(),
-                "Readed configs for env variable:".white(),
-                env
-            );
-            return env.to_string();
-        }
-        Err(e) => {
-            eprintln!("An error occured while reading the config file: {:?}", e);
-            exit(1)
+    let cm = api.get(configmap).await?;
+
+    if let Some(data) = cm.data {
+        if let Some(blocklist_raw) = data.get("blocklist") {
+            let lines: Vec<String> = blocklist_raw
+                .lines()
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty()) // ignora righe vuote
+                .collect();
+
+            return Ok(lines);
         }
     }
+
+    Ok(Vec::new()) //in case the key fails
 }
+pub async fn create_config_file(config_struct: MetadataConfigFile) -> Result<(), anyhow::Error> {
+    let client = Client::try_default().await?;
+    let namespace = "cortexflow";
+    let configmap = "cortexbrain-client-config";
 
-pub fn create_config_file(config_struct: MetadataConfigFile) {
-    let dirs = ProjectDirs::from("org", "cortexflow", "cfcli").expect(
-        "Cannot determine the config directory"
-    );
-    let config_dir = dirs.config_dir().to_path_buf();
-    let config_save_path = config_dir.join("config.yaml");
+    let api: Api<ConfigMap> = Api::namespaced(client, namespace);
 
-    //create directory
-    fs::create_dir_all(&config_dir).expect("Cannot create directories");
-
-    let configs = OpenOptions::new()
-        .write(true)
-        .create(true)
-        .open(&config_save_path)
-        .expect("Cannot open config file");
-
-    match serde_yaml::to_writer(configs, &config_struct) {
-        Ok(_) => {
-            println!("\n");
-            thread::sleep(Duration::from_secs(1));
-            println!(
-                "{} {}{:?}",
-                "[SYSTEM]".blue().bold(),
-                "Configuration files saved in path :".white(),
-                &config_save_path.display()
-            );
-            println!("\n");
-        }
-        Err(e) => eprintln!("An error occured during the creation of the config files. {:?}", e),
-    }
-}
-// file config path: /.config/cfcli/config.yaml
-pub fn update_config_metadata(input: &str) {
-    //logic: read configs
-    //create local copy
-    //override blocklist parameters
-    //serialize
-
-    let dirs = ProjectDirs::from("org", "cortexflow", "cfcli").expect(
-        "Cannot determine the config directory"
-    );
-    let config_dir = dirs.config_dir().to_path_buf();
-    let config_path = config_dir.join("config.yaml");
-    let config = fs::File::open(config_path).unwrap();
-    let parsed_config: Result<serde_yaml::Value, serde_yaml::Error> = serde_yaml::from_reader(
-        config
-    );
-
-    //create a temporary vector of ips
-    let mut ips = Vec::new();
-    ips.push(input.to_string());
-
-    // read the configs
-    match parsed_config {
-        Ok(cfg) => {
-            //let blocklist_field = &cfg["blocklist"].as_str().unwrap().to_string();
-            let env_field = &cfg["env"].as_str().unwrap().to_string();
-            thread::sleep(Duration::from_secs(1));
-            // override blocklist parameters
-            let new_configs = MetadataConfigFile {
-                env: env_field.to_string(),
-                blocklist: ips,
+    // create configmap
+    match serde_yaml::to_string(&config_struct.blocklist) {
+        Ok(cfgs) => {
+            let mut data = BTreeMap::new();
+            data.insert("blocklist".to_string(), cfgs);
+            let cm = ConfigMap {
+                metadata: ObjectMeta {
+                    name: Some("cortexbrain-client-config".to_string()),
+                    ..Default::default()
+                }, // type ObjectMeta
+                data: Some(data), //type Option<BTreeMap<String, String, Global>>
+                ..Default::default()
             };
-            //create a new config
-            create_config_file(new_configs);
+            match api.create(&PostParams::default(), &cm).await {
+                Ok(_) => {
+                    println!("Configmap created successfully");
+                }
+                Err(e) => {
+                    eprintln!("An error occured: {}", e);
+                }
+            };
+            Ok(())
         }
         Err(e) => {
-            eprintln!("An error occured while reading the config file: {:?}", e);
-            exit(1)
+            eprintln!(
+                "An error occured during the creation of the config files. {:?}",
+                e
+            );
+            return Err(e.into());
         }
     }
+}
+
+pub async fn update_config_metadata(input: &str, action: &str) {
+    if action == "add" {
+        //retrieve current blocked ips list
+        let mut ips = read_configs().await.unwrap();
+        println!("Readed current blocked ips: {:?}",ips);
+
+        //create a temporary vector of ips
+        ips.push(input.to_string());
+
+        // override blocklist parameters
+        let new_configs = MetadataConfigFile { blocklist: ips };
+        //create a new config
+        update_configmap(new_configs).await;
+    } else if action == "delete" {
+        let mut ips = read_configs().await.unwrap();
+        if let Some(index) = ips.iter().position(|target| target == &input.to_string()) {
+            ips.remove(index);
+        } else {
+            eprintln!("Index of element not found");
+        }
+
+        // override blocklist parameters
+        let new_configs = MetadataConfigFile { blocklist: ips };
+        //create a new config
+        update_configmap(new_configs).await;
+    }
+}
+
+pub async fn update_configmap(config_struct: MetadataConfigFile) -> Result<(), anyhow::Error> {
+    let client = Client::try_default().await?;
+    let namespace = "cortexflow";
+    let name = "cortexbrain-client-config";
+    let api: Api<ConfigMap> = Api::namespaced(client, namespace);
+
+     let blocklist_yaml = config_struct
+        .blocklist
+        .iter()
+        .map(|x| format!("{}",x))
+        .collect::<Vec<String>>()
+        .join("\n");
+
+
+    let patch = Patch::Apply(json!({
+        "apiVersion": "v1",
+        "kind": "ConfigMap",
+        "data": {
+            "blocklist": blocklist_yaml
+        }
+    }));
+
+    let patch_params = PatchParams::apply("cortexbrain").force();
+    match api.patch(name, &patch_params, &patch).await {
+        Ok(_) => {
+            println!("Map updated successfully");
+        }
+        Err(e) => {
+            eprintln!("An error occured during the patching process: {}", e);
+            return Err(e.into());
+        }
+    }
+
+    Ok(())
 }
 
 //TODO: add here an explanation of what are config_dir and file_path
@@ -243,4 +260,3 @@ pub fn get_startup_config_dir() -> bool {
         })
         .unwrap_or(false)
 }
-// TODO: add save to config function
