@@ -107,7 +107,6 @@ fn is_supported_env(env: &str) -> bool {
     matches!(env.to_lowercase().trim(), "kubernetes" | "k8s")
 }
 
-//FIXME: fix this
 pub fn create_configs() -> MetadataConfigFile {
     let mut blocklist: Vec<String> = Vec::new();
     blocklist.push("".to_string());
@@ -145,43 +144,34 @@ pub async fn create_config_file(config_struct: MetadataConfigFile) -> Result<(),
     let api: Api<ConfigMap> = Api::namespaced(client, namespace);
 
     // create configmap
-    match serde_yaml::to_string(&config_struct.blocklist) {
-        Ok(cfgs) => {
-            let mut data = BTreeMap::new();
-            data.insert("blocklist".to_string(), cfgs);
-            let cm = ConfigMap {
-                metadata: ObjectMeta {
-                    name: Some("cortexbrain-client-config".to_string()),
-                    ..Default::default()
-                }, // type ObjectMeta
-                data: Some(data), //type Option<BTreeMap<String, String, Global>>
-                ..Default::default()
-            };
-            match api.create(&PostParams::default(), &cm).await {
-                Ok(_) => {
-                    println!("Configmap created successfully");
-                }
-                Err(e) => {
-                    eprintln!("An error occured: {}", e);
-                }
-            };
-            Ok(())
+    let mut data = BTreeMap::new();
+    for x in config_struct.blocklist {
+        data.insert("blocklist".to_string(), x);
+    }
+    let cm = ConfigMap {
+        metadata: ObjectMeta {
+            name: Some("cortexbrain-client-config".to_string()),
+            ..Default::default()
+        }, // type ObjectMeta
+        data: Some(data), //type Option<BTreeMap<String, String, Global>>
+        ..Default::default()
+    };
+    match api.create(&PostParams::default(), &cm).await {
+        Ok(_) => {
+            println!("Configmap created successfully");
         }
         Err(e) => {
-            eprintln!(
-                "An error occured during the creation of the config files. {:?}",
-                e
-            );
-            return Err(e.into());
+            eprintln!("An error occured: {}", e);
         }
-    }
+    };
+    Ok(())
 }
 
 pub async fn update_config_metadata(input: &str, action: &str) {
     if action == "add" {
         //retrieve current blocked ips list
         let mut ips = read_configs().await.unwrap();
-        println!("Readed current blocked ips: {:?}",ips);
+        println!("Readed current blocked ips: {:?}", ips);
 
         //create a temporary vector of ips
         ips.push(input.to_string());
@@ -211,13 +201,12 @@ pub async fn update_configmap(config_struct: MetadataConfigFile) -> Result<(), a
     let name = "cortexbrain-client-config";
     let api: Api<ConfigMap> = Api::namespaced(client, namespace);
 
-     let blocklist_yaml = config_struct
+    let blocklist_yaml = config_struct
         .blocklist
         .iter()
-        .map(|x| format!("{}",x))
+        .map(|x| format!("{}", x))
         .collect::<Vec<String>>()
         .join("\n");
-
 
     let patch = Patch::Apply(json!({
         "apiVersion": "v1",

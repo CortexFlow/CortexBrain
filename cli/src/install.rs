@@ -94,7 +94,7 @@ pub fn install_simple_example() {
 
     let file_path = get_config_directory().unwrap().1;
 
-    let env = read_configs(file_path);
+    let env = "kubectl".to_string();
     install_simple_example_component(env);
 }
 
@@ -186,7 +186,7 @@ fn copy_installation_files() {
         "https://raw.githubusercontent.com/CortexFlow/CortexBrain/refs/heads/main/core/src/testing/cortexflow-rolebinding.yaml"
     );
     download_file(
-        "https://raw.githubusercontent.com/CortexFlow/CortexBrain/refs/heads/main/core/src/testing/identity.yaml"
+        "https://raw.githubusercontent.com/CortexFlow/CortexBrain/refs/heads/feature/ebpf-core/core/src/testing/identity.yaml"
     );
     download_file(
         "https://raw.githubusercontent.com/CortexFlow/CortexBrain/refs/heads/feature/ebpf-core/core/src/testing/agent.yaml"
