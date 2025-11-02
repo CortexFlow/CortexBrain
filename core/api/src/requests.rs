@@ -16,6 +16,7 @@ use crate::agent::AddIpToBlocklistRequest;
 use crate::agent::RmIpFromBlocklistRequest;
 use crate::agent::RmIpFromBlocklistResponse;
 
+#[cfg(feature = "client")]
 pub async fn send_active_connection_request(
     mut client: AgentClient<Channel>
 ) -> Result<Response<ActiveConnectionResponse>, Error> {
@@ -24,6 +25,7 @@ pub async fn send_active_connection_request(
     Ok(response)
 }
 
+#[cfg(feature = "client")]
 pub async fn get_all_features(
     mut client: ServerReflectionClient<Channel>
 ) -> Result<Response<Streaming<ServerReflectionResponse>>, Error> {
@@ -36,6 +38,7 @@ pub async fn get_all_features(
     Ok(response)
 }
 
+#[cfg(feature = "client")]
 pub async fn send_create_blocklist_request(
     mut client: AgentClient<Channel>,
     ip: &str
@@ -46,6 +49,7 @@ pub async fn send_create_blocklist_request(
     Ok(response)
 }
 
+#[cfg(feature = "client")]
 pub async fn send_check_blocklist_request(
     mut client: AgentClient<Channel>
 ) -> Result<Response<BlocklistResponse>, Error> {
@@ -54,6 +58,7 @@ pub async fn send_check_blocklist_request(
     Ok(response)
 }
 
+#[cfg(feature = "client")]
 pub async fn remove_ip_from_blocklist_request(
     mut client: AgentClient<Channel>,
     ip: &str

@@ -1,5 +1,5 @@
 # Phase 1: Build image
-FROM rust:1.85 AS builder
+FROM rust:1.90 AS builder
 
 # Set working directory
 WORKDIR /usr/src/app/metrics
