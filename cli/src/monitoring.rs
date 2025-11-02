@@ -75,15 +75,18 @@ pub async fn list_features() -> Result<(), Error> {
                         "Error:",
                         e
                     );
+                    return Err(e);
                 }
             }
         }
-        Err(_) =>
+        Err(e) =>{
             println!(
                 "{} {}",
                 "=====>".blue().bold(),
                 "Failed to connect to CortexFlow Server Reflection".red()
-            ),
+            );
+            return Err(e);
+            }
     }
     Ok(())
 }
@@ -121,15 +124,18 @@ pub async fn monitor_identity_events() -> Result<(), Error> {
                         "Error:",
                         e
                     );
+                    return Err(e);
                 }
             }
         }
-        Err(_) =>
+        Err(e) =>{
             println!(
                 "{} {}",
                 "=====>".blue().bold(),
                 "Failed to connect to CortexFlow Client".red()
-            ),
+            );
+            return Err(e);
+        }
     }
 
     Ok(())

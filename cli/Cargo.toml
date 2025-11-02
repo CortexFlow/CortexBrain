@@ -23,7 +23,9 @@ tonic = "0.14.1"
 tonic-reflection = "0.14.1"
 prost-types = "0.14.1"
 prost = "0.14.1"
-cortexflow_agent_api = "0.1.1-beta.2"
+cortexflow_agent_api = {path = "../core/api",features = ["client"]}
+kube = "2.0.1"
+k8s-openapi = {version = "0.26.0", features = ["v1_34"]}
 
 [[bin]]
 name = "cfcli"

@@ -29,7 +29,7 @@ pub struct ServiceArgs {
 fn check_namespace_exists(namespace: &str) -> bool {
     let file_path = get_config_directory().unwrap().1;
 
-    let env_from_file = read_configs(file_path);
+    let env_from_file = "kubernetes".to_string();
     let user_env = Environments::try_from(env_from_file.to_lowercase());
 
     match user_env {
@@ -49,7 +49,7 @@ fn check_namespace_exists(namespace: &str) -> bool {
 fn get_available_namespaces() -> Vec<String> {
     let file_path = get_config_directory().unwrap().1;
 
-    let env_from_file = read_configs(file_path);
+    let env_from_file = "kubernetes".to_string();
     let user_env = Environments::try_from(env_from_file.to_lowercase());
 
     match user_env {
@@ -85,7 +85,7 @@ pub fn list_services(namespace: Option<String>) -> Result<(), Error> {
     //TODO: maybe we can list both services and pods
     let file_path = get_config_directory().unwrap().1;
 
-    let env_from_file = read_configs(file_path);
+    let env_from_file = "kubernetes".to_string();
     let user_env = Environments::try_from(env_from_file.to_lowercase());
     match user_env {
         Ok(cluster_environment) => {
@@ -185,7 +185,7 @@ pub fn describe_service(service_name: String, namespace: &Option<String>) {
         Ok(_) => {
             let file_path = get_config_directory().unwrap().1;
 
-            let env = read_configs(file_path);
+            let env = "kubectl".to_string();
 
             let ns = namespace.clone().unwrap_or_else(|| "cortexflow".to_string());
 

@@ -48,7 +48,7 @@ impl Component {
 fn check_namespace_exists(namespace: &str) -> bool {
     let file_path = get_config_directory().unwrap().1;
 
-    let env_from_file = read_configs(file_path);
+    let env_from_file = "kubernetes".to_string();
     let user_env = Environments::try_from(env_from_file.to_lowercase());
 
     match user_env {
@@ -70,7 +70,7 @@ fn check_namespace_exists(namespace: &str) -> bool {
 fn get_available_namespaces() -> Vec<String> {
     let file_path = get_config_directory().unwrap().1;
 
-    let env_from_file = read_configs(file_path);
+    let env_from_file = "kubernetes".to_string();
     let user_env = Environments::try_from(env_from_file.to_lowercase());
 
     match user_env {
@@ -105,7 +105,7 @@ fn get_available_namespaces() -> Vec<String> {
 fn get_pods_for_service(namespace: &str, service_name: &str) -> Vec<String> {
     let file_path = get_config_directory().unwrap().1;
 
-    let env_from_file = read_configs(file_path);
+    let env_from_file = "kubernetes".to_string();
     let user_env = Environments::try_from(env_from_file.to_lowercase());
 
     match user_env {
@@ -144,7 +144,7 @@ fn get_pods_for_service(namespace: &str, service_name: &str) -> Vec<String> {
 fn get_pods_for_component(namespace: &str, component: &Component) -> Vec<String> {
     let file_path = get_config_directory().unwrap().1;
 
-    let env_from_file = read_configs(file_path);
+    let env_from_file = "kubernetes".to_string();
     let user_env = Environments::try_from(env_from_file.to_lowercase());
 
     match user_env {
@@ -183,7 +183,7 @@ fn get_pods_for_component(namespace: &str, component: &Component) -> Vec<String>
 fn get_all_pods(namespace: &str) -> Vec<String> {
     let file_path = get_config_directory().unwrap().1;
 
-    let env_from_file = read_configs(file_path);
+    let env_from_file = "kubernetes".to_string();
     let user_env = Environments::try_from(env_from_file.to_lowercase());
 
     match user_env {
@@ -220,7 +220,7 @@ fn get_all_pods(namespace: &str) -> Vec<String> {
 pub fn logs_command(service: Option<String>, component: Option<String>, namespace: Option<String>) {
     let file_path = get_config_directory().unwrap().1;
 
-    let env_from_file = read_configs(file_path);
+    let env_from_file = "kubernetes".to_string();
     let user_env = Environments::try_from(env_from_file.to_lowercase());
 
     match user_env {

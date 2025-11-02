@@ -1,5 +1,5 @@
 # Phase 1: Build image
-FROM rust:1.86 AS builder
+FROM rust:1.90 AS builder
 
 # Install system dependencies including protoc
 RUN apt-get update && apt-get install -y \

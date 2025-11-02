@@ -221,15 +221,6 @@ impl Agent for AgentApi {
             }
         }
 
-        //if 'exclude' flag is not None exclude the events from the aggregated events
-        //TODO: move this section into the event reader
-        //TODO: transform the block_list parameter in a parameter that the user can pass using the CLI
-        //let block_list = "135.171.168.192".to_string();
-        //if aggregated_events.contains(&block_list) {
-        //    aggregated_events.remove(&block_list);
-        //    info!("Blocked ip from block_list: {:?}", block_list);
-        //}
-
         //log response for debugging
         info!("DEBUGGING RESPONSE FROM ACTIVE CONNECTION REQUEST: {:?}", aggregated_events);
 
