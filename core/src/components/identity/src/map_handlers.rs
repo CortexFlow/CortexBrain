@@ -1,7 +1,10 @@
 use anyhow::Error;
 use anyhow::Ok;
 use aya::Bpf;
+use aya::maps::HashMap;
 use aya::maps::Map;
+use k8s_openapi::api::core::v1::ConfigMap;
+use kube::{Api, Client};
 use std::net::Ipv4Addr;
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -9,9 +12,6 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use tokio::fs;
 use tracing::{error, info};
-use aya::maps::HashMap;
-use k8s_openapi::api::core::v1::ConfigMap;
-use kube::{Api, Client};
 
 pub fn init_bpf_maps(bpf: Arc<Mutex<Bpf>>) -> Result<(Map, Map, Map), anyhow::Error> {
     // this function init the bpfs maps used in the main program
@@ -81,19 +81,16 @@ pub async fn populate_blocklist(map: &mut Map) -> Result<(), Error> {
             info!("[CONFIGMAP]: {:?} ", configs);
             if let Some(data) = configs.data {
                 if let Some(blocklist) = data.get("blocklist") {
-                    match serde_yaml::from_str::<Vec<String>>(&blocklist) {
-                        std::result::Result::Ok(addresses) => {
-                            info!("Inserting addresses: {:?}", addresses);
-
-                            for item in addresses{
-                                let addr = Ipv4Addr::from_str(&item)?.octets();
-                                let _ = blocklist_map.insert(addr,addr,0);
-                            }
-
-                        }
-                        std::result::Result::Err(e) => {
-                            error!("Error during blocklist addresses import: {}", e);
-                        }
+                    let addresses: Vec<String> = blocklist
+                        .lines()
+                        .map(|s| s.trim().to_string())
+                        .filter(|s| !s.is_empty())
+                        .collect();
+                    //String parsing from "x y" to ["x","y"]
+                    info!("Inserting addresses: {:?}", addresses);
+                    for item in addresses {
+                        let addr = Ipv4Addr::from_str(&item)?.octets();
+                        let _ = blocklist_map.insert(addr, addr, 0);
                     }
                 }
             }
