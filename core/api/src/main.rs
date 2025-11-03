@@ -1,6 +1,6 @@
 // module imports
 use tonic::transport::{Error, Server};
-use tracing_subscriber::{fmt::format::FmtSpan, EnvFilter};
+use cortexbrain_common::logger;
 
 mod agent;
 mod api;
@@ -20,16 +20,7 @@ use tracing::{error, info};
 #[main]
 async fn main() -> Result<(), Error> {
     //init tracing subscriber
-    tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::INFO)
-        .with_target(false)
-        .with_level(true)
-        .with_span_events(FmtSpan::NONE)
-        .with_file(false)
-        .pretty()
-        .with_env_filter(EnvFilter::new("info"))
-        .with_line_number(false)
-        .init();
+    logger::init_default_logger();
 
     info!("Starting agent server...");
     info!("fetching data");

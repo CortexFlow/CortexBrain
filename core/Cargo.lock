@@ -46,6 +46,7 @@ dependencies = [
  "aya",
  "bytemuck",
  "bytemuck_derive",
+ "cortexbrain-common",
  "identity",
  "prost",
  "tokio",
@@ -345,6 +346,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "cortexbrain-common"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "crc32fast"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -609,6 +619,7 @@ dependencies = [
  "bytemuck",
  "bytemuck_derive",
  "bytes",
+ "cortexbrain-common",
  "libc",
  "nix",
  "tokio",
@@ -725,6 +736,7 @@ dependencies = [
  "aya-log",
  "bytemuck",
  "bytes",
+ "cortexbrain-common",
  "libc",
  "nix",
  "tokio",

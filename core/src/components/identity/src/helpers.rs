@@ -21,11 +21,7 @@ use std::{
     },
 };
 use tracing::{error, info, warn};
-
-/*
- * decleare bpf path env variable
- */
-const BPF_PATH: &str = "BPF_PATH";
+use cortexbrain_common::constants;
 
 /*
  * TryFrom Trait implementation for IpProtocols enum

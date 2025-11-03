@@ -41,26 +41,14 @@ use std::{
 use anyhow::{Context, Ok};
 use tokio::{fs, signal};
 use tracing::{error, info};
-use tracing_subscriber::{EnvFilter, fmt::format::FmtSpan};
-
-const BPF_PATH: &str = "BPF_PATH"; //BPF env path
-const PIN_MAP_PATH: &str = "PIN_MAP_PATH";
+use cortexbrain_common::{constants, logger};
 
 use std::collections::HashMap;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
     //init tracing subscriber
-    tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::INFO)
-        .with_target(false)
-        .with_level(true)
-        .with_span_events(FmtSpan::NONE)
-        .with_file(false)
-        .pretty()
-        .with_env_filter(EnvFilter::new("info"))
-        .with_line_number(false)
-        .init();
+    logger::init_default_logger();
 
     info!("Starting identity service...");
     info!("fetching data");
@@ -69,7 +57,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let link_ids = Arc::new(Mutex::new(HashMap::<String, SchedClassifierLinkId>::new()));
 
     //init conntracker data path
-    let bpf_path = std::env::var(BPF_PATH).context("BPF_PATH environment variable required")?;
+    let bpf_path = std::env::var(constants::BPF_PATH).context("BPF_PATH environment variable required")?;
     let data = fs::read(Path::new(&bpf_path))
         .await
         .context("failed to load file from path")?;
@@ -77,7 +65,7 @@ async fn main() -> Result<(), anyhow::Error> {
     //init bpf data
     let bpf = Arc::new(Mutex::new(Bpf::load(&data)?));
     let bpf_map_save_path =
-        std::env::var(PIN_MAP_PATH).context("PIN_MAP_PATH environment variable required")?;
+        std::env::var(constants::PIN_MAP_PATH).context("PIN_MAP_PATH environment variable required")?;
 
     match init_bpf_maps(bpf.clone()) {
         std::result::Result::Ok(bpf_maps) => {
