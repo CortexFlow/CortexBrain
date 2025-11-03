@@ -1,5 +1,5 @@
 # Phase 1: Build image
-FROM rust:1.85 AS builder
+FROM rust:1.90 AS builder
 
 # Set working directory
 WORKDIR /usr/src/app/metrics
@@ -30,6 +30,7 @@ COPY metrics_tracer /usr/src/cortexbrain-metrics/metrics_tracer
 
 # Set environment variable
 ENV BPF_PATH="/usr/src/cortexbrain-metrics/metrics_tracer"
+ENV PIN_MAP_PATH="/sys/fs/bpf/trace_maps"
 
 # Default command
 CMD ["cortexflow-metrics"]

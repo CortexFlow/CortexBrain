@@ -10,95 +10,30 @@
     *   5. Store CONNECTION_ID in a BPF LRU HASHMAP and pass PID to the user space to identify ACTIVE CONNECTIONS
 */
 
-// Imports
 #![no_std]
 #![no_main]
 #![allow(warnings)]
 
+// Imports
+
 mod bindings;
 mod data_structures;
+mod offsets;
+
+use core::net::Ipv4Addr;
 
 use aya_ebpf::{
-    bindings::{TC_ACT_OK, TC_ACT_SHOT},
-    bpf_printk,
-    helpers::{bpf_get_current_pid_tgid, bpf_probe_read_kernel},
-    macros::{classifier, kprobe},
-    programs::{ProbeContext, TcContext},
+    bindings::{ TC_ACT_OK, TC_ACT_SHOT },
+    helpers::{ bpf_get_current_pid_tgid, bpf_probe_read_kernel },
+    macros::{ classifier, kprobe },
+    programs::{ ProbeContext, TcContext },
 };
 use aya_log_ebpf::info;
 
-use crate::bindings::{net, net_device, ns_common, possible_net_t};
-use crate::data_structures::{ConnArray, PacketLog, VethLog};
-use crate::data_structures::{ACTIVE_CONNECTIONS, CONNTRACKER, EVENTS, VETH_EVENTS};
-/*
-    * ETHERNET TYPE II FRAME:
-    * Reference: https://it.wikipedia.org/wiki/Frame_Ethernet
-    *
-    * 6 bytes for the destination mac address;
-    * 6 bytes for the source mac address;
-    * 2 bytes for the ethertype;
-    * from 46 to 1500 bytes for the payload;
-    * 4 bytes for the FCS (Checksum)
-
-*/
-
-/*
-    * Ipv4 stack reference:
-    * https://en.wikipedia.org/wiki/IPv4#Header
-    *
-    * Original reference:
-
-   |  Time to Live |    Protocol   |         Header Checksum       |     4 bytes            12
-   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-   |                       Source Address                          |     4 bytes            16
-   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-   |                    Destination Address                        |     4 bytes            20
-   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-   |                    Options                    |    Padding    |
-   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-
-    *                    Internet Datagram Header
-    *
-    *
-    *
-    *
-    *
-    *                        TCP/UDP header datagram:
-    *
-    *   reference: https://en.wikipedia.org/wiki/User_Datagram_Protocol
-    *
-    *    src port: 34 byte
-    *    dst port: 36 byte
-
-*/
-
-//TODO: move all these parameters in a dedicated ENUM
-const IPV4_ETHERTYPE: u16 = 0x0800;
-
-//IPV4 STACK
-const SRC_BYTE_OFFSET: usize = 12;
-const DST_BYTE_OFFSET: usize = 16;
-const IPV4_PROTOCOL_OFFSET: usize = 9;
-
-//ETHERNET STACK
-const SRC_MAC: usize = 6;
-const DST_MAC: usize = 6;
-const ETHERTYPE_BYTES: usize = 2;
-
-//TCP UDP Stack
-const SRC_PORT_OFFSET_FROM_IP_HEADER: usize = 0;
-const DST_PORT_OFFSET_FROM_IP_HEADER: usize = 2;
-
-static ETH_STACK_BYTES: usize = SRC_MAC + DST_MAC + ETHERTYPE_BYTES;
-static DST_T0TAL_BYTES_OFFSET: usize = ETH_STACK_BYTES + DST_BYTE_OFFSET;
-static SRC_T0TAL_BYTES_OFFSET: usize = ETH_STACK_BYTES + SRC_BYTE_OFFSET;
-static PROTOCOL_T0TAL_BYTES_OFFSET: usize = ETH_STACK_BYTES + IPV4_PROTOCOL_OFFSET;
-
-const AF_INET: u16 = 2; //ipv4
-const AF_INET6: u16 = 10; //ipv6
-
-const IPPROTO_UDP: u8 = 17;
-const IPPROTO_TCP: u8 = 6;
+use crate::bindings::{ net, net_device };
+use crate::data_structures::{ ConnArray, PacketLog, VethLog };
+use crate::data_structures::{ EVENTS, VETH_EVENTS, BLOCKLIST };
+use crate::offsets::OFFSETS;
 
 #[kprobe]
 pub fn veth_creation_trace(ctx: ProbeContext) -> u32 {
@@ -125,7 +60,9 @@ fn read_linux_inner_struct<T>(ptr: *const u8, offset: usize) -> Result<*const T,
         let inner_field: *const T = unsafe {
             match bpf_probe_read_kernel(inner_ptr as *const *const T) {
                 Ok(inner_field) => inner_field,
-                Err(e) => return Err(e),
+                Err(e) => {
+                    return Err(e);
+                }
             }
         };
         Ok(inner_field)
@@ -143,7 +80,9 @@ fn read_linux_inner_value<T: Copy>(ptr: *const u8, offset: usize) -> Result<T, i
     let inner_value = unsafe {
         match bpf_probe_read_kernel::<T>(inner_ptr as *const T) {
             Ok(inner_field) => inner_field,
-            Err(e) => return Err(e),
+            Err(e) => {
+                return Err(e);
+            }
         }
     };
 
@@ -179,8 +118,10 @@ pub fn try_veth_tracer(ctx: ProbeContext, mode: u8) -> Result<u32, i64> {
     //name field
     let name_field_offset = 304; // reading the name field offset
 
-    let name_array: [u8; 16] =
-        read_linux_inner_value::<[u8; 16]>(net_device_pointer as *const u8, name_field_offset)?;
+    let name_array: [u8; 16] = read_linux_inner_value::<[u8; 16]>(
+        net_device_pointer as *const u8,
+        name_field_offset
+    )?;
 
     //state field
     let state_offset = 168;
@@ -188,8 +129,10 @@ pub fn try_veth_tracer(ctx: ProbeContext, mode: u8) -> Result<u32, i64> {
 
     //dev_addr
     let dev_addr_offset = 1080;
-    let dev_addr_array: [u32; 8] =
-        read_linux_inner_value::<[u32; 8]>(net_device_pointer as *const u8, dev_addr_offset)?;
+    let dev_addr_array: [u32; 8] = read_linux_inner_value::<[u32; 8]>(
+        net_device_pointer as *const u8,
+        dev_addr_offset
+    )?;
 
     let inum: u32 = extract_netns_inum(net_device_pointer as *const u8)?;
     let pid: u32 = bpf_get_current_pid_tgid() as u32; //extracting lower 32 bit corresponding to the PID
@@ -227,55 +170,70 @@ fn try_identity_classifier(ctx: TcContext) -> Result<(), i64> {
     let eth_proto = u16::from_be(ctx.load::<u16>(12).map_err(|_| 1)?);
 
     //only ipv4 protcol allowed
-    if eth_proto != IPV4_ETHERTYPE {
+    if eth_proto != OFFSETS::IPV4_ETHERTYPE {
         return Ok(());
     }
 
     //read if the packets has Options
-    let first_ipv4_byte = u8::from_be(ctx.load::<u8>(ETH_STACK_BYTES).map_err(|_| 1)?);
-    let ihl = (first_ipv4_byte & 0x0f) as usize; /* 0x0F=00001111 &=AND bit a bit operator to extract the last 4 bit*/
+    let first_ipv4_byte = u8::from_be(ctx.load::<u8>(OFFSETS::ETH_STACK_BYTES).map_err(|_| 1)?);
+    let ihl = (first_ipv4_byte &
+        0x0f) as usize; /* 0x0F=00001111 &=AND bit a bit operator to extract the last 4 bit*/
     let ip_header_len = ihl * 4; //returns the header lenght in bytes
 
     //get the source ip,destination ip and connection id
-    let src_ip = u32::from_be(ctx.load::<u32>(SRC_T0TAL_BYTES_OFFSET).map_err(|_| 1)?); // ETH+SOURCE_ADDRESS
+    let src_ip = ctx.load::<u32>(OFFSETS::SRC_T0TAL_BYTES_OFFSET).map_err(|_| 1)?; // ETH+SOURCE_ADDRESS
     let src_port = u16::from_be(
-        ctx.load::<u16>(ETH_STACK_BYTES + ip_header_len + SRC_PORT_OFFSET_FROM_IP_HEADER)
-            .map_err(|_| 1)?,
+        ctx
+            .load::<u16>(
+                OFFSETS::ETH_STACK_BYTES + ip_header_len + OFFSETS::SRC_PORT_OFFSET_FROM_IP_HEADER
+            )
+            .map_err(|_| 1)?
     ); //14+IHL-Lenght+0
-    let dst_ip = u32::from_be(ctx.load::<u32>(DST_T0TAL_BYTES_OFFSET).map_err(|_| 1)?); // ETH+ DESTINATION_ADDRESS
+    let dst_ip = ctx.load::<u32>(OFFSETS::DST_T0TAL_BYTES_OFFSET).map_err(|_| 1)?; // ETH+ DESTINATION_ADDRESS
     let dst_port = u16::from_be(
-        ctx.load::<u16>(ETH_STACK_BYTES + ip_header_len + DST_PORT_OFFSET_FROM_IP_HEADER)
-            .map_err(|_| 1)?,
+        ctx
+            .load::<u16>(
+                OFFSETS::ETH_STACK_BYTES + ip_header_len + OFFSETS::DST_PORT_OFFSET_FROM_IP_HEADER
+            )
+            .map_err(|_| 1)?
     ); //14+IHL-Lenght+0
-    let proto = u8::from_be(ctx.load::<u8>(PROTOCOL_T0TAL_BYTES_OFFSET).map_err(|_| 1)?);
+    let proto = u8::from_be(ctx.load::<u8>(OFFSETS::PROTOCOL_T0TAL_BYTES_OFFSET).map_err(|_| 1)?);
 
-    let pid: u32 = bpf_get_current_pid_tgid() as u32; 
+    let pid: u32 = bpf_get_current_pid_tgid() as u32;
 
-    //not logging internal communication packets
     //TODO: do not log internal communications such as minikube dashboard packets or kubectl api packets
 
-    let key = ConnArray {
-        src_ip,
-        dst_ip,
-        src_port,
-        dst_port,
-        proto,
-    };
+    // check if the address is in the blocklist
+    let src_ip_be_bytes: [u8; 4] = src_ip.to_be_bytes(); //transforming the src_ip in big endian bytes
 
-    let log = PacketLog {
-        proto,
-        src_ip,
-        src_port,
-        dst_ip,
-        dst_port,
-        pid,
-    };
-    //let connections = ConnArray{
-    //  event_id,
-    //connection_id
-    //};
-    unsafe {
-        EVENTS.output(&ctx, &log, 0); //output to userspace
+    // ** blocklist logic
+    if (unsafe { BLOCKLIST.get(&src_ip_be_bytes).is_some() }) {
+        info!(
+            &ctx,
+            "Blocking address: {}. Reason: Address is in a BLOCKLIST",
+            Ipv4Addr::from(src_ip_be_bytes)
+        );
+        return Err(1);
+    } else {
+        let key = ConnArray {
+            src_ip,
+            dst_ip,
+            src_port,
+            dst_port,
+            proto,
+        };
+
+        let log = PacketLog {
+            proto,
+            src_ip,
+            src_port,
+            dst_ip,
+            dst_port,
+            pid,
+        };
+        unsafe {
+            EVENTS.output(&ctx, &log, 0); //output to userspace
+        }
     }
     Ok(())
 }
@@ -286,5 +244,6 @@ fn try_identity_classifier(ctx: TcContext) -> Result<(), i64> {
 
 #[panic_handler]
 fn panic(_info: &core::panic::PanicInfo) -> ! {
-    loop {}
+    loop {
+    }
 }

@@ -8,6 +8,28 @@ use std::thread;
 use std::time::Duration;
 use tracing::debug;
 
+use clap::command;
+use clap::{ Args, Subcommand };
+
+//install subcommands
+#[derive(Subcommand, Debug, Clone)]
+pub enum InstallCommands {
+    #[command(name = "cortexflow", about = "Install all the CortexBrain core components")]
+    All,
+    #[command(
+        name = "simple-example",
+        about = "Deploys a simple example contained in deploy-test-pod.yaml"
+    )]
+    TestPods,
+}
+
+//install args
+#[derive(Args, Debug, Clone)]
+pub struct InstallArgs {
+    #[command(subcommand)]
+    pub install_cmd: InstallCommands,
+}
+
 /* components installation function */
 fn install_cluster_components(env: String) {
     let user_env = Environments::try_from(env.to_lowercase());
@@ -17,12 +39,6 @@ fn install_cluster_components(env: String) {
             println!("{} {}", "=====>".blue().bold(), "Copying installation files".white());
             copy_installation_files();
             thread::sleep(Duration::from_secs(1));
-            println!("{} {}", "=====>".blue().bold(), "Creating cortexflow namespace".white());
-            Command::new(env)
-                .args(["create", "namespace", "cortexflow"])
-                .output()
-                .expect("Failed to create cortexflow namespace");
-
             install_components(env.to_string());
             println!("\n");
             rm_installation_files();
@@ -57,15 +73,19 @@ fn install_simple_example_component(env: String) {
 }
 
 /* main installation function */
-pub fn install_cortexflow() {
+pub async fn install_cortexflow() {
     println!("{} {}", "=====>".blue().bold(), "Preparing cortexflow installation".white());
     println!("{} {}", "=====>".blue().bold(), "Creating the config files".white());
+    println!("{} {}", "=====>".blue().bold(), "Creating cortexflow namespace".white());
+    Command::new("kubectl")
+    .args(["create", "namespace", "cortexflow"])
+    .output()
+    .expect("Failed to create cortexflow namespace");
+
     let metadata_configs = create_configs();
-    create_config_file(metadata_configs);
+    create_config_file(metadata_configs).await;
 
-    let file_path = get_config_directory().unwrap().1;
-
-    let env = read_configs(file_path);
+    let env = "kubernetes".to_string();
     install_cluster_components(env);
 }
 /* install simple example */
@@ -74,10 +94,9 @@ pub fn install_simple_example() {
 
     let file_path = get_config_directory().unwrap().1;
 
-    let env = read_configs(file_path);
+    let env = "kubectl".to_string();
     install_simple_example_component(env);
 }
-
 
 /* install example component */
 fn install_example(env: String) {
@@ -110,7 +129,6 @@ fn install_example(env: String) {
 /* Installation functions */
 fn install_components(env: String) {
     let files_to_install = vec![
-        "configmap.yaml",
         "configmap-role.yaml",
         "rolebinding.yaml",
         "cortexflow-rolebinding.yaml",
@@ -127,12 +145,13 @@ fn install_components(env: String) {
 
     for component in files_to_install {
         println!(
-            "{} {}{}{} {} {} {}",
+            "{} {}{}{}{} {} {} {}",
             "=====>".blue().bold(),
             "(",
             i,
             "/",
             tot_files,
+            ")",
             "Applying ",
             component
         );
@@ -158,9 +177,6 @@ fn apply_component(file: &str, env: &str) {
 
 fn copy_installation_files() {
     download_file(
-        "https://raw.githubusercontent.com/CortexFlow/CortexBrain/refs/heads/main/core/src/testing/configmap.yaml"
-    );
-    download_file(
         "https://raw.githubusercontent.com/CortexFlow/CortexBrain/refs/heads/main/core/src/testing/configmap-role.yaml"
     );
     download_file(
@@ -170,7 +186,7 @@ fn copy_installation_files() {
         "https://raw.githubusercontent.com/CortexFlow/CortexBrain/refs/heads/main/core/src/testing/cortexflow-rolebinding.yaml"
     );
     download_file(
-        "https://raw.githubusercontent.com/CortexFlow/CortexBrain/refs/heads/main/core/src/testing/identity.yaml"
+        "https://raw.githubusercontent.com/CortexFlow/CortexBrain/refs/heads/feature/ebpf-core/core/src/testing/identity.yaml"
     );
     download_file(
         "https://raw.githubusercontent.com/CortexFlow/CortexBrain/refs/heads/feature/ebpf-core/core/src/testing/agent.yaml"
@@ -185,7 +201,6 @@ fn copy_example_installation_file() {
 }
 fn rm_installation_files() {
     println!("{} {}", "=====>".blue().bold(), "Removing temporary installation files".white());
-    rm_file("configmap.yaml");
     rm_file("configmap-role.yaml");
     rm_file("rolebinding.yaml");
     rm_file("cortexflow-rolebinding.yaml");

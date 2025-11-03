@@ -1,12 +1,8 @@
 [workspace]
 resolver = "3"
 members = [
-    #"src/components/loadbalancer",
     "common",
     "api",
-    #"src/components/proxy",
-    #"src/components/xdp",
-    #"src/components/maps",
     "src/components/conntracker",
     "src/components/identity",
     "src/components/metrics_tracer",

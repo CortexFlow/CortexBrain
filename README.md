@@ -94,7 +94,7 @@ CortexBrain provides a simple installation for users thanks to his command line 
 
    | **Feature**              | **Requirements**                                                                 |
    | ------------------------- | -------------------------------------------------------------------------------- |
-   | **CortexBrain Core**      | - Kubernetes or Minikube v1.34.0  <br> - Linux system with kernel version >= 5.15 (mandatory for core development)  <br> - Rust programming language (rustc >= 1.85.0) preferably a **nightly** |
+   | **CortexBrain Core**      | - Kubernetes or Minikube v1.34.0  <br> - Linux system with kernel version >= 5.15 (mandatory for core development)  <br> - Rust programming language (rustc >= 1.85.0) preferably a **nightly** version |
    | **CortexBrain Dashboard** | - npm v10.7.0  <br> - React v18.2.0  <br> - Electron v33.2.0                      |
 
 ## **⚛️ Core Development:**  

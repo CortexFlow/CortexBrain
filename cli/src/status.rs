@@ -4,6 +4,9 @@ use std::str;
 
 use crate::essential::{Environments, get_config_directory, read_configs};
 
+use clap::Args;
+
+
 #[derive(Debug)]
 pub enum OutputFormat {
     Text,
@@ -19,6 +22,14 @@ impl From<String> for OutputFormat {
             _ => OutputFormat::Text,
         }
     }
+}
+
+#[derive(Args, Debug, Clone)]
+pub struct StatusArgs {
+    #[arg(long)]
+    pub output: Option<String>,
+    #[arg(long)]
+    pub namespace: Option<String>,
 }
 
 pub fn status_command(output_format: Option<String>, namespace: Option<String>) {
@@ -108,7 +119,7 @@ pub fn status_command(output_format: Option<String>, namespace: Option<String>) 
 fn check_namespace_exists(namespace: &str) -> bool {
     let file_path = get_config_directory().unwrap().1;
 
-    let env_from_file = read_configs(file_path);
+    let env_from_file = "kubernetes".to_string();
     let user_env = Environments::try_from(env_from_file.to_lowercase());
 
     match user_env {
@@ -130,7 +141,7 @@ fn check_namespace_exists(namespace: &str) -> bool {
 fn get_available_namespaces() -> Vec<String> {
     let file_path = get_config_directory().unwrap().1;
 
-    let env_from_file = read_configs(file_path);
+    let env_from_file = "kubernetes".to_string();
     let user_env = Environments::try_from(env_from_file.to_lowercase());
 
     match user_env {
@@ -165,7 +176,7 @@ fn get_available_namespaces() -> Vec<String> {
 fn get_pods_status(namespace: &str) -> Vec<(String, String, String)> {
     let file_path = get_config_directory().unwrap().1;
 
-    let env_from_file = read_configs(file_path);
+    let env_from_file = "kubernetes".to_string();
     let user_env = Environments::try_from(env_from_file.to_lowercase());
 
     match user_env {
@@ -204,7 +215,7 @@ fn get_pods_status(namespace: &str) -> Vec<(String, String, String)> {
 fn get_services_status(namespace: &str) -> Vec<(String, String, String)> {
     let file_path = get_config_directory().unwrap().1;
 
-    let env_from_file = read_configs(file_path);
+    let env_from_file ="kubernetes".to_string();
     let user_env = Environments::try_from(env_from_file.to_lowercase());
 
     match user_env {

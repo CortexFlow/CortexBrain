@@ -4,15 +4,49 @@ pub struct RequestActiveConnections {
     #[prost(string, optional, tag = "2")]
     pub pod_ip: ::core::option::Option<::prost::alloc::string::String>,
 }
-/// TODO: the complete Response will be able to return all the context below
-///
-/// * "Event Id: {} Protocol: {:?} SRC: {}:{} -> DST: {}:{}",
-/// * event_id, proto, src, src_port, dst, dst_port
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct ConnectionEvent {
+    #[prost(string, tag = "1")]
+    pub event_id: ::prost::alloc::string::String,
+    /// e.g., "192.168.1.1:8080" (src_ip:src_port)
+    #[prost(string, tag = "2")]
+    pub src_ip_port: ::prost::alloc::string::String,
+    /// e.g., "10.0.0.1:80" (dst_ip:dst_port)
+    #[prost(string, tag = "3")]
+    pub dst_ip_port: ::prost::alloc::string::String,
+}
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ActiveConnectionResponse {
     #[prost(string, tag = "1")]
     pub status: ::prost::alloc::string::String,
-    /// for simplicity right now we only return event_id and src
+    /// List of connection events
+    #[prost(message, repeated, tag = "2")]
+    pub events: ::prost::alloc::vec::Vec<ConnectionEvent>,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct AddIpToBlocklistRequest {
+    #[prost(string, optional, tag = "1")]
+    pub ip: ::core::option::Option<::prost::alloc::string::String>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct BlocklistResponse {
+    #[prost(string, tag = "1")]
+    pub status: ::prost::alloc::string::String,
+    #[prost(map = "string, string", tag = "2")]
+    pub events: ::std::collections::HashMap<
+        ::prost::alloc::string::String,
+        ::prost::alloc::string::String,
+    >,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct RmIpFromBlocklistRequest {
+    #[prost(string, tag = "1")]
+    pub ip: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct RmIpFromBlocklistResponse {
+    #[prost(string, tag = "1")]
+    pub status: ::prost::alloc::string::String,
     #[prost(map = "string, string", tag = "2")]
     pub events: ::std::collections::HashMap<
         ::prost::alloc::string::String,
@@ -136,6 +170,80 @@ pub mod agent_client {
                 .insert(GrpcMethod::new("agent.Agent", "ActiveConnections"));
             self.inner.unary(req, path, codec).await
         }
+        /// create blocklist endpoint
+        pub async fn add_ip_to_blocklist(
+            &mut self,
+            request: impl tonic::IntoRequest<super::AddIpToBlocklistRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::BlocklistResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/agent.Agent/AddIpToBlocklist",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("agent.Agent", "AddIpToBlocklist"));
+            self.inner.unary(req, path, codec).await
+        }
+        pub async fn check_blocklist(
+            &mut self,
+            request: impl tonic::IntoRequest<()>,
+        ) -> std::result::Result<
+            tonic::Response<super::BlocklistResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/agent.Agent/CheckBlocklist",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("agent.Agent", "CheckBlocklist"));
+            self.inner.unary(req, path, codec).await
+        }
+        /// remove ip from blocklist endpoint
+        pub async fn rm_ip_from_blocklist(
+            &mut self,
+            request: impl tonic::IntoRequest<super::RmIpFromBlocklistRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::RmIpFromBlocklistResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/agent.Agent/RmIpFromBlocklist",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("agent.Agent", "RmIpFromBlocklist"));
+            self.inner.unary(req, path, codec).await
+        }
     }
 }
 /// Generated server implementations.
@@ -157,6 +265,29 @@ pub mod agent_server {
             request: tonic::Request<super::RequestActiveConnections>,
         ) -> std::result::Result<
             tonic::Response<super::ActiveConnectionResponse>,
+            tonic::Status,
+        >;
+        /// create blocklist endpoint
+        async fn add_ip_to_blocklist(
+            &self,
+            request: tonic::Request<super::AddIpToBlocklistRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::BlocklistResponse>,
+            tonic::Status,
+        >;
+        async fn check_blocklist(
+            &self,
+            request: tonic::Request<()>,
+        ) -> std::result::Result<
+            tonic::Response<super::BlocklistResponse>,
+            tonic::Status,
+        >;
+        /// remove ip from blocklist endpoint
+        async fn rm_ip_from_blocklist(
+            &self,
+            request: tonic::Request<super::RmIpFromBlocklistRequest>,
+        ) -> std::result::Result<
+            tonic::Response<super::RmIpFromBlocklistResponse>,
             tonic::Status,
         >;
     }
@@ -267,6 +398,136 @@ pub mod agent_server {
                     let inner = self.inner.clone();
                     let fut = async move {
                         let method = ActiveConnectionsSvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/agent.Agent/AddIpToBlocklist" => {
+                    #[allow(non_camel_case_types)]
+                    struct AddIpToBlocklistSvc<T: Agent>(pub Arc<T>);
+                    impl<
+                        T: Agent,
+                    > tonic::server::UnaryService<super::AddIpToBlocklistRequest>
+                    for AddIpToBlocklistSvc<T> {
+                        type Response = super::BlocklistResponse;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::AddIpToBlocklistRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as Agent>::add_ip_to_blocklist(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = AddIpToBlocklistSvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/agent.Agent/CheckBlocklist" => {
+                    #[allow(non_camel_case_types)]
+                    struct CheckBlocklistSvc<T: Agent>(pub Arc<T>);
+                    impl<T: Agent> tonic::server::UnaryService<()>
+                    for CheckBlocklistSvc<T> {
+                        type Response = super::BlocklistResponse;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(&mut self, request: tonic::Request<()>) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as Agent>::check_blocklist(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = CheckBlocklistSvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/agent.Agent/RmIpFromBlocklist" => {
+                    #[allow(non_camel_case_types)]
+                    struct RmIpFromBlocklistSvc<T: Agent>(pub Arc<T>);
+                    impl<
+                        T: Agent,
+                    > tonic::server::UnaryService<super::RmIpFromBlocklistRequest>
+                    for RmIpFromBlocklistSvc<T> {
+                        type Response = super::RmIpFromBlocklistResponse;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(
+                            &mut self,
+                            request: tonic::Request<super::RmIpFromBlocklistRequest>,
+                        ) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as Agent>::rm_ip_from_blocklist(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = RmIpFromBlocklistSvc(inner);
                         let codec = tonic_prost::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(

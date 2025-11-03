@@ -1,5 +1,5 @@
 # Phase 1: Build image
-FROM rust:1.86 AS builder
+FROM rust:1.90 AS builder
 
 # Install system dependencies including protoc
 RUN apt-get update && apt-get install -y \
@@ -24,8 +24,8 @@ COPY . .
 
 # Fetch dependencies and build release
 RUN cargo fetch 
-RUN cargo build -p api --release
-RUN cargo build -p identity --release
+RUN cargo build -p cortexflow_agent_api --release
+RUN cargo build -p cortexflow_identity --release
 
 # Phase 2: Final minimal image
 FROM ubuntu:24.04
@@ -44,7 +44,7 @@ WORKDIR /usr/src/cortexbrain-agent
 
 # Copy the compiled binary
 COPY --from=builder /usr/src/app/agent/target/release/agent-api /usr/local/bin/agent-api
-COPY --from=builder /usr/src/app/agent/target/release/identity /usr/local/bin/identity
+COPY --from=builder /usr/src/app/agent/target/release/cortexflow_identity /usr/local/bin/cortexflow_identity
 
 # Copy configuration files
 COPY conntracker /usr/src/cortexbrain-agent/conntracker
@@ -52,6 +52,7 @@ COPY conntracker /usr/src/cortexbrain-agent/conntracker
 # Set env vars for your app
 ENV BPF_PATH="/usr/src/cortexbrain-agent/conntracker"
 ENV PIN_MAP_PATH="/sys/fs/bpf/cortexbrain-identity-service/"
+ENV PIN_BLOCKLIST_MAP_PATH="/sys/fs/bpf/cortexbrain-agent/"
 
 # Default command
 CMD ["agent-api"]

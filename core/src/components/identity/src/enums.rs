@@ -2,6 +2,7 @@
  * IpProtocols enum to reconstruct the packet protocol based on the
  * IPV4 Header Protocol code
  */
+#[cfg(feature="enums")]
 #[derive(Debug)]
 #[repr(u8)]
 pub enum IpProtocols {

@@ -1,4 +1,0 @@
-To correctly build the component you must have bpf-linker installed
-
-installation:
-cargo install --git https://github.com/aya-rs/bpf-linker

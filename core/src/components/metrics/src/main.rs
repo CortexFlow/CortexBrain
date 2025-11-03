@@ -1,30 +1,27 @@
 use aya::{
-    Ebpf,
-    maps::{
-         MapData,
-        perf::{PerfEventArray, PerfEventArrayBuffer},
-    },
-    programs::{KProbe},
-    util::online_cpus,
+    Ebpf
 };
 
-use bytes::BytesMut;
 use std::{
-    convert::TryInto,
     env, fs,
     path::Path,
     sync::{
-        atomic::{AtomicBool},
+        Arc, Mutex,
     },
 };
 
 use anyhow::{Context, Ok};
-use tokio::{signal};
 use tracing::{error, info};
 use cortexbrain_common::{constants, logger};
 
 mod helpers;
-use crate::helpers::display_metrics_map;
+use crate::{helpers::event_listener, maps_handlers::map_pinner, program_handlers::load_and_attach_tcp_programs};
+
+mod maps_handlers;
+use crate::maps_handlers::init_ebpf_maps;
+
+mod program_handlers;
+use crate::program_handlers::load_program;
 
 mod structs;
 
@@ -38,49 +35,50 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let bpf_path = env::var(constants::BPF_PATH).context("BPF_PATH environment variable required")?;
     let data = fs::read(Path::new(&bpf_path)).context("Failed to load file from path")?;
-    let mut bpf = Ebpf::load(&data)?;
-    //init bpf logger
+    let bpf = Arc::new(Mutex::new(Ebpf::load(&data)?));
+    let tcp_bpf = bpf.clone();
+    let tcp_rev_bpf = bpf.clone();
+
     info!("Running Ebpf logger");
     info!("loading programs");
-    let net_metrics_map = bpf
-        .take_map("net_metrics")
-        .ok_or_else(|| anyhow::anyhow!("net_metrics map not found"))?;
+    let bpf_map_save_path =
+        std::env::var(constants::PIN_MAP_PATH).context("PIN_MAP_PATH environment variable required")?;
 
-    let program: &mut KProbe = bpf
-        .program_mut("metrics_tracer")
-        .ok_or_else(|| anyhow::anyhow!("program 'metrics_tracer' not found"))?
-        .try_into()
-        .context("Failed to init Kprobe program")?;
+    match init_ebpf_maps(bpf.clone()) {
+        std::result::Result::Ok(maps) => {
+            info!("BPF maps loaded successfully");
+            match map_pinner(&maps, &bpf_map_save_path.clone().into()).await {
+                std::result::Result::Ok(_) => {
+                    info!("BPF maps pinned successfully to {}", bpf_map_save_path);
 
-    program
-        .load()
-        .context("Failed to load metrics_tracer program")?;
+                    {
+                        load_program(bpf.clone(), "metrics_tracer", "tcp_identify_packet_loss")
+                            .context("An error occured during the execution of load_program function")?;
+                    }
 
-    match program.attach("tcp_identify_packet_loss", 0) {
-        std::result::Result::Ok(_) => {
-            info!("program attached successfully to the tcp_identify_packet_loss kprobe ")
+                    {
+                        load_and_attach_tcp_programs(tcp_bpf.clone())
+                            .context("An error occured during the execution of load_and_attach_tcp_programs function")?;
+                    }
+
+                    {
+                        load_program(tcp_rev_bpf.clone(), "tcp_rcv_state_process", "tcp_rcv_state_process")
+                            .context("An error occured during the execution of load_program function")?;
+                    }
+
+                    event_listener(maps).await?;
+                }
+                Err(e) => {
+                    error!("Error pinning BPF maps: {:?}", e);
+                    return Err(e);
+                }
+            }
         }
-        Err(e) => error!(
-            "An error occured while attaching the program to the tcp_identify_packet_loss kprobe. {:?} ",
-            e
-        ),
+        Err(e) => {
+            error!("Error initializing BPF maps: {:?}", e);
+            return Err(e);
+        }
     }
-    let mut net_perf_buffer: Vec<PerfEventArrayBuffer<MapData>> = Vec::new();
-    let mut net_perf_array: PerfEventArray<MapData> = PerfEventArray::try_from(net_metrics_map)?;
 
-    for cpu_id in online_cpus().map_err(|e| anyhow::anyhow!("Error {:?}", e))? {
-        let buf: PerfEventArrayBuffer<MapData> = net_perf_array.open(cpu_id, None)?;
-        net_perf_buffer.push(buf);
-    }
-    let running = AtomicBool::new(true);
-
-    let buffers = vec![BytesMut::with_capacity(1024); 10];
-
-    
-    tokio::spawn(async move{
-        display_metrics_map(net_perf_buffer, running, buffers).await;
-    });
-
-    signal::ctrl_c().await?;
     Ok(())
 }

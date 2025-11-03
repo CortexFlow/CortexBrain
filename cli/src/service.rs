@@ -1,22 +1,41 @@
 use std::process::exit;
 use std::str;
-use std::{io::Error, process::Command};
+use std::{ io::Error, process::Command };
 
-use crate::essential::{Environments, get_config_directory, read_configs};
+use crate::essential::{ Environments, get_config_directory, read_configs };
 use colored::Colorize;
+
+use clap::{ Args, Subcommand };
+
+//service subcommands
+#[derive(Subcommand, Debug, Clone)]
+pub enum ServiceCommands {
+    #[command(name = "list", about = "Check services list")] List {
+        #[arg(long)]
+        namespace: Option<String>,
+    },
+    #[command(name = "describe", about = "Describe service")] Describe {
+        service_name: String,
+        #[arg(long)]
+        namespace: Option<String>,
+    },
+}
+#[derive(Args, Debug, Clone)]
+pub struct ServiceArgs {
+    #[command(subcommand)]
+    pub service_cmd: ServiceCommands,
+}
 
 fn check_namespace_exists(namespace: &str) -> bool {
     let file_path = get_config_directory().unwrap().1;
 
-    let env_from_file = read_configs(file_path);
+    let env_from_file = "kubernetes".to_string();
     let user_env = Environments::try_from(env_from_file.to_lowercase());
 
     match user_env {
         Ok(cluster_environment) => {
             let env = cluster_environment.base_command();
-            let output = Command::new(env)
-                .args(["get", "namespace", namespace])
-                .output();
+            let output = Command::new(env).args(["get", "namespace", namespace]).output();
 
             match output {
                 Ok(output) => output.status.success(),
@@ -30,7 +49,7 @@ fn check_namespace_exists(namespace: &str) -> bool {
 fn get_available_namespaces() -> Vec<String> {
     let file_path = get_config_directory().unwrap().1;
 
-    let env_from_file = read_configs(file_path);
+    let env_from_file = "kubernetes".to_string();
     let user_env = Environments::try_from(env_from_file.to_lowercase());
 
     match user_env {
@@ -66,19 +85,14 @@ pub fn list_services(namespace: Option<String>) -> Result<(), Error> {
     //TODO: maybe we can list both services and pods
     let file_path = get_config_directory().unwrap().1;
 
-    let env_from_file = read_configs(file_path);
+    let env_from_file = "kubernetes".to_string();
     let user_env = Environments::try_from(env_from_file.to_lowercase());
     match user_env {
         Ok(cluster_environment) => {
             let env = cluster_environment.base_command();
             let ns = namespace.unwrap_or_else(|| "cortexflow".to_string());
 
-            println!(
-                "{} {} {}",
-                "=====>".blue().bold(),
-                "Listing services in namespace:",
-                ns
-            );
+            println!("{} {} {}", "=====>".blue().bold(), "Listing services in namespace:", ns);
 
             // Check if namespace exists first
             if !check_namespace_exists(&ns) {
@@ -100,9 +114,7 @@ pub fn list_services(namespace: Option<String>) -> Result<(), Error> {
             }
 
             // kubectl command to get services
-            let output = Command::new(env)
-                .args(["get", "svc", "-n", &ns, "--no-headers"])
-                .output();
+            let output = Command::new(env).args(["get", "svc", "-n", &ns, "--no-headers"]).output();
 
             match output {
                 Ok(output) => {
@@ -115,15 +127,17 @@ pub fn list_services(namespace: Option<String>) -> Result<(), Error> {
                     let stdout = str::from_utf8(&output.stdout).unwrap_or("");
 
                     if stdout.trim().is_empty() {
-                        println!("{} {} {}","=====>".blue().bold(),"No services found in namespace", ns);
+                        println!(
+                            "{} {} {}",
+                            "=====>".blue().bold(),
+                            "No services found in namespace",
+                            ns
+                        );
                         exit(1);
                     }
 
                     // header for Table
-                    println!(
-                        "{:<40} {:<20} {:<10} {:<10}",
-                        "NAME", "STATUS", "RESTARTS", "AGE"
-                    );
+                    println!("{:<40} {:<20} {:<10} {:<10}", "NAME", "STATUS", "RESTARTS", "AGE");
                     println!("{}", "-".repeat(80));
 
                     // Display Each Pod.
@@ -144,7 +158,10 @@ pub fn list_services(namespace: Option<String>) -> Result<(), Error> {
 
                             println!(
                                 "{:<40} {:<20} {:<10} {:<10}",
-                                name, full_status, restarts, age
+                                name,
+                                full_status,
+                                restarts,
+                                age
                             );
                         }
                     }
@@ -157,10 +174,7 @@ pub fn list_services(namespace: Option<String>) -> Result<(), Error> {
             }
         }
         Err(e) => {
-            eprintln!(
-                "Error reading the cluster environment from config files: {:?}",
-                e
-            );
+            eprintln!("Error reading the cluster environment from config files: {:?}", e);
         }
     }
     Ok(())
@@ -171,7 +185,7 @@ pub fn describe_service(service_name: String, namespace: &Option<String>) {
         Ok(_) => {
             let file_path = get_config_directory().unwrap().1;
 
-            let env = read_configs(file_path);
+            let env = "kubectl".to_string();
 
             let ns = namespace.clone().unwrap_or_else(|| "cortexflow".to_string());
 
@@ -197,10 +211,7 @@ pub fn describe_service(service_name: String, namespace: &Option<String>) {
                     for available_ns in &available_namespaces {
                         println!("  • {}", available_ns);
                     }
-                    println!(
-                        "\nTry: cortex service describe {} --namespace <namespace-name>",
-                        service_name
-                    );
+                    println!("\nTry: cortex service describe {} --namespace <namespace-name>", service_name);
                 } else {
                     println!("No namespaces found in the cluster.");
                 }
@@ -220,7 +231,8 @@ pub fn describe_service(service_name: String, namespace: &Option<String>) {
                         eprintln!("Error executing kubectl describe: {}", error);
                         eprintln!(
                             "Make sure the pod '{}' exists in namespace '{}'",
-                            service_name, ns
+                            service_name,
+                            ns
                         );
                         std::process::exit(1);
                     }

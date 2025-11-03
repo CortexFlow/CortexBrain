@@ -1,20 +1,50 @@
 syntax = "proto3";
 package agent;
 
+import "google/protobuf/empty.proto";
+
 message RequestActiveConnections{
     optional string pod_ip = 2 ;
 }
-// TODO: the complete Response will be able to return all the context below
-//* "Event Id: {} Protocol: {:?} SRC: {}:{} -> DST: {}:{}",
-//* event_id, proto, src, src_port, dst, dst_port
+
+message ConnectionEvent {
+    string event_id = 1;
+    string src_ip_port = 2;  // e.g., "192.168.1.1:8080" (src_ip:src_port)
+    string dst_ip_port = 3;  // e.g., "10.0.0.1:80" (dst_ip:dst_port)
+}
+
 message ActiveConnectionResponse{
     string status = 1;
-    map<string,string> events = 2 ; //for simplicity right now we only return event_id and src
+    repeated ConnectionEvent events = 2;  // List of connection events
 }
 
 //declare agent api 
 service Agent{
-    //active connections endpoint 
+    
+    // active connections endpoint 
     rpc ActiveConnections(RequestActiveConnections) returns (ActiveConnectionResponse);
+    
+    // create blocklist endpoint
+    rpc AddIpToBlocklist(AddIpToBlocklistRequest) returns (BlocklistResponse);
+    rpc CheckBlocklist(google.protobuf.Empty) returns (BlocklistResponse);
+
+    // remove ip from blocklist endpoint
+    rpc RmIpFromBlocklist(RmIpFromBlocklistRequest) returns (RmIpFromBlocklistResponse);
+
 }
 
+message AddIpToBlocklistRequest{
+    optional string ip = 1 ;
+}
+
+message BlocklistResponse{
+    string status = 1 ;
+    map<string,string> events = 2 ;
+}
+message RmIpFromBlocklistRequest{
+    string ip = 1 ;
+}
+message RmIpFromBlocklistResponse{
+    string status = 1;
+    map<string,string> events = 2 ;
+}

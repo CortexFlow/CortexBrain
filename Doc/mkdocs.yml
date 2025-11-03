@@ -11,7 +11,7 @@ theme:
   language: en
   name: material
   font: 
-    text: Poppins
+    text: Lato
   logo : ./assets/logo512.png
   favicon: ./assets/logo512.png
   palette:
@@ -19,14 +19,19 @@ theme:
       primary: "#7D88EC"  #light mode
       accent: "#FF5733"  
       toggle:
-        icon: material/toggle-switch-off-outline
+        icon: material/weather-night
         name: Switch to dark mode
     - scheme: slate
-      primary: "#7D88EC"  # Dark mode
+      primary: "#121212"  # Dark mode
       accent: "#FF5733"
       toggle:
-        icon: material/toggle-switch
+        icon: material/weather-sunny
         name: Switch to light mode
+  
+  markdown_extensions:
+    - toc:
+        permalink: true
+
 
   features:
     - navigation.instant
@@ -36,7 +41,15 @@ theme:
     - search.suggest
     - search.highlight
     - toc.integrate
+    - navigation.tracking
+    - navigation.sections
+    - toc.follow
+    - content.tabs.link
 
+
+
+extra_css:
+  - stylesheets/style.css
 extra:
   generator: false
   copyright: "Copyright &copy; 2025 CortexFlow"
@@ -45,6 +58,21 @@ extra:
       link: https://github.com/CortexFlow/CortexBrain
     - icon: fontawesome/brands/dev
       link: https://dev.to/cortexflow
+  consent:
+    title: Cookie Consent
+    description: >- 
+      We use cookies to recognize your repeated visits and preferences, as well
+      as to measure the effectiveness of our documentation and whether users
+      find what they're searching for. With your consent, you're helping us to
+      make our documentation better.
+    cookies:
+      analytics:
+        name: Google Analytics
+        checked: false
+    actions:
+      - accept
+      - manage 
+
 markdown_extensions:
   - admonition
   - pymdownx.details
@@ -53,7 +81,11 @@ markdown_extensions:
   - pymdownx.inlinehilite
   - pymdownx.snippets
   - pymdownx.keys
-plugins: 
+  - pymdownx.tabbed:
+      alternate_style: true
+plugins:
+  - tags:
+  - search:
   - rss:
         match_path: test-report/reports/.*
         date_from_meta:
@@ -61,8 +93,12 @@ plugins:
 
 nav:
   - Home: index.md
-  - Getting Started: installation/installation.md
-  - Tools: tools/tools.md
+  - Getting Started: getting-started/installation.md
+  - CLI: 
+    - cfcli/overview.md
+    - cfcli/quick-start-guide.md
+    - cfcli/Agent-API-Overview.md
+    
   - Test Report: 
     - test-report/test-report.md
     - Reports:
