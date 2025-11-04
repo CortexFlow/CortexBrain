@@ -21,68 +21,76 @@ use std::process::Command;
 use kube::api::{Api, ObjectMeta, Patch, PatchParams, PostParams};
 use kube::client::Client;
 
-pub struct GeneralData {
-    env: String,
-}
+//pub struct GeneralData {
+//    env: String,
+//}
 #[derive(Serialize)]
 pub struct MetadataConfigFile {
     blocklist: Vec<String>,
 }
-#[derive(Debug)]
-pub enum Environments {
-    Kubernetes,
-}
-impl TryFrom<&str> for Environments {
-    type Error = String;
 
-    fn try_from(environment: &str) -> Result<Self, Self::Error> {
-        match environment {
-            "kubernetes" | "k8s" => Ok(Environments::Kubernetes),
-            _ =>
-                Err(
-                    format!("Environment '{}' not supported. Please insert a supported value: Kubernetes, K8s", environment)
-                ),
-        }
-    }
-}
+//FIXME: remove this part
+//#[derive(Debug)]
+//pub enum Environments {
+//    Kubernetes,
+//}
+//impl TryFrom<&str> for Environments {
+//    type Error = String;
+//
+//    fn try_from(environment: &str) -> Result<Self, Self::Error> {
+//        match environment {
+//            "kubernetes" | "k8s" => Ok(Environments::Kubernetes),
+//            _ =>
+//                Err(
+//                    format!("Environment '{}' not supported. Please insert a supported value: Kubernetes, K8s", environment)
+//                ),
+//        }
+//    }
+//}
 
 //for owned types
-impl TryFrom<String> for Environments {
-    type Error = String;
+//impl TryFrom<String> for Environments {
+//    type Error = String;
+//
+//    fn try_from(environment: String) -> Result<Self, Self::Error> {
+//        Environments::try_from(environment.as_str())
+//    }
+//}
 
-    fn try_from(environment: String) -> Result<Self, Self::Error> {
-        Environments::try_from(environment.as_str())
-    }
+//impl Environments {
+//    pub fn base_command(&self) -> &'static str {
+//        match self {
+//            Environments::Kubernetes => "kubectl",
+//        }
+//    }
+//}
+
+//impl GeneralData {
+    //pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+    //pub const AUTHOR: &str = env!("CARGO_PKG_AUTHORS");
+    //pub const DESCRIPTION: &str = env!("CARGO_PKG_DESCRIPTION");
+
+    //pub fn new(env: String) -> Self {
+    //    GeneralData {
+    //        env: env.to_string(), // FIXME: remove this field
+    //    }
+    //}
+    //pub fn set_env(mut self, env: String) {
+    //    self.env = env;
+    //}
+    //pub fn get_env(self) -> String {
+    //    self.env
+    //}
+    //pub fn get_env_output(self) {
+    //   println!("{:?}", self.env)
+    //}
+//}
+
+pub async fn connect_to_client() -> Result<Client, kube::Error> {
+    let client = Client::try_default().await;
+    client
 }
 
-impl Environments {
-    pub fn base_command(&self) -> &'static str {
-        match self {
-            Environments::Kubernetes => "kubectl",
-        }
-    }
-}
-
-impl GeneralData {
-    pub const VERSION: &str = env!("CARGO_PKG_VERSION");
-    pub const AUTHOR: &str = env!("CARGO_PKG_AUTHORS");
-    pub const DESCRIPTION: &str = env!("CARGO_PKG_DESCRIPTION");
-
-    pub fn new(env: String) -> Self {
-        GeneralData {
-            env: env.to_string(),
-        }
-    }
-    pub fn set_env(mut self, env: String) {
-        self.env = env;
-    }
-    pub fn get_env(self) -> String {
-        self.env
-    }
-    pub fn get_env_output(self) {
-        println!("{:?}", self.env)
-    }
-}
 
 pub fn update_cli() {
     println!("{} {}", "=====>".blue().bold(), "Updating CortexFlow CLI");
@@ -96,16 +104,12 @@ pub fn update_cli() {
         println!("✅ Updated CLI");
     }
 }
-pub fn info(general_data: GeneralData) {
-    println!("{} {} {}", "=====>".blue().bold(), "Version:", GeneralData::VERSION);
-    println!("{} {} {}", "=====>".blue().bold(), "Author:", GeneralData::AUTHOR);
-    println!("{} {} {}", "=====>".blue().bold(), "Description:", GeneralData::DESCRIPTION);
-    println!("{} {} {}", "=====>".blue().bold(), "Environment:", general_data.get_env());
-}
-
-fn is_supported_env(env: &str) -> bool {
-    matches!(env.to_lowercase().trim(), "kubernetes" | "k8s")
-}
+//pub fn info(general_data: GeneralData) {
+//    println!("{} {} {}", "=====>".blue().bold(), "Version:", GeneralData::VERSION);
+//    println!("{} {} {}", "=====>".blue().bold(), "Author:", GeneralData::AUTHOR);
+//    println!("{} {} {}", "=====>".blue().bold(), "Description:", GeneralData::DESCRIPTION);
+//      println!("{} {} {}", "=====>".blue().bold(), "Environment:", general_data.get_env()); // FIXME: remove this field
+//}
 
 pub fn create_configs() -> MetadataConfigFile {
     let mut blocklist: Vec<String> = Vec::new();
@@ -228,24 +232,4 @@ pub async fn update_configmap(config_struct: MetadataConfigFile) -> Result<(), a
     }
 
     Ok(())
-}
-
-//TODO: add here an explanation of what are config_dir and file_path
-pub fn get_config_directory() -> Result<(PathBuf, PathBuf), ()> {
-    let dirs = ProjectDirs::from("org", "cortexflow", "cfcli").expect(
-        "Cannot determine the config directory"
-    );
-    let config_dir = dirs.config_dir().to_path_buf();
-    let file_path = config_dir.join("config.yaml");
-
-    Ok((config_dir, file_path))
-}
-
-pub fn get_startup_config_dir() -> bool {
-    ProjectDirs::from("org", "cortexflow", "cfcli")
-        .map(|dirs| {
-            let path = dirs.config_dir();
-            path.exists()
-        })
-        .unwrap_or(false)
 }
