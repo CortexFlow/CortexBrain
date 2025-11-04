@@ -21,6 +21,8 @@ use std::process::Command;
 use kube::api::{Api, ObjectMeta, Patch, PatchParams, PostParams};
 use kube::client::Client;
 
+pub static BASE_COMMAND: &str = "kubectl"; // docs: Kubernetes base command
+
 //pub struct GeneralData {
 //    env: String,
 //}

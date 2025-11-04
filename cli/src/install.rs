@@ -4,11 +4,10 @@ use tracing::debug;
 use clap::{ Args, Subcommand, command };
 use std::{ process::{ Command, exit }, fmt, thread, time::Duration };
 use crate::{
-    essential::{ connect_to_client, create_config_file, create_configs, read_configs },
+    essential::{ connect_to_client, create_config_file, create_configs, read_configs,BASE_COMMAND },
     install,
 };
 
-static BASE_COMMAND: &str = "kubectl"; // docs: Kubernetes base command
 
 // docs:
 //
