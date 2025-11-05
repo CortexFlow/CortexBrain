@@ -21,6 +21,7 @@ WORKDIR /usr/src/app/agent
 
 # Copy Cargo manifest and sources
 COPY . .
+COPY common ../common
 
 # Fetch dependencies and build release
 RUN cargo fetch 

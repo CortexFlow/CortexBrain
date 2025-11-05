@@ -7,6 +7,7 @@ WORKDIR /usr/src/app/identity-service
 # Copy Cargo manifest and sources
 COPY Cargo.toml .
 COPY src ./src
+COPY common ../../../common
 
 # Fetch dependencies and build release
 RUN cargo fetch && cargo build --release

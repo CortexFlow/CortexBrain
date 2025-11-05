@@ -12,10 +12,7 @@ use std::{
 
 use anyhow::{Context, Ok};
 use tracing::{error, info};
-use tracing_subscriber::{EnvFilter, fmt::format::FmtSpan};
-
-const BPF_PATH: &str = "BPF_PATH"; //BPF env path
-const PIN_MAP_PATH: &str = "PIN_MAP_PATH";
+use cortexbrain_common::{constants, logger};
 
 mod helpers;
 use crate::{helpers::event_listener, maps_handlers::map_pinner, program_handlers::load_and_attach_tcp_programs};
@@ -31,21 +28,12 @@ mod structs;
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
     //init tracing subscriber
-    tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::INFO)
-        .with_target(false)
-        .with_level(true)
-        .with_span_events(FmtSpan::NONE)
-        .with_file(false)
-        .pretty()
-        .with_env_filter(EnvFilter::new("info"))
-        .with_line_number(false)
-        .init();
+    logger::init_default_logger();
 
     info!("Starting metrics service...");
     info!("fetching data");
 
-    let bpf_path = env::var(BPF_PATH).context("BPF_PATH environment variable required")?;
+    let bpf_path = env::var(constants::BPF_PATH).context("BPF_PATH environment variable required")?;
     let data = fs::read(Path::new(&bpf_path)).context("Failed to load file from path")?;
     let bpf = Arc::new(Mutex::new(Ebpf::load(&data)?));
     let tcp_bpf = bpf.clone();
@@ -54,7 +42,7 @@ async fn main() -> Result<(), anyhow::Error> {
     info!("Running Ebpf logger");
     info!("loading programs");
     let bpf_map_save_path =
-        std::env::var(PIN_MAP_PATH).context("PIN_MAP_PATH environment variable required")?;
+        std::env::var(constants::PIN_MAP_PATH).context("PIN_MAP_PATH environment variable required")?;
 
     match init_ebpf_maps(bpf.clone()) {
         std::result::Result::Ok(maps) => {
