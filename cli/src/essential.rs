@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 use std::ptr::read;
 //TODO: Check if is possible to use the get_config_path function. Check for reusable components
 use std::{fs, io::stdin, path::PathBuf, process::exit};
+use std::fmt;
 
 use directories::ProjectDirs;
 use k8s_openapi::api::core::v1::ConfigMap;
@@ -22,6 +23,43 @@ use kube::api::{Api, ObjectMeta, Patch, PatchParams, PostParams};
 use kube::client::Client;
 
 pub static BASE_COMMAND: &str = "kubectl"; // docs: Kubernetes base command
+
+
+// docs:
+//
+// Custom error definition
+// InstallerError:
+//      - used for general installation errors occured during the installation of cortexflow components. Can be used for:
+//          - Return downloading errors
+//          - Return unsuccessful file removal
+//
+//
+// implements fmt::Display for user-friendly error messages
+//
+
+#[derive(Debug, Clone)]
+pub struct InstallerError {
+    pub(crate) reason: String,
+}
+
+impl fmt::Display for InstallerError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "An error occured while installing cortexflow components. Reason: {}",
+            self.reason
+        );
+        Ok(())
+    }
+}
+
+pub enum InstallationError{
+    InstallerError{
+        reason: String
+    },
+    ClientError(kube::Error)
+}
+
 
 //pub struct GeneralData {
 //    env: String,

@@ -1,41 +1,20 @@
 use colored::Colorize;
-use kube::Client;
+use kube::{ Client, core::ErrorResponse };
 use tracing::debug;
 use clap::{ Args, Subcommand, command };
 use std::{ process::{ Command, exit }, fmt, thread, time::Duration };
 use crate::{
-    essential::{ connect_to_client, create_config_file, create_configs, read_configs,BASE_COMMAND },
+    essential::{
+        connect_to_client,
+        create_config_file,
+        create_configs,
+        read_configs,
+        BASE_COMMAND,
+        InstallationError,
+    },
     install,
 };
-
-
-// docs:
-//
-// Custom error definition
-// InstallerError:
-//      - used for general installation errors occured during the installation of cortexflow components. Can be used for:
-//          - Return downloading errors
-//          - Return unsuccessful file removal
-//
-//
-// implements fmt::Display for user-friendly error messages
-//
-
-#[derive(Debug, Clone)]
-struct InstallerError {
-    reason: String,
-}
-
-impl fmt::Display for InstallerError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "An error occured while installing cortexflow components. Reason: {}",
-            self.reason
-        );
-        Ok(())
-    }
-}
+use kube::Error;
 
 // docs:
 //
@@ -115,7 +94,7 @@ pub fn install_simple_example() {
 //
 // Returns an InstallerError if something fails
 
-async fn install_cluster_components() -> Result<(), InstallerError> {
+async fn install_cluster_components() -> Result<(), InstallationError> {
     match connect_to_client().await {
         Ok(_) => {
             println!("{} {}", "=====>".blue().bold(), "Copying installation files".white());
@@ -148,7 +127,16 @@ async fn install_cluster_components() -> Result<(), InstallerError> {
             Ok(())
         }
         Err(e) => {
-            return Err(InstallerError { reason: "Can't connect to kubernetes client".to_string() });
+            Err(
+                InstallationError::ClientError(
+                    Error::Api(ErrorResponse {
+                        status: "failed".to_string(),
+                        message: "Failed to connect to kubernetes client".to_string(),
+                        reason: "Your cluster is probably disconnected".to_string(),
+                        code: 404,
+                    })
+                )
+            )
         }
     }
 }
@@ -164,7 +152,7 @@ async fn install_cluster_components() -> Result<(), InstallerError> {
 //
 // Returns an InstallerError if something fails
 
-async fn install_simple_example_component() -> Result<(), InstallerError> {
+async fn install_simple_example_component() -> Result<(), InstallationError> {
     match connect_to_client().await {
         Ok(_) => {
             println!("{} {}", "=====>".blue().bold(), "Copying installation files".white());
@@ -183,7 +171,16 @@ async fn install_simple_example_component() -> Result<(), InstallerError> {
             Ok(())
         }
         Err(e) => {
-            return Err(InstallerError { reason: "Can't connect to kubernetes client".to_string() });
+            Err(
+                InstallationError::ClientError(
+                    Error::Api(ErrorResponse {
+                        status: "failed".to_string(),
+                        message: "Failed to connect to kubernetes client".to_string(),
+                        reason: "Your cluster is probably disconnected".to_string(),
+                        code: 404,
+                    })
+                )
+            )
         }
     }
 }
@@ -196,7 +193,7 @@ async fn install_simple_example_component() -> Result<(), InstallerError> {
 //      - Executes the apply_component function
 //
 
-fn install_components(components_type: &str) -> Result<(), InstallerError> {
+fn install_components(components_type: &str) -> Result<(), InstallationError> {
     if components_type == "cortexbrain" {
         let files_to_install = vec![
             "configmap-role.yaml",
@@ -246,7 +243,7 @@ fn install_components(components_type: &str) -> Result<(), InstallerError> {
             i = i + 1;
         }
     } else {
-        return Err(InstallerError {
+        return Err(InstallationError::InstallerError {
             reason: "An error occured: No installation type selected".to_string(),
         });
     }
@@ -262,11 +259,13 @@ fn install_components(components_type: &str) -> Result<(), InstallerError> {
 //
 // Returns an InstallerError if something fails
 
-fn apply_component(file: &str) -> Result<(), InstallerError> {
+fn apply_component(file: &str) -> Result<(), InstallationError> {
     let output = Command::new(BASE_COMMAND)
         .args(["apply", "-f", file])
         .output()
-        .map_err(|_| InstallerError { reason: "Can't install component from file".to_string() })?;
+        .map_err(|_| InstallationError::InstallerError {
+            reason: "Can't install component from file".to_string(),
+        })?;
 
     if !output.status.success() {
         eprintln!("Error installing file: {}:\n{}", file, String::from_utf8_lossy(&output.stderr));
@@ -286,7 +285,9 @@ fn apply_component(file: &str) -> Result<(), InstallerError> {
 //
 // Returns an InstallerError if something fails
 
-fn download_installation_files(installation_files: InstallationType) -> Result<(), InstallerError> {
+fn download_installation_files(
+    installation_files: InstallationType
+) -> Result<(), InstallationError> {
     match installation_files {
         InstallationType::Components(files) => {
             for src in files.iter() {
@@ -310,7 +311,7 @@ fn download_installation_files(installation_files: InstallationType) -> Result<(
 //
 // Returns an InstallerError if something fails
 
-fn rm_installation_files(file_to_remove: InstallationType) -> Result<(), InstallerError> {
+fn rm_installation_files(file_to_remove: InstallationType) -> Result<(), InstallationError> {
     println!("{} {}", "=====>".blue().bold(), "Removing temporary installation files".white());
     match file_to_remove {
         InstallationType::Components(files) => {
@@ -335,11 +336,11 @@ fn rm_installation_files(file_to_remove: InstallationType) -> Result<(), Install
 //
 // Returns a InstallerError if something fails
 
-fn download_file(src: &str) -> Result<(), InstallerError> {
+fn download_file(src: &str) -> Result<(), InstallationError> {
     let output = Command::new("wget")
         .args([src])
         .output()
-        .map_err(|_| InstallerError {
+        .map_err(|_| InstallationError::InstallerError {
             reason: "An error occured: component download failed".to_string(),
         })?;
 
@@ -361,11 +362,11 @@ fn download_file(src: &str) -> Result<(), InstallerError> {
 //
 // Returns an InstallerError if something fails
 
-fn rm_file(file_to_remove: &str) -> Result<(), InstallerError> {
+fn rm_file(file_to_remove: &str) -> Result<(), InstallationError> {
     let output = Command::new("rm")
         .args(["-f", file_to_remove])
         .output()
-        .map_err(|_| InstallerError {
+        .map_err(|_| InstallationError::InstallerError {
             reason: "cannot remove temporary installation file".to_string(),
         })?;
 
