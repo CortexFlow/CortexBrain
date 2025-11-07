@@ -1,5 +1,4 @@
 #![allow(warnings)]
-//TODO: add an example with test pods during installation
 mod essential;
 mod install;
 mod logs;
@@ -10,30 +9,34 @@ mod status;
 mod uninstall;
 
 use clap::command;
-use clap::{Args, Error, Parser, Subcommand};
+use clap::{ Args, Parser, Subcommand };
 use colored::Colorize;
 use std::result::Result::Ok;
-use std::string;
 use tracing::debug;
 
-use crate::essential::{info, read_configs, update_cli};
-use crate::install::{InstallArgs, InstallCommands, install_cortexflow, install_simple_example};
-use crate::logs::{LogsArgs, logs_command};
-use crate::monitoring::{MonitorArgs, MonitorCommands, list_features, monitor_identity_events};
-use crate::policies::{PoliciesArgs, PoliciesCommands, check_blocklist, create_blocklist, remove_ip};
-use crate::service::{ServiceArgs, ServiceCommands, describe_service, list_services};
-use crate::status::{StatusArgs, status_command};
+use crate::essential::{ CliError, info, update_cli };
+use crate::install::{ InstallArgs, InstallCommands, install_cortexflow, install_simple_example };
+use crate::logs::{ LogsArgs, logs_command };
+use crate::monitoring::{ MonitorArgs, MonitorCommands, list_features, monitor_identity_events };
+use crate::policies::{
+    PoliciesArgs,
+    PoliciesCommands,
+    check_blocklist,
+    create_blocklist,
+    remove_ip,
+};
+use crate::service::{ ServiceArgs, ServiceCommands, describe_service, list_services };
+use crate::status::{ StatusArgs, status_command };
 use crate::uninstall::uninstall;
 
-use crate::essential::GeneralData;
 use crate::essential::update_config_metadata;
 
 #[derive(Parser, Debug)]
 #[command(
-    author = GeneralData::AUTHOR,
-    version = GeneralData::VERSION,
-    about = None,
-    long_about = None
+    author = env!("CARGO_PKG_AUTHORS"),
+    version = env!("CARGO_PKG_VERSION"),
+    about = env!("CARGO_PKG_DESCRIPTION"),
+    long_about = env!("CARGO_PKG_DESCRIPTION")
 )]
 struct Cli {
     //name: String,
@@ -44,9 +47,6 @@ struct Cli {
 #[derive(Subcommand, Debug, Clone)]
 enum Commands {
     /* list of available commands */
-    #[command(name = "set-env")] SetEnv(SetArgs),
-    #[command(name = "get-env")]
-    GetEnv,
     #[command(name = "install", about = "Manage installation")] Install(InstallArgs),
     #[command(name = "uninstall", about = "Manage uninstallation")]
     Uninstall,
@@ -65,70 +65,75 @@ struct SetArgs {
     val: String,
 }
 
-async fn args_parser(){
+async fn args_parser() -> Result<(), CliError> {
     let args = Cli::parse();
-    let env = "kubernetes".to_string();
-    let general_data = GeneralData::new(env);
     debug!("Arguments {:?}", args.cmd);
     match args.cmd {
-        Some(Commands::SetEnv(env)) => {
-            general_data.set_env(env.val);
-        }
-        Some(Commands::GetEnv) => {
-            general_data.get_env_output();
-        }
-        Some(Commands::Install(installation_args)) => match installation_args.install_cmd {
-            InstallCommands::All => {
-                install_cortexflow().await;
+        Some(Commands::Install(installation_args)) =>
+            match installation_args.install_cmd {
+                InstallCommands::All => {
+                    install_cortexflow().await?;
+                    Ok(())
+                }
+                InstallCommands::TestPods => {
+                    install_simple_example().await?;
+                    Ok(())
+                }
             }
-            InstallCommands::TestPods => {
-                install_simple_example();
-            }
-        },
         Some(Commands::Uninstall) => {
-            uninstall();
+            uninstall().await?;
+            Ok(())
         }
         Some(Commands::Update) => {
             update_cli();
+            Ok(())
         }
         Some(Commands::Info) => {
-            info(general_data);
+            info();
+            Ok(())
         }
-        Some(Commands::Service(service_args)) => match service_args.service_cmd {
-            ServiceCommands::List { namespace } => {
-                Some(list_services(namespace));
+        Some(Commands::Service(service_args)) =>
+            match service_args.service_cmd {
+                ServiceCommands::List { namespace } => {
+                    list_services(namespace).await?;
+                    Ok(())
+                }
+                ServiceCommands::Describe { service_name, namespace } => {
+                    describe_service(service_name, &namespace).await?;
+                    Ok(())
+                }
             }
-            ServiceCommands::Describe {
-                service_name,
-                namespace,
-            } => {
-                describe_service(service_name, &namespace);
-            }
-        },
         Some(Commands::Status(status_args)) => {
-            status_command(status_args.output, status_args.namespace);
+            status_command(status_args.output, status_args.namespace).await?;
+            Ok(())
         }
         Some(Commands::Logs(logs_args)) => {
-            logs_command(logs_args.service, logs_args.component, logs_args.namespace);
+            logs_command(logs_args.service, logs_args.component, logs_args.namespace).await?;
+            Ok(())
         }
-        Some(Commands::Monitor(monitor_args)) => match monitor_args.monitor_cmd {
-            MonitorCommands::List => {
-                let _ = list_features().await;
+        Some(Commands::Monitor(monitor_args)) =>
+            match monitor_args.monitor_cmd {
+                MonitorCommands::List => {
+                    let _ = list_features().await?;
+                    Ok(())
+                }
+                MonitorCommands::Connections => {
+                    let _ = monitor_identity_events().await?;
+                    Ok(())
+                }
             }
-            MonitorCommands::Connections => {
-                let _ = monitor_identity_events().await;
-            }
-        },
         Some(Commands::Policies(policies_args)) => {
             match policies_args.policy_cmd {
                 PoliciesCommands::CheckBlocklist => {
-                    let _ = check_blocklist().await;
+                    let _ = check_blocklist().await?;
+                    Ok(())
                 }
                 PoliciesCommands::CreateBlocklist => {
                     // pass the ip as a monitoring flag
                     match policies_args.flags {
                         None => {
                             println!("{}", "Insert at least one ip to create a blocklist".red());
+                            Ok(())
                         }
                         Some(ip) => {
                             println!("inserted ip: {} ", ip);
@@ -136,38 +141,45 @@ async fn args_parser(){
                             match create_blocklist(&ip).await {
                                 Ok(_) => {
                                     //update the config metadata
-                                    let _ = update_config_metadata(&ip, "add").await;
+                                    let _ = update_config_metadata(&ip, "add").await?;
+                                    Ok(())
                                 }
                                 Err(e) => {
                                     println!("{}", e);
+                                    Ok(())
                                 }
                             }
                         }
                     }
                 }
-                PoliciesCommands::RemoveIpFromBlocklist => match policies_args.flags {
-                    None => {
-                        println!(
-                            "{}",
-                            "Insert at least one ip to remove from the blocklist".red()
-                        );
-                    }
-                    Some(ip) => {
-                        println!("Inserted ip: {}", ip);
-                        match remove_ip(&ip).await {
-                            Ok(_) => {
-                                let _ = update_config_metadata(&ip, "delete").await;
-                            }
-                            Err(e) => {
-                                println!("{}", e);
+                PoliciesCommands::RemoveIpFromBlocklist =>
+                    match policies_args.flags {
+                        None => {
+                            println!(
+                                "{}",
+                                "Insert at least one ip to remove from the blocklist".red()
+                            );
+                            Ok(())
+                        }
+                        Some(ip) => {
+                            println!("Inserted ip: {}", ip);
+                            match remove_ip(&ip).await {
+                                Ok(_) => {
+                                    let _ = update_config_metadata(&ip, "delete").await?;
+                                    Ok(())
+                                }
+                                Err(e) => {
+                                    println!("{}", e);
+                                    Ok(())
+                                }
                             }
                         }
                     }
-                },
             }
         }
         None => {
             eprintln!("CLI unknown argument. Cli arguments passed: {:?}", args.cmd);
+            Ok(())
         }
     }
 }

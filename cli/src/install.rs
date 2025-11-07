@@ -1,18 +1,9 @@
 use colored::Colorize;
-use kube::{ Client, core::ErrorResponse };
-use tracing::debug;
+use kube::{ core::ErrorResponse };
 use clap::{ Args, Subcommand, command };
-use std::{ process::{ Command, exit }, fmt, thread, time::Duration };
+use std::{ process::{ Command }, thread, time::Duration };
 use crate::{
-    essential::{
-        connect_to_client,
-        create_config_file,
-        create_configs,
-        read_configs,
-        BASE_COMMAND,
-        CliError,
-    },
-    install,
+    essential::{ connect_to_client, create_config_file, create_configs, BASE_COMMAND, CliError },
 };
 use kube::Error;
 
@@ -59,7 +50,7 @@ pub struct InstallArgs {
 // main cortexflow installation function to install all the cortexflow components:
 // This function creates the cortexflow namespace, manages the metadata file creation and removes the temporary installation files
 
-pub async fn install_cortexflow() {
+pub async fn install_cortexflow() -> Result<(), CliError> {
     println!("{} {}", "=====>".blue().bold(), "Preparing cortexflow installation".white());
     println!("{} {}", "=====>".blue().bold(), "Creating the config files".white());
     println!("{} {}", "=====>".blue().bold(), "Creating cortexflow namespace".white());
@@ -69,8 +60,9 @@ pub async fn install_cortexflow() {
         .expect("Failed to create cortexflow namespace");
 
     let metadata_configs = create_configs();
-    create_config_file(metadata_configs).await;
-    install_cluster_components();
+    create_config_file(metadata_configs).await?;
+    install_cluster_components().await?;
+    Ok(())
 }
 
 // docs:
@@ -78,9 +70,10 @@ pub async fn install_cortexflow() {
 // main cortexflow installation function to install the examples:
 // This function installs the demostration examples
 
-pub fn install_simple_example() {
+pub async fn install_simple_example() -> Result<(), CliError> {
     println!("{} {}", "=====>".blue().bold(), "Installing simple example".white());
-    install_simple_example_component();
+    install_simple_example_component().await?;
+    Ok(())
 }
 
 //docs:
@@ -285,9 +278,7 @@ fn apply_component(file: &str) -> Result<(), CliError> {
 //
 // Returns an CliError if something fails
 
-fn download_installation_files(
-    installation_files: InstallationType
-) -> Result<(), CliError> {
+fn download_installation_files(installation_files: InstallationType) -> Result<(), CliError> {
     match installation_files {
         InstallationType::Components(files) => {
             for src in files.iter() {

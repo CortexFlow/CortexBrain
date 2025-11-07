@@ -6,7 +6,7 @@ use colored::Colorize;
 
 use k8s_openapi::api::core::v1::ConfigMap;
 use k8s_openapi::serde_json::json;
-use kube::{ Config, Error };
+use kube::{Error };
 use kube::api::{ Api, ObjectMeta, Patch, PatchParams, PostParams };
 use kube::client::Client;
 

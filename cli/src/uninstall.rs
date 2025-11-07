@@ -1,7 +1,5 @@
-use crate::{ essential::read_configs, status };
 use colored::Colorize;
 use std::{ io::stdin, process::Command, time::Duration, thread };
-use tracing::debug;
 
 use crate::essential::{ BASE_COMMAND, CliError, connect_to_client };
 use kube::{ Error, core::ErrorResponse };
