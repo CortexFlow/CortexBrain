@@ -3,7 +3,7 @@ use colored::Colorize;
 use std::{ io::stdin, process::Command, time::Duration, thread };
 use tracing::debug;
 
-use crate::essential::{ BASE_COMMAND, InstallationError, connect_to_client };
+use crate::essential::{ BASE_COMMAND, CliError, connect_to_client };
 use kube::{ Error, core::ErrorResponse };
 
 //docs:
@@ -15,9 +15,9 @@ use kube::{ Error, core::ErrorResponse };
 //      - read the user input (e.g. 1 > all components)
 //      - uninstall the selected component or the whole namespace
 //
-// Returns an InstallationError if something fails
+// Returns an CliError if something fails
 
-pub async fn uninstall() -> Result<(), InstallationError> {
+pub async fn uninstall() -> Result<(), CliError> {
     match connect_to_client().await {
         Ok(_) => {
             println!("{} {}", "=====>".blue().bold(), "Uninstalling cortexflow...");
@@ -36,7 +36,7 @@ pub async fn uninstall() -> Result<(), InstallationError> {
         }
         Err(_) => {
             Err(
-                InstallationError::ClientError(
+                CliError::ClientError(
                     Error::Api(ErrorResponse {
                         status: "failed".to_string(),
                         message: "Failed to connect to kubernetes client".to_string(),
@@ -65,16 +65,16 @@ fn display_uninstall_options() {
 //      - connects to kubernetes client
 //      - execute the command to uninstall the cortexflow namespace
 //
-// Returns an InstallationError if something fails
+// Returns an CliError if something fails
 
-async fn uninstall_all() -> Result<(), InstallationError> {
+async fn uninstall_all() -> Result<(), CliError> {
     match connect_to_client().await {
         Ok(_) => {
             println!("{} {}", "=====>".blue().bold(), "Deleting cortexflow components".red());
             let output = Command::new(BASE_COMMAND)
                 .args(["delete", "namespace", "cortexflow"])
                 .output()
-                .map_err(|e| InstallationError::InstallerError {
+                .map_err(|e| CliError::InstallerError {
                     reason: format!("Failed to execute delete command: {}", e),
                 })?;
 
@@ -84,14 +84,14 @@ async fn uninstall_all() -> Result<(), InstallationError> {
             } else {
                 let stderr = String::from_utf8_lossy(&output.stderr);
                 eprintln!("Error deleting cortexflow namespace. Error: {} ", stderr);
-                Err(InstallationError::InstallerError {
+                Err(CliError::InstallerError {
                     reason: format!("Failed to delete cortexflow namespace. Error: {}", stderr),
                 })
             }
         }
         Err(_) => {
             Err(
-                InstallationError::ClientError(
+                CliError::ClientError(
                     Error::Api(ErrorResponse {
                         status: "failed".to_string(),
                         message: "Failed to connect to kubernetes client".to_string(),
@@ -116,7 +116,7 @@ async fn uninstall_all() -> Result<(), InstallationError> {
 async fn uninstall_component(
     component_type: &str,
     component: &str
-) -> Result<(), InstallationError> {
+) -> Result<(), CliError> {
     match connect_to_client().await {
         Ok(_) => {
             println!("{} {} {}", "=====>".blue().bold(), "Deleting service", component);
@@ -124,7 +124,7 @@ async fn uninstall_component(
             let output = Command::new(BASE_COMMAND)
                 .args(["delete", component_type, component, "-n", "cortexflow"])
                 .output()
-                .map_err(|e| InstallationError::InstallerError {
+                .map_err(|e| CliError::InstallerError {
                     reason: format!("Failed to execute delete command: {}", e),
                 })?;
 
@@ -134,14 +134,14 @@ async fn uninstall_component(
             } else {
                 let stderr = String::from_utf8_lossy(&output.stderr);
                 eprintln!("Error deleting {}:\n{}", component, stderr);
-                Err(InstallationError::InstallerError {
+                Err(CliError::InstallerError {
                     reason: format!("Failed to delete component '{}': {}", component, stderr),
                 })
             }
         }
         Err(_) => {
             Err(
-                InstallationError::ClientError(
+                CliError::ClientError(
                     Error::Api(ErrorResponse {
                         status: "failed".to_string(),
                         message: "Failed to connect to kubernetes client".to_string(),

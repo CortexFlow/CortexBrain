@@ -3,7 +3,7 @@ use colored::Colorize;
 use clap::{ Args, Subcommand };
 use kube::{ core::ErrorResponse, Error };
 
-use crate::essential::{ BASE_COMMAND, connect_to_client };
+use crate::essential::{ BASE_COMMAND, connect_to_client, CliError };
 use crate::logs::{ get_available_namespaces, check_namespace_exists };
 
 //service subcommands
@@ -35,9 +35,9 @@ pub struct ServiceArgs {
 //          - else return an empty Vector
 //
 //
-// Returns a kube::Error if the connection fails
+// Returns a CliError if the connection fails
 
-pub async fn list_services(namespace: Option<String>) -> Result<(), kube::Error> {
+pub async fn list_services(namespace: Option<String>) -> Result<(), CliError> {
     //TODO: maybe we can list both services and pods?
 
     match connect_to_client().await {
@@ -119,24 +119,28 @@ pub async fn list_services(namespace: Option<String>) -> Result<(), kube::Error>
                 }
                 Err(err) => {
                     Err(
-                        Error::Api(ErrorResponse {
-                            status: "failed".to_string(),
-                            message: "Failed to execute kubectl describe command".to_string(),
-                            reason: "Your cluster is probably disconnected".to_string(),
-                            code: 404,
-                        })
+                        CliError::ClientError(
+                            Error::Api(ErrorResponse {
+                                status: "failed".to_string(),
+                                message: "Failed to execute the kubectl command".to_string(),
+                                reason: "Your cluster is probably disconnected".to_string(),
+                                code: 404,
+                            })
+                        )
                     )
                 }
             }
         }
         Err(_) => {
             Err(
-                Error::Api(ErrorResponse {
-                    status: "failed".to_string(),
-                    message: "Failed to execute kubectl describe command".to_string(),
-                    reason: "Your cluster is probably disconnected".to_string(),
-                    code: 404,
-                })
+                CliError::ClientError(
+                    Error::Api(ErrorResponse {
+                        status: "failed".to_string(),
+                        message: "Failed to connect to kubernetes client".to_string(),
+                        reason: "Your cluster is probably disconnected".to_string(),
+                        code: 404,
+                    })
+                )
             )
         }
     }
@@ -153,16 +157,16 @@ pub async fn list_services(namespace: Option<String>) -> Result<(), kube::Error>
 //          - else return an empty Vector
 //
 //
-// Returns a kube::Error if the connection fails
+// Returns a CliError if the connection fails
 
 pub async fn describe_service(
     service_name: String,
     namespace: &Option<String>
-) -> Result<(), kube::Error> {
+) -> Result<(), CliError> {
     match connect_to_client().await {
         Ok(_) => {
             match list_services(namespace.clone()).await {
-                Ok(__) => {
+                Ok(_) => {
                     //let file_path = get_config_directory().unwrap().1;
 
                     let ns = namespace.clone().unwrap_or_else(|| "cortexflow".to_string());
@@ -226,12 +230,14 @@ pub async fn describe_service(
                         }
                         Err(err) => {
                             Err(
-                                Error::Api(ErrorResponse {
-                                    status: "failed".to_string(),
-                                    message: "Failed to execute kubectl describe command".to_string(),
-                                    reason: "Your cluster is probably disconnected".to_string(),
-                                    code: 404,
-                                })
+                                CliError::ClientError(
+                                    Error::Api(ErrorResponse {
+                                        status: "failed".to_string(),
+                                        message: "Failed to execute the kubectl command ".to_string(),
+                                        reason: "Your cluster is probably disconnected".to_string(),
+                                        code: 404,
+                                    })
+                                )
                             )
                         }
                     }
@@ -241,12 +247,14 @@ pub async fn describe_service(
         }
         Err(_) => {
             Err(
-                Error::Api(ErrorResponse {
-                    status: "failed".to_string(),
-                    message: "Failed to execute kubectl describe command".to_string(),
-                    reason: "Your cluster is probably disconnected".to_string(),
-                    code: 404,
-                })
+                CliError::ClientError(
+                    Error::Api(ErrorResponse {
+                        status: "failed".to_string(),
+                        message: "Failed to connect to kubernetes client".to_string(),
+                        reason: "Your cluster is probably disconnected".to_string(),
+                        code: 404,
+                    })
+                )
             )
         }
     }

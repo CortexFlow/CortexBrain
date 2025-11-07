@@ -4,7 +4,7 @@ use clap::Args;
 use kube::{ Error, core::ErrorResponse };
 
 use crate::logs::{ get_available_namespaces, check_namespace_exists };
-use crate::essential::{ BASE_COMMAND, connect_to_client };
+use crate::essential::{ BASE_COMMAND, connect_to_client, CliError };
 
 #[derive(Debug)]
 pub enum OutputFormat {
@@ -44,12 +44,12 @@ pub struct StatusArgs {
 //      - else
 //          - return a failed state
 //
-// Returns a kube::Error if the connection fails
+// Returns a CliError if the connection fails
 
 pub async fn status_command(
     output_format: Option<String>,
     namespace: Option<String>
-) -> Result<(), kube::Error> {
+) -> Result<(), CliError> {
     match connect_to_client().await {
         Ok(_) => {
             let format = output_format.map(OutputFormat::from).unwrap_or(OutputFormat::Text);
@@ -132,12 +132,14 @@ pub async fn status_command(
         }
         Err(_) => {
             Err(
-                Error::Api(ErrorResponse {
-                    status: "failed".to_string(),
-                    message: "Failed to connect to kubernetes client".to_string(),
-                    reason: "Your cluster is probably disconnected".to_string(),
-                    code: 404,
-                })
+                CliError::ClientError(
+                    Error::Api(ErrorResponse {
+                        status: "failed".to_string(),
+                        message: "Failed to connect to kubernetes client".to_string(),
+                        reason: "Your cluster is probably disconnected".to_string(),
+                        code: 404,
+                    })
+                )
             )
         }
     }
@@ -150,9 +152,9 @@ pub async fn status_command(
 //      - connects to kubernetes client
 //      - return the pod status in this format: (name,ready?,status)
 //
-// Returns a kube::Error if the connection fails
+// Returns a CliError if the connection fails
 
-async fn get_pods_status(namespace: &str) -> Result<Vec<(String, String, String)>, kube::Error> {
+async fn get_pods_status(namespace: &str) -> Result<Vec<(String, String, String)>, CliError> {
     match connect_to_client().await {
         Ok(_) => {
             let output = Command::new(BASE_COMMAND)
@@ -185,12 +187,14 @@ async fn get_pods_status(namespace: &str) -> Result<Vec<(String, String, String)
         }
         Err(_) => {
             Err(
-                kube::Error::Api(ErrorResponse {
-                    status: "failed".to_string(),
-                    message: "Failed to connect to kubernetes client".to_string(),
-                    reason: "Your cluster is probably disconnected".to_string(),
-                    code: 404,
-                })
+                CliError::ClientError(
+                    Error::Api(ErrorResponse {
+                        status: "failed".to_string(),
+                        message: "Failed to connect to kubernetes client".to_string(),
+                        reason: "Your cluster is probably disconnected".to_string(),
+                        code: 404,
+                    })
+                )
             )
         }
     }
@@ -203,11 +207,9 @@ async fn get_pods_status(namespace: &str) -> Result<Vec<(String, String, String)
 //      - connects to kubernetes client
 //      - return the service status in this format: (name,type,cluster ips)
 //
-// Returns a kube::Error if the connection fails
+// Returns a CliError if the connection fails
 
-async fn get_services_status(
-    namespace: &str
-) -> Result<Vec<(String, String, String)>, kube::Error> {
+async fn get_services_status(namespace: &str) -> Result<Vec<(String, String, String)>, CliError> {
     match connect_to_client().await {
         Ok(_) => {
             let output = Command::new(BASE_COMMAND)
@@ -240,12 +242,14 @@ async fn get_services_status(
         }
         Err(_) => {
             Err(
-                kube::Error::Api(ErrorResponse {
-                    status: "failed".to_string(),
-                    message: "Failed to connect to kubernetes client".to_string(),
-                    reason: "Your cluster is probably disconnected".to_string(),
-                    code: 404,
-                })
+                CliError::ClientError(
+                    Error::Api(ErrorResponse {
+                        status: "failed".to_string(),
+                        message: "Failed to connect to kubernetes client".to_string(),
+                        reason: "Your cluster is probably disconnected".to_string(),
+                        code: 404,
+                    })
+                )
             )
         }
     }

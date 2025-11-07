@@ -14,6 +14,26 @@ pub static BASE_COMMAND: &str = "kubectl"; // docs: Kubernetes base command
 
 // docs:
 //
+// Custom enum definition to group all the installation error for cortexflow
+//
+
+pub enum CliError {
+    InstallerError {
+        reason: String,
+    },
+    ClientError(kube::Error),
+    UninstallError {
+        reason: String,
+    },
+}
+impl From<kube::Error> for CliError {
+    fn from(e: Error) -> Self {
+        CliError::ClientError(e)
+    }
+}
+
+// docs:
+//
 // Custom error definition
 // InstallerError:
 //      - used for general installation errors occured during the installation of cortexflow components. Can be used for:
@@ -40,18 +60,6 @@ impl fmt::Display for InstallerError {
     }
 }
 
-// docs:
-//
-// Custom enum definition to group all the installation error for cortexflow
-//
-
-pub enum InstallationError {
-    InstallerError {
-        reason: String,
-    },
-    ClientError(kube::Error),
-}
-
 #[derive(Serialize)]
 pub struct MetadataConfigFile {
     blocklist: Vec<String>,
@@ -61,6 +69,7 @@ pub struct MetadataConfigFile {
 //
 // This is a wrapper functions used to create a kubernetes client session
 // Used in modules:
+//      - essentials
 //      - install
 //      - logs
 //      - service
@@ -132,7 +141,7 @@ pub fn create_configs() -> MetadataConfigFile {
 //
 // Returns an error if something fails
 
-pub async fn read_configs() -> Result<Vec<String>, kube::Error> {
+pub async fn read_configs() -> Result<Vec<String>, CliError> {
     match connect_to_client().await {
         Ok(client) => {
             let namespace = "cortexflow";
@@ -157,12 +166,14 @@ pub async fn read_configs() -> Result<Vec<String>, kube::Error> {
         }
         Err(_) => {
             Err(
-                Error::Api(ErrorResponse {
-                    status: "failed".to_string(),
-                    message: "Failed to connect to kubernetes client".to_string(),
-                    reason: "Your cluster is probably disconnected".to_string(),
-                    code: 404,
-                })
+                CliError::ClientError(
+                    Error::Api(ErrorResponse {
+                        status: "failed".to_string(),
+                        message: "Failed to connect to kubernetes client".to_string(),
+                        reason: "Your cluster is probably disconnected".to_string(),
+                        code: 404,
+                    })
+                )
             )
         }
     }
@@ -183,7 +194,7 @@ pub async fn read_configs() -> Result<Vec<String>, kube::Error> {
 //
 // Returns an error if something fails
 
-pub async fn create_config_file(config_struct: MetadataConfigFile) -> Result<(), kube::Error> {
+pub async fn create_config_file(config_struct: MetadataConfigFile) -> Result<(), CliError> {
     match connect_to_client().await {
         Ok(client) => {
             let namespace = "cortexflow";
@@ -216,12 +227,14 @@ pub async fn create_config_file(config_struct: MetadataConfigFile) -> Result<(),
         }
         Err(_) => {
             Err(
-                Error::Api(ErrorResponse {
-                    status: "failed".to_string(),
-                    message: "Failed to connect to kubernetes client".to_string(),
-                    reason: "Your cluster is probably disconnected".to_string(),
-                    code: 404,
-                })
+                CliError::ClientError(
+                    Error::Api(ErrorResponse {
+                        status: "failed".to_string(),
+                        message: "Failed to connect to kubernetes client".to_string(),
+                        reason: "Your cluster is probably disconnected".to_string(),
+                        code: 404,
+                    })
+                )
             )
         }
     }
@@ -244,7 +257,7 @@ pub async fn create_config_file(config_struct: MetadataConfigFile) -> Result<(),
 //
 // Returns an error if something fails
 
-pub async fn update_config_metadata(input: &str, action: &str) -> Result<(), kube::Error> {
+pub async fn update_config_metadata(input: &str, action: &str) -> Result<(), CliError> {
     if action == "add" {
         //retrieve current blocked ips list
         let mut ips = read_configs().await?;
@@ -284,7 +297,7 @@ pub async fn update_config_metadata(input: &str, action: &str) -> Result<(), kub
 //
 // Returns an error if something fails
 
-pub async fn update_configmap(config_struct: MetadataConfigFile) -> Result<(), kube::Error> {
+pub async fn update_configmap(config_struct: MetadataConfigFile) -> Result<(), CliError> {
     match connect_to_client().await {
         Ok(client) => {
             let namespace = "cortexflow";
@@ -322,12 +335,14 @@ pub async fn update_configmap(config_struct: MetadataConfigFile) -> Result<(), k
         }
         Err(_) => {
             Err(
-                Error::Api(ErrorResponse {
-                    status: "failed".to_string(),
-                    message: "Failed to connect to kubernetes client".to_string(),
-                    reason: "Your cluster is probably disconnected".to_string(),
-                    code: 404,
-                })
+                CliError::ClientError(
+                    Error::Api(ErrorResponse {
+                        status: "failed".to_string(),
+                        message: "Failed to connect to kubernetes client".to_string(),
+                        reason: "Your cluster is probably disconnected".to_string(),
+                        code: 404,
+                    })
+                )
             )
         }
     }

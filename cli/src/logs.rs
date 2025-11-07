@@ -2,7 +2,7 @@ use std::{ str, process::Command, result::Result::Ok };
 use colored::Colorize;
 use clap::Args;
 use kube::{ Error, core::ErrorResponse };
-use crate::essential::{ connect_to_client, BASE_COMMAND };
+use crate::essential::{ connect_to_client, BASE_COMMAND, CliError };
 
 #[derive(Args, Debug, Clone)]
 pub struct LogsArgs {
@@ -48,13 +48,13 @@ impl Component {
 //      - returns the list of namespaces in Vec<String> format
 //
 //
-// Returns a kube::Error if the connectiion to the kubeapi fails
+// Returns a CliError if the connectiion to the kubeapi fails
 
 pub async fn logs_command(
     service: Option<String>,
     component: Option<String>,
     namespace: Option<String>
-) -> Result<(), kube::Error> {
+) -> Result<(), CliError> {
     match connect_to_client().await {
         Ok(_) => {
             let ns = namespace.unwrap_or_else(|| "cortexflow".to_string());
@@ -148,12 +148,14 @@ pub async fn logs_command(
         }
         Err(_) => {
             Err(
-                Error::Api(ErrorResponse {
-                    status: "failed".to_string(),
-                    message: "Failed to connect to kubernetes client".to_string(),
-                    reason: "Your cluster is probably disconnected".to_string(),
-                    code: 404,
-                })
+                CliError::ClientError(
+                    Error::Api(ErrorResponse {
+                        status: "failed".to_string(),
+                        message: "Failed to connect to kubernetes client".to_string(),
+                        reason: "Your cluster is probably disconnected".to_string(),
+                        code: 404,
+                    })
+                )
             )
         }
     }
@@ -167,9 +169,9 @@ pub async fn logs_command(
 //      - returns true if the namespace exists or false if the namespace doesn't exists
 //
 //
-// Returns a kube::Error if the connection fails
+// Returns a CliError if the connection fails
 
-async fn check_namespace_exists(namespace: &str) -> Result<bool, kube::Error> {
+pub async fn check_namespace_exists(namespace: &str) -> Result<bool, CliError> {
     match connect_to_client().await {
         Ok(_) => {
             let output = Command::new(BASE_COMMAND).args(["get", "namespace", namespace]).output();
@@ -180,14 +182,16 @@ async fn check_namespace_exists(namespace: &str) -> Result<bool, kube::Error> {
             }
         }
         Err(_) => {
-            return Err(
-                Error::Api(ErrorResponse {
-                    status: "failed".to_string(),
-                    message: "Failed to connect to kubernetes client".to_string(),
-                    reason: "Your cluster is probably disconnected".to_string(),
-                    code: 404,
-                })
-            );
+            Err(
+                CliError::ClientError(
+                    Error::Api(ErrorResponse {
+                        status: "failed".to_string(),
+                        message: "Failed to connect to kubernetes client".to_string(),
+                        reason: "Your cluster is probably disconnected".to_string(),
+                        code: 404,
+                    })
+                )
+            )
         }
     }
 }
@@ -200,9 +204,9 @@ async fn check_namespace_exists(namespace: &str) -> Result<bool, kube::Error> {
 //      - returns the list of namespaces in Vec<String> format
 //
 //
-// Returns a kube::Error if the connectiion to the kubeapi fails
+// Returns a CliError if the connectiion to the kubeapi fails
 
-async fn get_available_namespaces() -> Result<Vec<String>, kube::Error> {
+pub async fn get_available_namespaces() -> Result<Vec<String>, CliError> {
     match connect_to_client().await {
         Ok(_) => {
             let output = Command::new(BASE_COMMAND)
@@ -229,14 +233,16 @@ async fn get_available_namespaces() -> Result<Vec<String>, kube::Error> {
             }
         }
         Err(_) => {
-            return Err(
-                Error::Api(ErrorResponse {
-                    status: "failed".to_string(),
-                    message: "Failed to connect to kubernetes client".to_string(),
-                    reason: "Your cluster is probably disconnected".to_string(),
-                    code: 404,
-                })
-            );
+            Err(
+                CliError::ClientError(
+                    Error::Api(ErrorResponse {
+                        status: "failed".to_string(),
+                        message: "Failed to connect to kubernetes client".to_string(),
+                        reason: "Your cluster is probably disconnected".to_string(),
+                        code: 404,
+                    })
+                )
+            )
         }
     }
 }
@@ -249,12 +255,12 @@ async fn get_available_namespaces() -> Result<Vec<String>, kube::Error> {
 //      - returns the list of pods associated with a kubernetes service filtering by labels in Vec<String> format
 //
 //
-// Returns a kube::Error if the connectiion to the kubeapi fails
+// Returns a CliError if the connectiion to the kubeapi fails
 
 async fn get_pods_for_service(
     namespace: &str,
     service_name: &str
-) -> Result<Vec<String>, kube::Error> {
+) -> Result<Vec<String>, CliError> {
     match connect_to_client().await {
         Ok(_) => {
             let output = Command::new(BASE_COMMAND)
@@ -285,14 +291,16 @@ async fn get_pods_for_service(
             }
         }
         Err(_) => {
-            return Err(
-                Error::Api(ErrorResponse {
-                    status: "failed".to_string(),
-                    message: "Failed to connect to kubernetes client".to_string(),
-                    reason: "Your cluster is probably disconnected".to_string(),
-                    code: 404,
-                })
-            );
+            Err(
+                CliError::ClientError(
+                    Error::Api(ErrorResponse {
+                        status: "failed".to_string(),
+                        message: "Failed to connect to kubernetes client".to_string(),
+                        reason: "Your cluster is probably disconnected".to_string(),
+                        code: 404,
+                    })
+                )
+            )
         }
     }
 }
@@ -306,12 +314,12 @@ async fn get_pods_for_service(
 //        label selector,in Vec<String> format
 //
 //
-// Returns a kube::Error if the connectiion to the kubeapi fails
+// Returns a CliError if the connectiion to the kubeapi fails
 
 async fn get_pods_for_component(
     namespace: &str,
     component: &Component
-) -> Result<Vec<String>, kube::Error> {
+) -> Result<Vec<String>, CliError> {
     match connect_to_client().await {
         Ok(_) => {
             let output = Command::new(BASE_COMMAND)
@@ -342,14 +350,16 @@ async fn get_pods_for_component(
             }
         }
         Err(_) => {
-            return Err(
-                Error::Api(ErrorResponse {
-                    status: "failed".to_string(),
-                    message: "Failed to connect to kubernetes client".to_string(),
-                    reason: "Your cluster is probably disconnected".to_string(),
-                    code: 404,
-                })
-            );
+            Err(
+                CliError::ClientError(
+                    Error::Api(ErrorResponse {
+                        status: "failed".to_string(),
+                        message: "Failed to connect to kubernetes client".to_string(),
+                        reason: "Your cluster is probably disconnected".to_string(),
+                        code: 404,
+                    })
+                )
+            )
         }
     }
 }
@@ -362,9 +372,9 @@ async fn get_pods_for_component(
 //      - returns the list of all pods in Vec<String> format
 //
 //
-// Returns a kube::Error if the connectiion to the kubeapi fails
+// Returns a CliError if the connectiion to the kubeapi fails
 
-async fn get_all_pods(namespace: &str) -> Result<Vec<String>, kube::Error> {
+async fn get_all_pods(namespace: &str) -> Result<Vec<String>, CliError> {
     match connect_to_client().await {
         Ok(_) => {
             let output = Command::new(BASE_COMMAND)
@@ -393,14 +403,16 @@ async fn get_all_pods(namespace: &str) -> Result<Vec<String>, kube::Error> {
             }
         }
         Err(_) => {
-            return Err(
-                Error::Api(ErrorResponse {
-                    status: "failed".to_string(),
-                    message: "Failed to connect to kubernetes client".to_string(),
-                    reason: "Your cluster is probably disconnected".to_string(),
-                    code: 404,
-                })
-            );
+            Err(
+                CliError::ClientError(
+                    Error::Api(ErrorResponse {
+                        status: "failed".to_string(),
+                        message: "Failed to connect to kubernetes client".to_string(),
+                        reason: "Your cluster is probably disconnected".to_string(),
+                        code: 404,
+                    })
+                )
+            )
         }
     }
 }
