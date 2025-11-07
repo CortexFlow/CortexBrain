@@ -391,7 +391,6 @@ dependencies = [
  "kube",
  "libc",
  "nix",
- "serde_yaml",
  "tokio",
  "tracing",
  "tracing-subscriber",

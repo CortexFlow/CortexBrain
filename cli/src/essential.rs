@@ -1,3 +1,4 @@
+use std::fmt::format;
 use std::{ collections::BTreeMap, fmt, process::Command, result::Result::Ok };
 
 use kube::core::ErrorResponse;
@@ -6,7 +7,6 @@ use colored::Colorize;
 
 use k8s_openapi::api::core::v1::ConfigMap;
 use k8s_openapi::serde_json::json;
-use kube::{Error };
 use kube::api::{ Api, ObjectMeta, Patch, PatchParams, PostParams };
 use kube::client::Client;
 
@@ -14,9 +14,33 @@ pub static BASE_COMMAND: &str = "kubectl"; // docs: Kubernetes base command
 
 // docs:
 //
-// Custom enum definition to group all the installation error for cortexflow
+// CliError enum to group all the errors
 //
+// Custom error definition
+// InstallerError:
+//      - used for general installation errors occured during the installation of cortexflow components. Can be used for:
+//          - Return downloading errors
+//          - Return unsuccessful file removal during installation
+//
+// ClientError:
+//      - used for Kubernetes client errors. Can be used for:
+//          - Return client connection errors
+//
+// UninstallError:
+//      - used for general installation errors occured during the uninstall for cortexflow components. Can be used for:
+//          -  Return components removal errors
+//
+// AgentError:
+//      - used for cortexflow agent errors. Can be used for:
+//          - return errors from the reflection server
+//          - return unavailable agent errors (404)
+//
+// MonitoringError:
+//      - used for general monitoring errors. TODO: currently under implementation
+//
+// implements fmt::Display for user friendly error messages
 
+#[derive(Debug)]
 pub enum CliError {
     InstallerError {
         reason: String,
@@ -25,38 +49,56 @@ pub enum CliError {
     UninstallError {
         reason: String,
     },
+    AgentError(tonic_reflection::server::Error),
+    MonitoringError {
+        reason: String,
+    },
 }
+// docs:
+// error type conversions
+
 impl From<kube::Error> for CliError {
-    fn from(e: Error) -> Self {
+    fn from(e: kube::Error) -> Self {
         CliError::ClientError(e)
+    }
+}
+impl From<anyhow::Error> for CliError {
+    fn from(e: anyhow::Error) -> Self {
+        CliError::MonitoringError { reason: format!("{}", e) }
     }
 }
 
 // docs:
-//
-// Custom error definition
-// InstallerError:
-//      - used for general installation errors occured during the installation of cortexflow components. Can be used for:
-//          - Return downloading errors
-//          - Return unsuccessful file removal
-//
-//
-// implements fmt::Display for user-friendly error messages
-//
+// fmt::Display implementation for CliError type. Creates a user friendly message error message.
+// TODO: implement colored messages using the colorize crate for better output display
 
-#[derive(Debug, Clone)]
-pub struct InstallerError {
-    pub(crate) reason: String,
-}
-
-impl fmt::Display for InstallerError {
+impl fmt::Display for CliError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "An error occured while installing cortexflow components. Reason: {}",
-            self.reason
-        );
-        Ok(())
+        match self {
+            CliError::InstallerError { reason } => {
+                write!(
+                    f,
+                    "An error occured while installing cortexflow components. Reason: {}",
+                    reason
+                )
+            }
+            CliError::UninstallError { reason } => {
+                write!(
+                    f,
+                    "An error occured while installing cortexflow components. Reason: {}",
+                    reason
+                )
+            }
+            CliError::MonitoringError { reason } => {
+                write!(
+                    f,
+                    "An error occured while installing cortexflow components. Reason: {}",
+                    reason
+                )
+            }
+            CliError::ClientError(e) => write!(f, "Client Error: {}", e),
+            CliError::AgentError(e) => write!(f, "Agent Error: {}", e),
+        }
     }
 }
 
@@ -167,7 +209,7 @@ pub async fn read_configs() -> Result<Vec<String>, CliError> {
         Err(_) => {
             Err(
                 CliError::ClientError(
-                    Error::Api(ErrorResponse {
+                    kube::Error::Api(ErrorResponse {
                         status: "failed".to_string(),
                         message: "Failed to connect to kubernetes client".to_string(),
                         reason: "Your cluster is probably disconnected".to_string(),
@@ -228,7 +270,7 @@ pub async fn create_config_file(config_struct: MetadataConfigFile) -> Result<(),
         Err(_) => {
             Err(
                 CliError::ClientError(
-                    Error::Api(ErrorResponse {
+                    kube::Error::Api(ErrorResponse {
                         status: "failed".to_string(),
                         message: "Failed to connect to kubernetes client".to_string(),
                         reason: "Your cluster is probably disconnected".to_string(),
@@ -336,7 +378,7 @@ pub async fn update_configmap(config_struct: MetadataConfigFile) -> Result<(), C
         Err(_) => {
             Err(
                 CliError::ClientError(
-                    Error::Api(ErrorResponse {
+                    kube::Error::Api(ErrorResponse {
                         status: "failed".to_string(),
                         message: "Failed to connect to kubernetes client".to_string(),
                         reason: "Your cluster is probably disconnected".to_string(),
