@@ -1,4 +1,3 @@
-use std::fmt::format;
 use std::{ collections::BTreeMap, fmt, process::Command, result::Result::Ok };
 
 use kube::core::ErrorResponse;
@@ -65,6 +64,11 @@ impl From<kube::Error> for CliError {
 impl From<anyhow::Error> for CliError {
     fn from(e: anyhow::Error) -> Self {
         CliError::MonitoringError { reason: format!("{}", e) }
+    }
+}
+impl From<()> for CliError {
+    fn from (v: ()) -> Self{
+        return ().into()
     }
 }
 

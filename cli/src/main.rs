@@ -8,7 +8,6 @@ mod service;
 mod status;
 mod uninstall;
 
-use clap::command;
 use clap::{ Args, Parser, Subcommand };
 use colored::Colorize;
 use std::result::Result::Ok;
@@ -72,68 +71,55 @@ async fn args_parser() -> Result<(), CliError> {
         Some(Commands::Install(installation_args)) =>
             match installation_args.install_cmd {
                 InstallCommands::All => {
-                    install_cortexflow().await?;
-                    Ok(())
+                    install_cortexflow().await.map_err(|e| eprintln!("{}",e) )?;
                 }
                 InstallCommands::TestPods => {
-                    install_simple_example().await?;
-                    Ok(())
+                    install_simple_example().await.map_err(|e| eprintln!("{}",e) )?;
                 }
             }
         Some(Commands::Uninstall) => {
-            uninstall().await?;
-            Ok(())
+            uninstall().await.map_err(|e| eprintln!("{}",e) )?;
         }
         Some(Commands::Update) => {
             update_cli();
-            Ok(())
         }
         Some(Commands::Info) => {
             info();
-            Ok(())
         }
         Some(Commands::Service(service_args)) =>
             match service_args.service_cmd {
                 ServiceCommands::List { namespace } => {
-                    list_services(namespace).await?;
-                    Ok(())
+                    list_services(namespace).await.map_err(|e| eprintln!("{}",e) )?;
                 }
                 ServiceCommands::Describe { service_name, namespace } => {
-                    describe_service(service_name, &namespace).await?;
-                    Ok(())
+                    describe_service(service_name, &namespace).await.map_err(|e| eprintln!("{}",e) )?;
                 }
             }
         Some(Commands::Status(status_args)) => {
-            status_command(status_args.output, status_args.namespace).await?;
-            Ok(())
+            status_command(status_args.output, status_args.namespace).await.map_err(|e| eprintln!("{}",e) )?;
         }
         Some(Commands::Logs(logs_args)) => {
-            logs_command(logs_args.service, logs_args.component, logs_args.namespace).await?;
-            Ok(())
+            logs_command(logs_args.service, logs_args.component, logs_args.namespace).await.map_err(|e| eprintln!("{}",e) )?;
         }
         Some(Commands::Monitor(monitor_args)) =>
             match monitor_args.monitor_cmd {
                 MonitorCommands::List => {
-                    let _ = list_features().await?;
-                    Ok(())
+                    let _ = list_features().await.map_err(|e| eprintln!("{}",e) )?;
                 }
                 MonitorCommands::Connections => {
-                    let _ = monitor_identity_events().await?;
-                    Ok(())
+                    let _ = monitor_identity_events().await.map_err(|e| eprintln!("{}",e) )?;
                 }
             }
         Some(Commands::Policies(policies_args)) => {
             match policies_args.policy_cmd {
                 PoliciesCommands::CheckBlocklist => {
-                    let _ = check_blocklist().await?;
-                    Ok(())
+                    let _ = check_blocklist().await.map_err(|e| eprintln!("{}",e) )?;
                 }
                 PoliciesCommands::CreateBlocklist => {
                     // pass the ip as a monitoring flag
                     match policies_args.flags {
                         None => {
-                            println!("{}", "Insert at least one ip to create a blocklist".red());
-                            Ok(())
+                            eprintln!("{}", "Insert at least one ip to create a blocklist".red());
                         }
                         Some(ip) => {
                             println!("inserted ip: {} ", ip);
@@ -141,12 +127,10 @@ async fn args_parser() -> Result<(), CliError> {
                             match create_blocklist(&ip).await {
                                 Ok(_) => {
                                     //update the config metadata
-                                    let _ = update_config_metadata(&ip, "add").await?;
-                                    Ok(())
+                                    let _ = update_config_metadata(&ip, "add").await.map_err(|e| eprintln!("{}",e) )?;
                                 }
                                 Err(e) => {
-                                    println!("{}", e);
-                                    Ok(())
+                                    eprintln!("{}", e);
                                 }
                             }
                         }
@@ -155,22 +139,19 @@ async fn args_parser() -> Result<(), CliError> {
                 PoliciesCommands::RemoveIpFromBlocklist =>
                     match policies_args.flags {
                         None => {
-                            println!(
+                            eprintln!(
                                 "{}",
                                 "Insert at least one ip to remove from the blocklist".red()
                             );
-                            Ok(())
                         }
                         Some(ip) => {
                             println!("Inserted ip: {}", ip);
                             match remove_ip(&ip).await {
                                 Ok(_) => {
-                                    let _ = update_config_metadata(&ip, "delete").await?;
-                                    Ok(())
+                                    let _ = update_config_metadata(&ip, "delete").await.map_err(|e| eprintln!("{}",e) )?;
                                 }
                                 Err(e) => {
-                                    println!("{}", e);
-                                    Ok(())
+                                    eprintln!("{}", e);
                                 }
                             }
                         }
@@ -179,9 +160,9 @@ async fn args_parser() -> Result<(), CliError> {
         }
         None => {
             eprintln!("CLI unknown argument. Cli arguments passed: {:?}", args.cmd);
-            Ok(())
         }
     }
+    Ok(())
 }
 
 #[tokio::main]
