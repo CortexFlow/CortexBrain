@@ -1,29 +1,16 @@
-use std::collections::BTreeMap;
-use std::ptr::read;
-//TODO: Check if is possible to use the get_config_path function. Check for reusable components
-use std::{fs, io::stdin, path::PathBuf, process::exit};
-use std::fmt;
+use std::{ collections::BTreeMap, fmt, process::Command, result::Result::Ok };
 
-use directories::ProjectDirs;
+use kube::core::ErrorResponse;
+use serde::Serialize;
+use colored::Colorize;
+
 use k8s_openapi::api::core::v1::ConfigMap;
 use k8s_openapi::serde_json::json;
-use kube::Config;
-use prost_types::MethodDescriptorProto;
-use serde::Serialize;
-use std::fs::{Metadata, OpenOptions};
-use std::result::Result::Ok;
-
-use colored::Colorize;
-use std::thread;
-use std::time::Duration;
-
-use std::process::Command;
-
-use kube::api::{Api, ObjectMeta, Patch, PatchParams, PostParams};
+use kube::{ Config, Error };
+use kube::api::{ Api, ObjectMeta, Patch, PatchParams, PostParams };
 use kube::client::Client;
 
 pub static BASE_COMMAND: &str = "kubectl"; // docs: Kubernetes base command
-
 
 // docs:
 //
@@ -53,84 +40,51 @@ impl fmt::Display for InstallerError {
     }
 }
 
-pub enum InstallationError{
-    InstallerError{
-        reason: String
+// docs:
+//
+// Custom enum definition to group all the installation error for cortexflow
+//
+
+pub enum InstallationError {
+    InstallerError {
+        reason: String,
     },
-    ClientError(kube::Error)
+    ClientError(kube::Error),
 }
 
-
-//pub struct GeneralData {
-//    env: String,
-//}
 #[derive(Serialize)]
 pub struct MetadataConfigFile {
     blocklist: Vec<String>,
 }
 
-//FIXME: remove this part
-//#[derive(Debug)]
-//pub enum Environments {
-//    Kubernetes,
-//}
-//impl TryFrom<&str> for Environments {
-//    type Error = String;
+// docs:
 //
-//    fn try_from(environment: &str) -> Result<Self, Self::Error> {
-//        match environment {
-//            "kubernetes" | "k8s" => Ok(Environments::Kubernetes),
-//            _ =>
-//                Err(
-//                    format!("Environment '{}' not supported. Please insert a supported value: Kubernetes, K8s", environment)
-//                ),
-//        }
-//    }
-//}
-
-//for owned types
-//impl TryFrom<String> for Environments {
-//    type Error = String;
+// This is a wrapper functions used to create a kubernetes client session
+// Used in modules:
+//      - install
+//      - logs
+//      - service
+//      - status
+//      - uninstall
 //
-//    fn try_from(environment: String) -> Result<Self, Self::Error> {
-//        Environments::try_from(environment.as_str())
-//    }
-//}
-
-//impl Environments {
-//    pub fn base_command(&self) -> &'static str {
-//        match self {
-//            Environments::Kubernetes => "kubectl",
-//        }
-//    }
-//}
-
-//impl GeneralData {
-    //pub const VERSION: &str = env!("CARGO_PKG_VERSION");
-    //pub const AUTHOR: &str = env!("CARGO_PKG_AUTHORS");
-    //pub const DESCRIPTION: &str = env!("CARGO_PKG_DESCRIPTION");
-
-    //pub fn new(env: String) -> Self {
-    //    GeneralData {
-    //        env: env.to_string(), // FIXME: remove this field
-    //    }
-    //}
-    //pub fn set_env(mut self, env: String) {
-    //    self.env = env;
-    //}
-    //pub fn get_env(self) -> String {
-    //    self.env
-    //}
-    //pub fn get_env_output(self) {
-    //   println!("{:?}", self.env)
-    //}
-//}
+//
+// Returns a Result with the client an a kube::Error
 
 pub async fn connect_to_client() -> Result<Client, kube::Error> {
     let client = Client::try_default().await;
     client
 }
 
+// docs:
+//
+// This is an function used to update the cli
+//
+// Steps:
+//      - Checks the current CLI version
+//      - if the version matches the current latest version doesn't do anything
+//      - else runs the cargo update command
+//
+// Returns an error if the command fails
 
 pub fn update_cli() {
     println!("{} {}", "=====>".blue().bold(), "Updating CortexFlow CLI");
@@ -144,12 +98,20 @@ pub fn update_cli() {
         println!("✅ Updated CLI");
     }
 }
-//pub fn info(general_data: GeneralData) {
-//    println!("{} {} {}", "=====>".blue().bold(), "Version:", GeneralData::VERSION);
-//    println!("{} {} {}", "=====>".blue().bold(), "Author:", GeneralData::AUTHOR);
-//    println!("{} {} {}", "=====>".blue().bold(), "Description:", GeneralData::DESCRIPTION);
-//      println!("{} {} {}", "=====>".blue().bold(), "Environment:", general_data.get_env()); // FIXME: remove this field
-//}
+
+// docs:
+//
+// This is a function to display the CLI Version,Author and Description using a fancy output style
+
+pub fn info() {
+    println!("{} {} {}", "=====>".blue().bold(), "Version:", env!("CARGO_PKG_VERSION"));
+    println!("{} {} {}", "=====>".blue().bold(), "Author:", env!("CARGO_PKG_AUTHORS"));
+    println!("{} {} {}", "=====>".blue().bold(), "Description:", env!("CARGO_PKG_DESCRIPTION"));
+}
+
+// docs:
+//
+// This is a wrapper function to create the MetadataConfigFile structure
 
 pub fn create_configs() -> MetadataConfigFile {
     let mut blocklist: Vec<String> = Vec::new();
@@ -158,63 +120,134 @@ pub fn create_configs() -> MetadataConfigFile {
     let configs = MetadataConfigFile { blocklist };
     configs
 }
-pub async fn read_configs() -> Result<Vec<String>, anyhow::Error> {
-    let client = Client::try_default().await?;
-    let namespace = "cortexflow";
-    let configmap = "cortexbrain-client-config";
-    let api: Api<ConfigMap> = Api::namespaced(client, namespace);
 
-    let cm = api.get(configmap).await?;
+// docs:
+//
+// This is an helper functions used to read the configs from a kubernetes configmap
+//
+// Steps:
+//      - connects to kubernetes client
+//      - read the configmap from the kubernetes API. Needed: namespace_name , configmap_name
+//      - returns the given configmap blocklist data in a Vec<String> type
+//
+// Returns an error if something fails
 
-    if let Some(data) = cm.data {
-        if let Some(blocklist_raw) = data.get("blocklist") {
-            let lines: Vec<String> = blocklist_raw
-                .lines()
-                .map(|s| s.trim().to_string())
-                .filter(|s| !s.is_empty()) // ignora righe vuote
-                .collect();
+pub async fn read_configs() -> Result<Vec<String>, kube::Error> {
+    match connect_to_client().await {
+        Ok(client) => {
+            let namespace = "cortexflow";
+            let configmap = "cortexbrain-client-config";
+            let api: Api<ConfigMap> = Api::namespaced(client, namespace);
 
-            return Ok(lines);
+            let cm = api.get(configmap).await?;
+
+            if let Some(data) = cm.data {
+                if let Some(blocklist_raw) = data.get("blocklist") {
+                    let lines: Vec<String> = blocklist_raw
+                        .lines()
+                        .map(|s| s.trim().to_string())
+                        .filter(|s| !s.is_empty()) // ignore empty lines
+                        .collect();
+
+                    return Ok(lines);
+                }
+            }
+
+            Ok(Vec::new()) //in case the key fails
+        }
+        Err(_) => {
+            Err(
+                Error::Api(ErrorResponse {
+                    status: "failed".to_string(),
+                    message: "Failed to connect to kubernetes client".to_string(),
+                    reason: "Your cluster is probably disconnected".to_string(),
+                    code: 404,
+                })
+            )
         }
     }
-
-    Ok(Vec::new()) //in case the key fails
 }
-pub async fn create_config_file(config_struct: MetadataConfigFile) -> Result<(), anyhow::Error> {
-    let client = Client::try_default().await?;
-    let namespace = "cortexflow";
-    let configmap = "cortexbrain-client-config";
 
-    let api: Api<ConfigMap> = Api::namespaced(client, namespace);
+// docs:
+//
+// This is a function used to create a configmap file
+//
+// With the version 0.1.4 cortexflow introduced a configmap file to store the relevant cortexflow metadata
+// Up to now the metadata includes:
+//      - blocked ip addresses passed using the CLI
+//
+// Steps:
+//      - connects to kubernetes client
+//      - creates a configmap named "cortexbrain-client-config" stored in the cortexflow namespace
+//      - the blocklist field is initialized with zero blocked addresses
+//
+// Returns an error if something fails
 
-    // create configmap
-    let mut data = BTreeMap::new();
-    for x in config_struct.blocklist {
-        data.insert("blocklist".to_string(), x);
+pub async fn create_config_file(config_struct: MetadataConfigFile) -> Result<(), kube::Error> {
+    match connect_to_client().await {
+        Ok(client) => {
+            let namespace = "cortexflow";
+            let configmap = "cortexbrain-client-config";
+
+            let api: Api<ConfigMap> = Api::namespaced(client, namespace);
+
+            // create configmap
+            let mut data = BTreeMap::new();
+            for x in config_struct.blocklist {
+                data.insert("blocklist".to_string(), x);
+            }
+            let cm = ConfigMap {
+                metadata: ObjectMeta {
+                    name: Some("cortexbrain-client-config".to_string()),
+                    ..Default::default()
+                }, // type ObjectMeta
+                data: Some(data), //type Option<BTreeMap<String, String, Global>>
+                ..Default::default()
+            };
+            match api.create(&PostParams::default(), &cm).await {
+                Ok(_) => {
+                    println!("Configmap created successfully");
+                }
+                Err(e) => {
+                    eprintln!("An error occured: {}", e);
+                }
+            }
+            Ok(())
+        }
+        Err(_) => {
+            Err(
+                Error::Api(ErrorResponse {
+                    status: "failed".to_string(),
+                    message: "Failed to connect to kubernetes client".to_string(),
+                    reason: "Your cluster is probably disconnected".to_string(),
+                    code: 404,
+                })
+            )
+        }
     }
-    let cm = ConfigMap {
-        metadata: ObjectMeta {
-            name: Some("cortexbrain-client-config".to_string()),
-            ..Default::default()
-        }, // type ObjectMeta
-        data: Some(data), //type Option<BTreeMap<String, String, Global>>
-        ..Default::default()
-    };
-    match api.create(&PostParams::default(), &cm).await {
-        Ok(_) => {
-            println!("Configmap created successfully");
-        }
-        Err(e) => {
-            eprintln!("An error occured: {}", e);
-        }
-    };
-    Ok(())
 }
 
-pub async fn update_config_metadata(input: &str, action: &str) {
+// docs:
+//
+// This is a function used to update a configmap file. Takes an input and an action
+//
+// Input: an ip (&str type)
+// Actions:
+//      - Add: add the ip to the blocklist metadata
+//      - Delete: remove the ip from the blocklist metadata
+//
+// Steps:
+//      - connects to kubernetes client
+//      - reads the existing configmap
+//      - creates a temporary vector with the old addresses and the new address
+//      - creates a patch by calling the update_configamp file
+//
+// Returns an error if something fails
+
+pub async fn update_config_metadata(input: &str, action: &str) -> Result<(), kube::Error> {
     if action == "add" {
         //retrieve current blocked ips list
-        let mut ips = read_configs().await.unwrap();
+        let mut ips = read_configs().await?;
         println!("Readed current blocked ips: {:?}", ips);
 
         //create a temporary vector of ips
@@ -223,9 +256,9 @@ pub async fn update_config_metadata(input: &str, action: &str) {
         // override blocklist parameters
         let new_configs = MetadataConfigFile { blocklist: ips };
         //create a new config
-        update_configmap(new_configs).await;
+        update_configmap(new_configs).await?;
     } else if action == "delete" {
-        let mut ips = read_configs().await.unwrap();
+        let mut ips = read_configs().await?;
         if let Some(index) = ips.iter().position(|target| target == &input.to_string()) {
             ips.remove(index);
         } else {
@@ -235,41 +268,67 @@ pub async fn update_config_metadata(input: &str, action: &str) {
         // override blocklist parameters
         let new_configs = MetadataConfigFile { blocklist: ips };
         //create a new config
-        update_configmap(new_configs).await;
+        update_configmap(new_configs).await?;
     }
+    Ok(())
 }
 
-pub async fn update_configmap(config_struct: MetadataConfigFile) -> Result<(), anyhow::Error> {
-    let client = Client::try_default().await?;
-    let namespace = "cortexflow";
-    let name = "cortexbrain-client-config";
-    let api: Api<ConfigMap> = Api::namespaced(client, namespace);
+// docs:
+//
+// This is a function used to create a patch to update a configmap
+//
+// Steps:
+//      - connects to kubernetes client
+//      - creates a patch using the config_struct data
+//      - pushes the patch to the kubernetes API
+//
+// Returns an error if something fails
 
-    let blocklist_yaml = config_struct
-        .blocklist
-        .iter()
-        .map(|x| format!("{}", x))
-        .collect::<Vec<String>>()
-        .join("\n");
+pub async fn update_configmap(config_struct: MetadataConfigFile) -> Result<(), kube::Error> {
+    match connect_to_client().await {
+        Ok(client) => {
+            let namespace = "cortexflow";
+            let name = "cortexbrain-client-config";
+            let api: Api<ConfigMap> = Api::namespaced(client, namespace);
 
-    let patch = Patch::Apply(json!({
-        "apiVersion": "v1",
-        "kind": "ConfigMap",
-        "data": {
-            "blocklist": blocklist_yaml
+            let blocklist_yaml = config_struct.blocklist
+                .iter()
+                .map(|x| format!("{}", x))
+                .collect::<Vec<String>>()
+                .join("\n");
+
+            let patch = Patch::Apply(
+                json!({
+                    "apiVersion": "v1",
+                    "kind": "ConfigMap",
+                    "data": {
+                        "blocklist": blocklist_yaml
+                    }
+                })
+            );
+
+            let patch_params = PatchParams::apply("cortexbrain").force();
+            match api.patch(name, &patch_params, &patch).await {
+                Ok(_) => {
+                    println!("Map updated successfully");
+                }
+                Err(e) => {
+                    eprintln!("An error occured during the patching process: {}", e);
+                    return Err(e.into());
+                }
+            }
+
+            Ok(())
         }
-    }));
-
-    let patch_params = PatchParams::apply("cortexbrain").force();
-    match api.patch(name, &patch_params, &patch).await {
-        Ok(_) => {
-            println!("Map updated successfully");
-        }
-        Err(e) => {
-            eprintln!("An error occured during the patching process: {}", e);
-            return Err(e.into());
+        Err(_) => {
+            Err(
+                Error::Api(ErrorResponse {
+                    status: "failed".to_string(),
+                    message: "Failed to connect to kubernetes client".to_string(),
+                    reason: "Your cluster is probably disconnected".to_string(),
+                    code: 404,
+                })
+            )
         }
     }
-
-    Ok(())
 }
