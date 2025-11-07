@@ -1,11 +1,10 @@
-use std::process::exit;
-use std::str;
-use std::{ io::Error, process::Command };
-
-use crate::essential::{ Environments, get_config_directory, read_configs };
+use std::{ str, process::Command };
 use colored::Colorize;
-
 use clap::{ Args, Subcommand };
+use kube::{ core::ErrorResponse, Error };
+
+use crate::essential::{ BASE_COMMAND, connect_to_client };
+use crate::logs::{ get_available_namespaces, check_namespace_exists };
 
 //service subcommands
 #[derive(Subcommand, Debug, Clone)]
@@ -26,77 +25,30 @@ pub struct ServiceArgs {
     pub service_cmd: ServiceCommands,
 }
 
-fn check_namespace_exists(namespace: &str) -> bool {
-    let file_path = get_config_directory().unwrap().1;
+// docs:
+//
+// This is the main function that lists all the services in the cluster
+// Steps:
+//      - connects to kubernetes client
+//      - check if the namespace exists
+//          - if the cortexflow namespace exists returns the service list
+//          - else return an empty Vector
+//
+//
+// Returns a kube::Error if the connection fails
 
-    let env_from_file = "kubernetes".to_string();
-    let user_env = Environments::try_from(env_from_file.to_lowercase());
+pub async fn list_services(namespace: Option<String>) -> Result<(), kube::Error> {
+    //TODO: maybe we can list both services and pods?
 
-    match user_env {
-        Ok(cluster_environment) => {
-            let env = cluster_environment.base_command();
-            let output = Command::new(env).args(["get", "namespace", namespace]).output();
-
-            match output {
-                Ok(output) => output.status.success(),
-                Err(_) => false,
-            }
-        }
-        Err(_) => false,
-    }
-}
-
-fn get_available_namespaces() -> Vec<String> {
-    let file_path = get_config_directory().unwrap().1;
-
-    let env_from_file = "kubernetes".to_string();
-    let user_env = Environments::try_from(env_from_file.to_lowercase());
-
-    match user_env {
-        Ok(cluster_environment) => {
-            let env = cluster_environment.base_command();
-            let output = Command::new(env)
-                .args([
-                    "get",
-                    "namespaces",
-                    "--no-headers",
-                    "-o",
-                    "custom-columns=NAME:.metadata.name",
-                ])
-                .output();
-
-            match output {
-                Ok(output) if output.status.success() => {
-                    let stdout = str::from_utf8(&output.stdout).unwrap_or("");
-                    stdout
-                        .lines()
-                        .map(|line| line.trim().to_string())
-                        .filter(|line| !line.is_empty())
-                        .collect()
-                }
-                _ => Vec::new(),
-            }
-        }
-        Err(_) => Vec::new(),
-    }
-}
-
-pub fn list_services(namespace: Option<String>) -> Result<(), Error> {
-    //TODO: maybe we can list both services and pods
-    let file_path = get_config_directory().unwrap().1;
-
-    let env_from_file = "kubernetes".to_string();
-    let user_env = Environments::try_from(env_from_file.to_lowercase());
-    match user_env {
-        Ok(cluster_environment) => {
-            let env = cluster_environment.base_command();
+    match connect_to_client().await {
+        Ok(_) => {
             let ns = namespace.unwrap_or_else(|| "cortexflow".to_string());
 
             println!("{} {} {}", "=====>".blue().bold(), "Listing services in namespace:", ns);
 
             // Check if namespace exists first
-            if !check_namespace_exists(&ns) {
-                let available_namespaces = get_available_namespaces();
+            if !check_namespace_exists(&ns).await? {
+                let available_namespaces = get_available_namespaces().await?;
 
                 println!("\n❌ Namespace '{}' not found", ns);
                 println!("{}", "=".repeat(50));
@@ -109,19 +61,18 @@ pub fn list_services(namespace: Option<String>) -> Result<(), Error> {
                 } else {
                     println!("No namespaces found in the cluster.");
                 }
-
-                std::process::exit(1);
             }
 
             // kubectl command to get services
-            let output = Command::new(env).args(["get", "svc", "-n", &ns, "--no-headers"]).output();
+            let output = Command::new(BASE_COMMAND)
+                .args(["get", "svc", "-n", &ns, "--no-headers"])
+                .output();
 
             match output {
                 Ok(output) => {
                     if !output.status.success() {
                         let error = str::from_utf8(&output.stderr).unwrap_or("Unknown error");
-                        eprintln!("Error executing {}: {}", env, error);
-                        std::process::exit(1);
+                        eprintln!("Error executing {}: {}", BASE_COMMAND, error);
                     }
 
                     let stdout = str::from_utf8(&output.stdout).unwrap_or("");
@@ -133,7 +84,6 @@ pub fn list_services(namespace: Option<String>) -> Result<(), Error> {
                             "No services found in namespace",
                             ns
                         );
-                        exit(1);
                     }
 
                     // header for Table
@@ -165,94 +115,139 @@ pub fn list_services(namespace: Option<String>) -> Result<(), Error> {
                             );
                         }
                     }
+                    Ok(())
                 }
                 Err(err) => {
-                    eprintln!("Failed to execute {} command: {}", env, err);
-                    eprintln!("Make sure {} is installed and configured properly", env);
-                    std::process::exit(1);
+                    Err(
+                        Error::Api(ErrorResponse {
+                            status: "failed".to_string(),
+                            message: "Failed to execute kubectl describe command".to_string(),
+                            reason: "Your cluster is probably disconnected".to_string(),
+                            code: 404,
+                        })
+                    )
                 }
             }
         }
-        Err(e) => {
-            eprintln!("Error reading the cluster environment from config files: {:?}", e);
+        Err(_) => {
+            Err(
+                Error::Api(ErrorResponse {
+                    status: "failed".to_string(),
+                    message: "Failed to execute kubectl describe command".to_string(),
+                    reason: "Your cluster is probably disconnected".to_string(),
+                    code: 404,
+                })
+            )
         }
     }
-    Ok(())
 }
 
-pub fn describe_service(service_name: String, namespace: &Option<String>) {
-    match list_services(namespace.clone()) {
+// docs:
+//
+// This is the main function to describe a kubernetes service
+// Steps:
+//      - connects to kubernetes client
+//      - check if the namespace exists
+//          - if the cortexflow namespace exists executes the kubectl describe command
+//              - output the result of the command
+//          - else return an empty Vector
+//
+//
+// Returns a kube::Error if the connection fails
+
+pub async fn describe_service(
+    service_name: String,
+    namespace: &Option<String>
+) -> Result<(), kube::Error> {
+    match connect_to_client().await {
         Ok(_) => {
-            let file_path = get_config_directory().unwrap().1;
+            match list_services(namespace.clone()).await {
+                Ok(__) => {
+                    //let file_path = get_config_directory().unwrap().1;
 
-            let env = "kubectl".to_string();
+                    let ns = namespace.clone().unwrap_or_else(|| "cortexflow".to_string());
 
-            let ns = namespace.clone().unwrap_or_else(|| "cortexflow".to_string());
+                    println!(
+                        "{} {} {} {} {}",
+                        "=====>".blue().bold(),
+                        "Describing service",
+                        "in namespace:",
+                        service_name,
+                        ns
+                    );
+                    println!("{}", "=".repeat(60));
 
-            println!(
-                "{} {} {} {} {}",
-                "=====>".blue().bold(),
-                "Describing service",
-                "in namespace:",
-                service_name,
-                ns
-            );
-            println!("{}", "=".repeat(60));
+                    // Check if namespace exists first
+                    if !check_namespace_exists(&ns).await? {
+                        let available_namespaces = get_available_namespaces().await?;
 
-            // Check if namespace exists first
-            if !check_namespace_exists(&ns) {
-                let available_namespaces = get_available_namespaces();
+                        println!("\n❌ Namespace '{}' not found", ns);
+                        println!("{}", "=".repeat(50));
 
-                println!("\n❌ Namespace '{}' not found", ns);
-                println!("{}", "=".repeat(50));
-
-                if !available_namespaces.is_empty() {
-                    println!("\n📋 Available namespaces:");
-                    for available_ns in &available_namespaces {
-                        println!("  • {}", available_ns);
-                    }
-                    println!("\nTry: cortex service describe {} --namespace <namespace-name>", service_name);
-                } else {
-                    println!("No namespaces found in the cluster.");
-                }
-
-                std::process::exit(1);
-            }
-
-            // Execute kubectl describe pod command
-            let output = Command::new(env)
-                .args(["describe", "pod", &service_name, "-n", &ns])
-                .output();
-
-            match output {
-                Ok(output) => {
-                    if !output.status.success() {
-                        let error = str::from_utf8(&output.stderr).unwrap_or("Unknown error");
-                        eprintln!("Error executing kubectl describe: {}", error);
-                        eprintln!(
-                            "Make sure the pod '{}' exists in namespace '{}'",
-                            service_name,
-                            ns
-                        );
-                        std::process::exit(1);
+                        if !available_namespaces.is_empty() {
+                            println!("\n📋 Available namespaces:");
+                            for available_ns in &available_namespaces {
+                                println!("  • {}", available_ns);
+                            }
+                            println!("\nTry: cortex service describe {} --namespace <namespace-name>", service_name);
+                        } else {
+                            println!("No namespaces found in the cluster.");
+                        }
                     }
 
-                    let stdout = str::from_utf8(&output.stdout).unwrap_or("");
+                    // Execute kubectl describe pod command
+                    let output = Command::new(BASE_COMMAND)
+                        .args(["describe", "pod", &service_name, "-n", &ns])
+                        .output();
 
-                    if stdout.trim().is_empty() {
-                        println!("No description found for pod '{}'", service_name);
+                    match output {
+                        Ok(output) => {
+                            if !output.status.success() {
+                                let error = str
+                                    ::from_utf8(&output.stderr)
+                                    .unwrap_or("Unknown error");
+                                eprintln!("Error executing kubectl describe: {}", error);
+                                eprintln!(
+                                    "Make sure the pod '{}' exists in namespace '{}'",
+                                    service_name,
+                                    ns
+                                );
+                            }
+
+                            let stdout = str::from_utf8(&output.stdout).unwrap_or("");
+
+                            if stdout.trim().is_empty() {
+                                println!("No description found for pod '{}'", service_name);
+                            }
+
+                            // Print the full kubectl describe output
+                            println!("{}", stdout);
+                            Ok(())
+                        }
+                        Err(err) => {
+                            Err(
+                                Error::Api(ErrorResponse {
+                                    status: "failed".to_string(),
+                                    message: "Failed to execute kubectl describe command".to_string(),
+                                    reason: "Your cluster is probably disconnected".to_string(),
+                                    code: 404,
+                                })
+                            )
+                        }
                     }
-
-                    // Print the full kubectl describe output
-                    println!("{}", stdout);
                 }
-                Err(err) => {
-                    eprintln!("Failed to execute kubectl describe command: {}", err);
-                    eprintln!("Make sure kubectl is installed and configured properly");
-                    std::process::exit(1);
-                }
+                Err(e) => todo!(),
             }
         }
-        Err(_) => todo!(),
+        Err(_) => {
+            Err(
+                Error::Api(ErrorResponse {
+                    status: "failed".to_string(),
+                    message: "Failed to execute kubectl describe command".to_string(),
+                    reason: "Your cluster is probably disconnected".to_string(),
+                    code: 404,
+                })
+            )
+        }
     }
 }
