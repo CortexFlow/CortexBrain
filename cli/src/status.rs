@@ -1,11 +1,10 @@
 use colored::Colorize;
-use std::process::Command;
-use std::str;
-
-use crate::essential::{Environments, get_config_directory, read_configs};
-
+use std::{ process::Command, str };
 use clap::Args;
+use kube::{ Error, core::ErrorResponse };
 
+use crate::logs::{ get_available_namespaces, check_namespace_exists };
+use crate::essential::{ BASE_COMMAND, connect_to_client, CliError };
 
 #[derive(Debug)]
 pub enum OutputFormat {
@@ -32,230 +31,237 @@ pub struct StatusArgs {
     pub namespace: Option<String>,
 }
 
-pub fn status_command(output_format: Option<String>, namespace: Option<String>) {
-    let format = output_format
-        .map(OutputFormat::from)
-        .unwrap_or(OutputFormat::Text);
-    let ns = namespace.unwrap_or_else(|| "cortexflow".to_string());
+// docs:
+//
+// This is the main function for the status command. The status command display all the pods and services status in 3 types of format : Text, Json,Yaml
+// defaul type is Text
+//
+// Steps:
+//      - connects to kubernetes client
+//      - check if the given namespace exists
+//      - if the namespace exists
+//          - return the pods status and the service status for all the pods and services in the namespace
+//      - else
+//          - return a failed state
+//
+// Returns a CliError if the connection fails
 
-    println!(
-        "{} {} {}",
-        "=====>".blue().bold(),
-        "Checking CortexFlow status for namespace: ",
-        ns
-    );
+pub async fn status_command(
+    output_format: Option<String>,
+    namespace: Option<String>
+) -> Result<(), CliError> {
+    match connect_to_client().await {
+        Ok(_) => {
+            let format = output_format.map(OutputFormat::from).unwrap_or(OutputFormat::Text);
+            let ns = namespace.unwrap_or_else(|| "cortexflow".to_string());
 
-    // namespace checking
-    let namespace_status = check_namespace_exists(&ns);
+            println!(
+                "{} {} {}",
+                "=====>".blue().bold(),
+                "Checking CortexFlow status for namespace: ",
+                ns
+            );
 
-    // If namespace doesn't exist, display error with available namespaces and exit
-    if !namespace_status {
-        let available_namespaces = get_available_namespaces();
+            // namespace checking
+            let namespace_status = check_namespace_exists(&ns).await?;
 
-        match format {
-            OutputFormat::Text => {
-                println!("\n❌ Namespace Status Check Failed");
-                println!("{}", "=".repeat(50));
-                println!("  ❌ {} namespace: NOT FOUND", ns);
+            // If namespace doesn't exist, display error with available namespaces and exit
+            if !namespace_status {
+                let available_namespaces = get_available_namespaces().await?;
 
-                if !available_namespaces.is_empty() {
-                    println!("\n📋 Available namespaces:");
-                    for available_ns in &available_namespaces {
-                        println!("  • {}", available_ns);
+                match format {
+                    OutputFormat::Text => {
+                        println!("\n❌ Namespace Status Check Failed");
+                        println!("{}", "=".repeat(50));
+                        println!("  ❌ {} namespace: NOT FOUND", ns);
+
+                        if !available_namespaces.is_empty() {
+                            println!("\n📋 Available namespaces:");
+                            for available_ns in &available_namespaces {
+                                println!("  • {}", available_ns);
+                            }
+                        }
+                    }
+                    OutputFormat::Json => {
+                        println!("{{");
+                        println!("  \"error\": \"{} namespace not found\",", ns);
+                        println!("  \"namespace\": {{");
+                        println!("    \"name\": \"{}\",", ns);
+                        println!("    \"exists\": false");
+                        println!("  }},");
+                        println!("  \"available_namespaces\": [");
+                        for (i, ns) in available_namespaces.iter().enumerate() {
+                            let comma = if i == available_namespaces.len() - 1 { "" } else { "," };
+                            println!("    \"{}\"{}", ns, comma);
+                        }
+                        println!("  ]");
+                        println!("}}");
+                    }
+                    OutputFormat::Yaml => {
+                        println!("error: {} namespace not found", ns);
+                        println!("namespace:");
+                        println!("  name: {}", ns);
+                        println!("  exists: false");
+                        println!("available_namespaces:");
+                        for ns in &available_namespaces {
+                            println!("  - {}", ns);
+                        }
                     }
                 }
             }
-            OutputFormat::Json => {
-                println!("{{");
-                println!("  \"error\": \"{} namespace not found\",", ns);
-                println!("  \"namespace\": {{");
-                println!("    \"name\": \"{}\",", ns);
-                println!("    \"exists\": false");
-                println!("  }},");
-                println!("  \"available_namespaces\": [");
-                for (i, ns) in available_namespaces.iter().enumerate() {
-                    let comma = if i == available_namespaces.len() - 1 {
-                        ""
-                    } else {
-                        ","
-                    };
-                    println!("    \"{}\"{}", ns, comma);
+
+            // get pods and services only if namespace exists
+            let pods_status = get_pods_status(&ns).await?;
+            let services_status = get_services_status(&ns).await?;
+
+            // display options (format)
+            match format {
+                OutputFormat::Text => {
+                    display_text_format(&ns, namespace_status, pods_status, services_status);
+                    Ok(())
                 }
-                println!("  ]");
-                println!("}}");
-            }
-            OutputFormat::Yaml => {
-                println!("error: {} namespace not found", ns);
-                println!("namespace:");
-                println!("  name: {}", ns);
-                println!("  exists: false");
-                println!("available_namespaces:");
-                for ns in &available_namespaces {
-                    println!("  - {}", ns);
+                OutputFormat::Json => {
+                    display_json_format(&ns, namespace_status, pods_status, services_status);
+                    Ok(())
+                }
+                OutputFormat::Yaml => {
+                    display_yaml_format(&ns, namespace_status, pods_status, services_status);
+                    Ok(())
                 }
             }
         }
-        std::process::exit(1);
-    }
-
-    // get pods and services only if namespace exists
-    let pods_status = get_pods_status(&ns);
-    let services_status = get_services_status(&ns);
-
-    // display options (format)
-    match format {
-        OutputFormat::Text => {
-            display_text_format(&ns, namespace_status, pods_status, services_status)
-        }
-        OutputFormat::Json => {
-            display_json_format(&ns, namespace_status, pods_status, services_status)
-        }
-        OutputFormat::Yaml => {
-            display_yaml_format(&ns, namespace_status, pods_status, services_status)
+        Err(_) => {
+            Err(
+                CliError::ClientError(
+                    Error::Api(ErrorResponse {
+                        status: "failed".to_string(),
+                        message: "Failed to connect to kubernetes client".to_string(),
+                        reason: "Your cluster is probably disconnected".to_string(),
+                        code: 404,
+                    })
+                )
+            )
         }
     }
 }
 
-fn check_namespace_exists(namespace: &str) -> bool {
-    let file_path = get_config_directory().unwrap().1;
+// docs:
+//
+// This is an auxiliary function that returns the status for a given pod
+// Steps:
+//      - connects to kubernetes client
+//      - return the pod status in this format: (name,ready?,status)
+//
+// Returns a CliError if the connection fails
 
-    let env_from_file = "kubernetes".to_string();
-    let user_env = Environments::try_from(env_from_file.to_lowercase());
-
-    match user_env {
-        Ok(cluster_environment) => {
-            let env = cluster_environment.base_command();
-            let output = Command::new(env)
-                .args(["get", "namespace", namespace])
-                .output();
-
-            match output {
-                Ok(output) => output.status.success(),
-                Err(_) => false,
-            }
-        }
-        Err(_) => false,
-    }
-}
-
-fn get_available_namespaces() -> Vec<String> {
-    let file_path = get_config_directory().unwrap().1;
-
-    let env_from_file = "kubernetes".to_string();
-    let user_env = Environments::try_from(env_from_file.to_lowercase());
-
-    match user_env {
-        Ok(cluster_environment) => {
-            let env = cluster_environment.base_command();
-            let output = Command::new(env)
-                .args([
-                    "get",
-                    "namespaces",
-                    "--no-headers",
-                    "-o",
-                    "custom-columns=NAME:.metadata.name",
-                ])
-                .output();
-
-            match output {
-                Ok(output) if output.status.success() => {
-                    let stdout = str::from_utf8(&output.stdout).unwrap_or("");
-                    stdout
-                        .lines()
-                        .map(|line| line.trim().to_string())
-                        .filter(|line| !line.is_empty())
-                        .collect()
-                }
-                _ => Vec::new(),
-            }
-        }
-        Err(_) => Vec::new(),
-    }
-}
-
-fn get_pods_status(namespace: &str) -> Vec<(String, String, String)> {
-    let file_path = get_config_directory().unwrap().1;
-
-    let env_from_file = "kubernetes".to_string();
-    let user_env = Environments::try_from(env_from_file.to_lowercase());
-
-    match user_env {
-        Ok(cluster_environment) => {
-            let env = cluster_environment.base_command();
-            let output = Command::new(env)
+async fn get_pods_status(namespace: &str) -> Result<Vec<(String, String, String)>, CliError> {
+    match connect_to_client().await {
+        Ok(_) => {
+            let output = Command::new(BASE_COMMAND)
                 .args(["get", "pods", "-n", namespace, "--no-headers"])
                 .output();
 
             match output {
                 Ok(output) if output.status.success() => {
                     let stdout = str::from_utf8(&output.stdout).unwrap_or("");
-                    stdout
-                        .lines()
-                        .filter_map(|line| {
-                            let parts: Vec<&str> = line.split_whitespace().collect();
-                            if parts.len() >= 3 {
-                                Some((
-                                    parts[0].to_string(), // name
-                                    parts[1].to_string(), // ready
-                                    parts[2].to_string(), // status
-                                ))
-                            } else {
-                                None
-                            }
-                        })
-                        .collect()
+                    Ok(
+                        stdout
+                            .lines()
+                            .filter_map(|line| {
+                                let parts: Vec<&str> = line.split_whitespace().collect();
+                                if parts.len() >= 3 {
+                                    Some((
+                                        parts[0].to_string(), // name
+                                        parts[1].to_string(), // ready
+                                        parts[2].to_string(), // status
+                                    ))
+                                } else {
+                                    None
+                                }
+                            })
+                            .collect()
+                    )
                 }
-                _ => Vec::new(),
+                _ => Ok(Vec::new()),
             }
         }
-        Err(_) => Vec::new(),
+        Err(_) => {
+            Err(
+                CliError::ClientError(
+                    Error::Api(ErrorResponse {
+                        status: "failed".to_string(),
+                        message: "Failed to connect to kubernetes client".to_string(),
+                        reason: "Your cluster is probably disconnected".to_string(),
+                        code: 404,
+                    })
+                )
+            )
+        }
     }
 }
 
-fn get_services_status(namespace: &str) -> Vec<(String, String, String)> {
-    let file_path = get_config_directory().unwrap().1;
+// docs:
+//
+// This is an auxiliary function that returns the status for a given service
+// Steps:
+//      - connects to kubernetes client
+//      - return the service status in this format: (name,type,cluster ips)
+//
+// Returns a CliError if the connection fails
 
-    let env_from_file ="kubernetes".to_string();
-    let user_env = Environments::try_from(env_from_file.to_lowercase());
-
-    match user_env {
-        Ok(cluster_environment) => {
-            let env = cluster_environment.base_command();
-            let output = Command::new(env)
+async fn get_services_status(namespace: &str) -> Result<Vec<(String, String, String)>, CliError> {
+    match connect_to_client().await {
+        Ok(_) => {
+            let output = Command::new(BASE_COMMAND)
                 .args(["get", "services", "-n", namespace, "--no-headers"])
                 .output();
 
             match output {
                 Ok(output) if output.status.success() => {
                     let stdout = str::from_utf8(&output.stdout).unwrap_or("");
-                    stdout
-                        .lines()
-                        .filter_map(|line| {
-                            let parts: Vec<&str> = line.split_whitespace().collect();
-                            if parts.len() >= 4 {
-                                Some((
-                                    parts[0].to_string(), // name
-                                    parts[1].to_string(), // type
-                                    parts[2].to_string(), // cluster ips
-                                ))
-                            } else {
-                                None
-                            }
-                        })
-                        .collect()
+                    Ok(
+                        stdout
+                            .lines()
+                            .filter_map(|line| {
+                                let parts: Vec<&str> = line.split_whitespace().collect();
+                                if parts.len() >= 4 {
+                                    Some((
+                                        parts[0].to_string(), // name
+                                        parts[1].to_string(), // type
+                                        parts[2].to_string(), // cluster ips
+                                    ))
+                                } else {
+                                    None
+                                }
+                            })
+                            .collect()
+                    )
                 }
-                _ => Vec::new(),
+                _ => Ok(Vec::new()),
             }
         }
-        Err(_) => Vec::new(),
+        Err(_) => {
+            Err(
+                CliError::ClientError(
+                    Error::Api(ErrorResponse {
+                        status: "failed".to_string(),
+                        message: "Failed to connect to kubernetes client".to_string(),
+                        reason: "Your cluster is probably disconnected".to_string(),
+                        code: 404,
+                    })
+                )
+            )
+        }
     }
 }
+
+// docs: displays outputs in a text format
 
 fn display_text_format(
     ns: &str,
     namespace_exists: bool,
     pods: Vec<(String, String, String)>,
-    services: Vec<(String, String, String)>,
+    services: Vec<(String, String, String)>
 ) {
     println!("\n🔍 CortexFlow Status Report");
     println!("{}", "=".repeat(50));
@@ -289,11 +295,13 @@ fn display_text_format(
     println!("\n{}", "=".repeat(50));
 }
 
+// docs: displays outputs in a json format
+
 fn display_json_format(
     ns: &str,
     namespace_exists: bool,
     pods: Vec<(String, String, String)>,
-    services: Vec<(String, String, String)>,
+    services: Vec<(String, String, String)>
 ) {
     println!("{{");
     println!("  \"namespace\": {{");
@@ -325,11 +333,13 @@ fn display_json_format(
     println!("}}");
 }
 
+// docs: displays outputs in a yaml format
+
 fn display_yaml_format(
     ns: &str,
     namespace_exists: bool,
     pods: Vec<(String, String, String)>,
-    services: Vec<(String, String, String)>,
+    services: Vec<(String, String, String)>
 ) {
     println!("namespace:");
     println!("  name: {}", ns);

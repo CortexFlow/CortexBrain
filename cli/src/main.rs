@@ -1,5 +1,4 @@
 #![allow(warnings)]
-//TODO: add an example with test pods during installation
 mod essential;
 mod install;
 mod logs;
@@ -9,31 +8,34 @@ mod service;
 mod status;
 mod uninstall;
 
-use clap::command;
-use clap::{Args, Error, Parser, Subcommand};
+use clap::{ Args, Parser, Subcommand };
 use colored::Colorize;
 use std::result::Result::Ok;
-use std::string;
 use tracing::debug;
 
-use crate::essential::{get_config_directory, get_startup_config_dir, info, read_configs, update_cli};
-use crate::install::{InstallArgs, InstallCommands, install_cortexflow, install_simple_example};
-use crate::logs::{LogsArgs, logs_command};
-use crate::monitoring::{MonitorArgs, MonitorCommands, list_features, monitor_identity_events};
-use crate::policies::{PoliciesArgs, PoliciesCommands, check_blocklist, create_blocklist, remove_ip};
-use crate::service::{ServiceArgs, ServiceCommands, describe_service, list_services};
-use crate::status::{StatusArgs, status_command};
+use crate::essential::{ CliError, info, update_cli };
+use crate::install::{ InstallArgs, InstallCommands, install_cortexflow, install_simple_example };
+use crate::logs::{ LogsArgs, logs_command };
+use crate::monitoring::{ MonitorArgs, MonitorCommands, list_features, monitor_identity_events };
+use crate::policies::{
+    PoliciesArgs,
+    PoliciesCommands,
+    check_blocklist,
+    create_blocklist,
+    remove_ip,
+};
+use crate::service::{ ServiceArgs, ServiceCommands, describe_service, list_services };
+use crate::status::{ StatusArgs, status_command };
 use crate::uninstall::uninstall;
 
-use crate::essential::GeneralData;
 use crate::essential::update_config_metadata;
 
 #[derive(Parser, Debug)]
 #[command(
-    author = GeneralData::AUTHOR,
-    version = GeneralData::VERSION,
-    about = None,
-    long_about = None
+    author = env!("CARGO_PKG_AUTHORS"),
+    version = env!("CARGO_PKG_VERSION"),
+    about = env!("CARGO_PKG_DESCRIPTION"),
+    long_about = env!("CARGO_PKG_DESCRIPTION")
 )]
 struct Cli {
     //name: String,
@@ -44,9 +46,6 @@ struct Cli {
 #[derive(Subcommand, Debug, Clone)]
 enum Commands {
     /* list of available commands */
-    #[command(name = "set-env")] SetEnv(SetArgs),
-    #[command(name = "get-env")]
-    GetEnv,
     #[command(name = "install", about = "Manage installation")] Install(InstallArgs),
     #[command(name = "uninstall", about = "Manage uninstallation")]
     Uninstall,
@@ -65,130 +64,105 @@ struct SetArgs {
     val: String,
 }
 
-async fn args_parser() -> Result<(), Error> {
+async fn args_parser() -> Result<(), CliError> {
     let args = Cli::parse();
-    let env = "kubernetes".to_string();
-    let general_data = GeneralData::new(env);
     debug!("Arguments {:?}", args.cmd);
     match args.cmd {
-        Some(Commands::SetEnv(env)) => {
-            general_data.set_env(env.val);
-            Ok(())
-        }
-        Some(Commands::GetEnv) => {
-            general_data.get_env_output();
-            Ok(())
-        }
-        Some(Commands::Install(installation_args)) => match installation_args.install_cmd {
-            InstallCommands::All => {
-                install_cortexflow().await;
-                Ok(())
+        Some(Commands::Install(installation_args)) =>
+            match installation_args.install_cmd {
+                InstallCommands::All => {
+                    install_cortexflow().await.map_err(|e| eprintln!("{}",e) )?;
+                }
+                InstallCommands::TestPods => {
+                    install_simple_example().await.map_err(|e| eprintln!("{}",e) )?;
+                }
             }
-            InstallCommands::TestPods => {
-                install_simple_example();
-                Ok(())
-            }
-        },
         Some(Commands::Uninstall) => {
-            uninstall();
-            Ok(())
+            uninstall().await.map_err(|e| eprintln!("{}",e) )?;
         }
         Some(Commands::Update) => {
             update_cli();
-            Ok(())
         }
         Some(Commands::Info) => {
-            info(general_data);
-            Ok(())
+            info();
         }
-        Some(Commands::Service(service_args)) => match service_args.service_cmd {
-            ServiceCommands::List { namespace } => {
-                Some(list_services(namespace));
-                Ok(())
+        Some(Commands::Service(service_args)) =>
+            match service_args.service_cmd {
+                ServiceCommands::List { namespace } => {
+                    list_services(namespace).await.map_err(|e| eprintln!("{}",e) )?;
+                }
+                ServiceCommands::Describe { service_name, namespace } => {
+                    describe_service(service_name, &namespace).await.map_err(|e| eprintln!("{}",e) )?;
+                }
             }
-            ServiceCommands::Describe {
-                service_name,
-                namespace,
-            } => {
-                describe_service(service_name, &namespace);
-                Ok(())
-            }
-        },
         Some(Commands::Status(status_args)) => {
-            status_command(status_args.output, status_args.namespace);
-            Ok(())
+            status_command(status_args.output, status_args.namespace).await.map_err(|e| eprintln!("{}",e) )?;
         }
         Some(Commands::Logs(logs_args)) => {
-            logs_command(logs_args.service, logs_args.component, logs_args.namespace);
-            Ok(())
+            logs_command(logs_args.service, logs_args.component, logs_args.namespace).await.map_err(|e| eprintln!("{}",e) )?;
         }
-        Some(Commands::Monitor(monitor_args)) => match monitor_args.monitor_cmd {
-            MonitorCommands::List => {
-                let _ = list_features().await;
-                Ok(())
+        Some(Commands::Monitor(monitor_args)) =>
+            match monitor_args.monitor_cmd {
+                MonitorCommands::List => {
+                    let _ = list_features().await.map_err(|e| eprintln!("{}",e) )?;
+                }
+                MonitorCommands::Connections => {
+                    let _ = monitor_identity_events().await.map_err(|e| eprintln!("{}",e) )?;
+                }
             }
-            MonitorCommands::Connections => {
-                let _ = monitor_identity_events().await;
-                Ok(())
-            }
-        },
         Some(Commands::Policies(policies_args)) => {
             match policies_args.policy_cmd {
                 PoliciesCommands::CheckBlocklist => {
-                    let _ = check_blocklist().await;
-                    Ok(())
+                    let _ = check_blocklist().await.map_err(|e| eprintln!("{}",e) )?;
                 }
                 PoliciesCommands::CreateBlocklist => {
                     // pass the ip as a monitoring flag
                     match policies_args.flags {
                         None => {
-                            println!("{}", "Insert at least one ip to create a blocklist".red());
-                            Ok(())
+                            eprintln!("{}", "Insert at least one ip to create a blocklist".red());
                         }
-                        Some(exclude_flag) => {
-                            println!("inserted ip: {} ", exclude_flag);
+                        Some(ip) => {
+                            println!("inserted ip: {} ", ip);
                             //insert the ip in the blocklist
-                            match create_blocklist(&exclude_flag).await {
+                            match create_blocklist(&ip).await {
                                 Ok(_) => {
                                     //update the config metadata
-                                    let _ = update_config_metadata(&exclude_flag, "add").await;
+                                    let _ = update_config_metadata(&ip, "add").await.map_err(|e| eprintln!("{}",e) )?;
                                 }
                                 Err(e) => {
-                                    println!("{}", e);
+                                    eprintln!("{}", e);
                                 }
                             }
-                            Ok(())
                         }
                     }
                 }
-                PoliciesCommands::RemoveIpFromBlocklist => match policies_args.flags {
-                    None => {
-                        println!(
-                            "{}",
-                            "Insert at least one ip to remove from the blocklist".red()
-                        );
-                        Ok(())
-                    }
-                    Some(ip) => {
-                        println!("Inserted ip: {}", ip);
-                        match remove_ip(&ip).await {
-                            Ok(_) => {
-                                let _ = update_config_metadata(&ip, "delete").await;
-                            }
-                            Err(e) => {
-                                println!("{}", e);
+                PoliciesCommands::RemoveIpFromBlocklist =>
+                    match policies_args.flags {
+                        None => {
+                            eprintln!(
+                                "{}",
+                                "Insert at least one ip to remove from the blocklist".red()
+                            );
+                        }
+                        Some(ip) => {
+                            println!("Inserted ip: {}", ip);
+                            match remove_ip(&ip).await {
+                                Ok(_) => {
+                                    let _ = update_config_metadata(&ip, "delete").await.map_err(|e| eprintln!("{}",e) )?;
+                                }
+                                Err(e) => {
+                                    eprintln!("{}", e);
+                                }
                             }
                         }
-                        Ok(())
                     }
-                },
             }
         }
         None => {
             eprintln!("CLI unknown argument. Cli arguments passed: {:?}", args.cmd);
-            Ok(())
         }
     }
+    Ok(())
 }
 
 #[tokio::main]
