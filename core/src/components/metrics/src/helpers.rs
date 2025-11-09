@@ -34,6 +34,9 @@ pub async fn display_metrics_map(
                         if data.len() >= std::mem::size_of::<NetworkMetrics>() {
                             let net_metrics: NetworkMetrics =
                                 unsafe { std::ptr::read_unaligned(data.as_ptr() as *const _) };
+                            let tgid = net_metrics.tgid;
+                            let comm = String::from_utf8_lossy(&net_metrics.comm);
+                            let ts_us = net_metrics.ts_us;
                             let sk_drop_count = net_metrics.sk_drops;
                             let sk_err = net_metrics.sk_err;
                             let sk_err_soft = net_metrics.sk_err_soft;
@@ -42,8 +45,8 @@ pub async fn display_metrics_map(
                             let sk_ack_backlog = net_metrics.sk_ack_backlog;
                             let sk_receive_buffer_size = net_metrics.sk_receive_buffer_size;
                             info!(
-                                "sk_drops: {}, sk_err: {}, sk_err_soft: {}, sk_backlog_len: {}, sk_write_memory_queued: {}, sk_ack_backlog: {}, sk_receive_buffer_size: {}",
-                                sk_drop_count, sk_err, sk_err_soft, sk_backlog_len, sk_write_memory_queued, sk_ack_backlog, sk_receive_buffer_size
+                                "tgid: {}, comm: {}, ts_us: {}, sk_drops: {}, sk_err: {}, sk_err_soft: {}, sk_backlog_len: {}, sk_write_memory_queued: {}, sk_ack_backlog: {}, sk_receive_buffer_size: {}",
+                                tgid, comm, ts_us, sk_drop_count, sk_err, sk_err_soft, sk_backlog_len, sk_write_memory_queued, sk_ack_backlog, sk_receive_buffer_size
                             );
                         } else {
                             info!("Received data too small: {} bytes, expected: {}", data.len(), std::mem::size_of::<NetworkMetrics>());
