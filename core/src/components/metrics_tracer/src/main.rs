@@ -37,6 +37,9 @@ fn try_metrics_tracer(ctx: ProbeContext) -> Result<u32, i64> {
         return Err(1);
     }
 
+    let tgid = (unsafe { bpf_get_current_pid_tgid() } >> 32) as u32;
+    let comm = unsafe { bpf_get_current_comm() }.map_err(|_| 1i64)?;
+    let ts_us: u64 = unsafe { bpf_ktime_get_ns() } / 1_000;
     let sk_err_offset = 284;
     let sk_err_soft_offset = 600;
     let sk_backlog_len_offset = 196;
@@ -54,6 +57,9 @@ fn try_metrics_tracer(ctx: ProbeContext) -> Result<u32, i64> {
     let sk_drops = unsafe { bpf_probe_read_kernel::<i32>(sk_pointer.add(sk_drops_offset) as *const i32).map_err(|_| 1)? };
 
     let net_metrics = NetworkMetrics {
+        tgid,
+        comm,
+        ts_us,
         sk_err,
         sk_err_soft,
         sk_backlog_len,
