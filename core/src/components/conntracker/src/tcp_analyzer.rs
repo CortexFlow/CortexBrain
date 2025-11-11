@@ -1,5 +1,3 @@
-// docs:
-// TODO: move the kprobe tracer functions here
 
 use aya_ebpf::programs::ProbeContext;
 
