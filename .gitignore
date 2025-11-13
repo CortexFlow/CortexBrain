@@ -161,17 +161,6 @@ config.json
 #output file
 .vscode/
 /node_modules
-docker-compose.yaml
-admission-webhook-with-cert.yaml
-proxy-injector-with-cert.yaml
-kafka.rs
-node-debugger.yaml
-notes.txt
-dev-notes.txt
-skbuff.rs
-admission-webhook.yaml
-certificate-manager.yaml
-client-deployment.yaml
 
 # Claude AI assistant working files
 CLAUDE.md
