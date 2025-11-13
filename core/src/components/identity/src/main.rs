@@ -59,9 +59,9 @@ async fn main() -> Result<(), anyhow::Error> {
     match init_bpf_maps(bpf.clone()) {
         std::result::Result::Ok(mut bpf_maps) => {
             info!("Successfully loaded bpf maps");
-
-            //TODO: save the bpf maps in a Vec instead of using a tuple
-            match map_pinner(&bpf_maps, &bpf_map_save_path.into()).await {
+            let pin_path = std::path::PathBuf::from(&bpf_map_save_path);
+            info!("About to call map_pinner with path: {:?}", pin_path);
+            match map_pinner(&bpf_maps, &pin_path).await {
                 std::result::Result::Ok(_) => {
                     info!("maps pinned successfully");
                     //load veth_trace program ref veth_trace.rs

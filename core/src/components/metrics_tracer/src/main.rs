@@ -57,16 +57,16 @@ fn try_metrics_tracer(ctx: ProbeContext) -> Result<u32, i64> {
     let sk_drops = unsafe { bpf_probe_read_kernel::<i32>(sk_pointer.add(sk_drops_offset) as *const i32).map_err(|_| 1)? };
 
     let net_metrics = NetworkMetrics {
-        tgid,
-        comm,
-        ts_us,
-        sk_err,
-        sk_err_soft,
-        sk_backlog_len,
-        sk_write_memory_queued,
-        sk_receive_buffer_size,
-        sk_ack_backlog,
-        sk_drops,
+        tgid: tgid,
+        comm: comm,
+        ts_us: ts_us,
+        sk_err: sk_err,
+        sk_err_soft: sk_err_soft,
+        sk_backlog_len: sk_backlog_len,
+        sk_write_memory_queued: sk_write_memory_queued,
+        sk_receive_buffer_size: sk_receive_buffer_size,
+        sk_ack_backlog: sk_ack_backlog,
+        sk_drops: sk_drops,
     };
 
     unsafe {

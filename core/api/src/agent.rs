@@ -24,21 +24,6 @@ pub struct ActiveConnectionResponse {
     pub events: ::prost::alloc::vec::Vec<ConnectionEvent>,
 }
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
-pub struct LatencyMetricsRequest {
-    /// Filter by thread group ID
-    #[prost(uint32, optional, tag = "1")]
-    pub tgid: ::core::option::Option<u32>,
-    /// Filter by process name
-    #[prost(string, optional, tag = "2")]
-    pub process_name: ::core::option::Option<::prost::alloc::string::String>,
-    /// Start timestamp (microseconds)
-    #[prost(uint64, optional, tag = "3")]
-    pub start_time: ::core::option::Option<u64>,
-    /// End timestamp (microseconds)
-    #[prost(uint64, optional, tag = "4")]
-    pub end_time: ::core::option::Option<u64>,
-}
-#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct LatencyMetric {
     /// Latency in microseconds
     #[prost(uint64, tag = "1")]
@@ -91,69 +76,6 @@ pub struct LatencyMetricsResponse {
     /// Maximum latency
     #[prost(double, tag = "6")]
     pub max_latency_us: f64,
-}
-#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
-pub struct PacketLossMetricsRequest {
-    /// Filter by thread group ID
-    #[prost(uint32, optional, tag = "1")]
-    pub tgid: ::core::option::Option<u32>,
-    /// Start timestamp
-    #[prost(uint64, optional, tag = "2")]
-    pub start_time: ::core::option::Option<u64>,
-    /// End timestamp
-    #[prost(uint64, optional, tag = "3")]
-    pub end_time: ::core::option::Option<u64>,
-}
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct PacketLossMetric {
-    /// Thread group ID
-    #[prost(uint32, tag = "1")]
-    pub tgid: u32,
-    /// Process name
-    #[prost(string, tag = "2")]
-    pub process_name: ::prost::alloc::string::String,
-    /// Event timestamp
-    #[prost(uint64, tag = "3")]
-    pub timestamp_us: u64,
-    /// Total packets lost
-    #[prost(uint32, tag = "4")]
-    pub total_packets_lost: u32,
-    /// Total packets transmitted
-    #[prost(uint32, tag = "5")]
-    pub total_packets_transmitted: u32,
-    /// % of total packet loss
-    #[prost(double, tag = "6")]
-    pub packet_loss_percentage: f64,
-    /// Total size of data loss
-    #[prost(uint64, tag = "7")]
-    pub total_data_loss_bytes: u64,
-    /// Total transmitted data
-    #[prost(uint64, tag = "8")]
-    pub total_data_transmitted_bytes: u64,
-    /// Ratio between loss and transmitted
-    #[prost(double, tag = "9")]
-    pub data_loss_ratio: f64,
-}
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct PacketLossMetricsResponse {
-    #[prost(string, tag = "1")]
-    pub status: ::prost::alloc::string::String,
-    #[prost(message, repeated, tag = "2")]
-    pub metrics: ::prost::alloc::vec::Vec<PacketLossMetric>,
-    #[prost(uint32, tag = "3")]
-    pub total_connections: u32,
-}
-#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
-pub struct DroppedPacketsRequest {
-    /// Filter by thread group ID
-    #[prost(uint32, optional, tag = "1")]
-    pub tgid: ::core::option::Option<u32>,
-    /// Start timestamp
-    #[prost(uint64, optional, tag = "2")]
-    pub start_time: ::core::option::Option<u64>,
-    /// End timestamp
-    #[prost(uint64, optional, tag = "3")]
-    pub end_time: ::core::option::Option<u64>,
 }
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct DroppedPacketMetric {
@@ -422,7 +344,7 @@ pub mod agent_client {
         /// metrics data
         pub async fn get_latency_metrics(
             &mut self,
-            request: impl tonic::IntoRequest<super::LatencyMetricsRequest>,
+            request: impl tonic::IntoRequest<()>,
         ) -> std::result::Result<
             tonic::Response<super::LatencyMetricsResponse>,
             tonic::Status,
@@ -444,33 +366,10 @@ pub mod agent_client {
                 .insert(GrpcMethod::new("agent.Agent", "GetLatencyMetrics"));
             self.inner.unary(req, path, codec).await
         }
-        pub async fn get_packet_loss_metrics(
-            &mut self,
-            request: impl tonic::IntoRequest<super::PacketLossMetricsRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::PacketLossMetricsResponse>,
-            tonic::Status,
-        > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
-            let codec = tonic_prost::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/agent.Agent/GetPacketLossMetrics",
-            );
-            let mut req = request.into_request();
-            req.extensions_mut()
-                .insert(GrpcMethod::new("agent.Agent", "GetPacketLossMetrics"));
-            self.inner.unary(req, path, codec).await
-        }
+        /// dropped packets
         pub async fn get_dropped_packets_metrics(
             &mut self,
-            request: impl tonic::IntoRequest<super::DroppedPacketsRequest>,
+            request: impl tonic::IntoRequest<()>,
         ) -> std::result::Result<
             tonic::Response<super::DroppedPacketsResponse>,
             tonic::Status,
@@ -541,21 +440,15 @@ pub mod agent_server {
         /// metrics data
         async fn get_latency_metrics(
             &self,
-            request: tonic::Request<super::LatencyMetricsRequest>,
+            request: tonic::Request<()>,
         ) -> std::result::Result<
             tonic::Response<super::LatencyMetricsResponse>,
             tonic::Status,
         >;
-        async fn get_packet_loss_metrics(
-            &self,
-            request: tonic::Request<super::PacketLossMetricsRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::PacketLossMetricsResponse>,
-            tonic::Status,
-        >;
+        /// dropped packets
         async fn get_dropped_packets_metrics(
             &self,
-            request: tonic::Request<super::DroppedPacketsRequest>,
+            request: tonic::Request<()>,
         ) -> std::result::Result<
             tonic::Response<super::DroppedPacketsResponse>,
             tonic::Status,
@@ -816,19 +709,14 @@ pub mod agent_server {
                 "/agent.Agent/GetLatencyMetrics" => {
                     #[allow(non_camel_case_types)]
                     struct GetLatencyMetricsSvc<T: Agent>(pub Arc<T>);
-                    impl<
-                        T: Agent,
-                    > tonic::server::UnaryService<super::LatencyMetricsRequest>
+                    impl<T: Agent> tonic::server::UnaryService<()>
                     for GetLatencyMetricsSvc<T> {
                         type Response = super::LatencyMetricsResponse;
                         type Future = BoxFuture<
                             tonic::Response<Self::Response>,
                             tonic::Status,
                         >;
-                        fn call(
-                            &mut self,
-                            request: tonic::Request<super::LatencyMetricsRequest>,
-                        ) -> Self::Future {
+                        fn call(&mut self, request: tonic::Request<()>) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
                                 <T as Agent>::get_latency_metrics(&inner, request).await
@@ -858,67 +746,17 @@ pub mod agent_server {
                     };
                     Box::pin(fut)
                 }
-                "/agent.Agent/GetPacketLossMetrics" => {
-                    #[allow(non_camel_case_types)]
-                    struct GetPacketLossMetricsSvc<T: Agent>(pub Arc<T>);
-                    impl<
-                        T: Agent,
-                    > tonic::server::UnaryService<super::PacketLossMetricsRequest>
-                    for GetPacketLossMetricsSvc<T> {
-                        type Response = super::PacketLossMetricsResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
-                        fn call(
-                            &mut self,
-                            request: tonic::Request<super::PacketLossMetricsRequest>,
-                        ) -> Self::Future {
-                            let inner = Arc::clone(&self.0);
-                            let fut = async move {
-                                <T as Agent>::get_packet_loss_metrics(&inner, request).await
-                            };
-                            Box::pin(fut)
-                        }
-                    }
-                    let accept_compression_encodings = self.accept_compression_encodings;
-                    let send_compression_encodings = self.send_compression_encodings;
-                    let max_decoding_message_size = self.max_decoding_message_size;
-                    let max_encoding_message_size = self.max_encoding_message_size;
-                    let inner = self.inner.clone();
-                    let fut = async move {
-                        let method = GetPacketLossMetricsSvc(inner);
-                        let codec = tonic_prost::ProstCodec::default();
-                        let mut grpc = tonic::server::Grpc::new(codec)
-                            .apply_compression_config(
-                                accept_compression_encodings,
-                                send_compression_encodings,
-                            )
-                            .apply_max_message_size_config(
-                                max_decoding_message_size,
-                                max_encoding_message_size,
-                            );
-                        let res = grpc.unary(method, req).await;
-                        Ok(res)
-                    };
-                    Box::pin(fut)
-                }
                 "/agent.Agent/GetDroppedPacketsMetrics" => {
                     #[allow(non_camel_case_types)]
                     struct GetDroppedPacketsMetricsSvc<T: Agent>(pub Arc<T>);
-                    impl<
-                        T: Agent,
-                    > tonic::server::UnaryService<super::DroppedPacketsRequest>
+                    impl<T: Agent> tonic::server::UnaryService<()>
                     for GetDroppedPacketsMetricsSvc<T> {
                         type Response = super::DroppedPacketsResponse;
                         type Future = BoxFuture<
                             tonic::Response<Self::Response>,
                             tonic::Status,
                         >;
-                        fn call(
-                            &mut self,
-                            request: tonic::Request<super::DroppedPacketsRequest>,
-                        ) -> Self::Future {
+                        fn call(&mut self, request: tonic::Request<()>) -> Self::Future {
                             let inner = Arc::clone(&self.0);
                             let fut = async move {
                                 <T as Agent>::get_dropped_packets_metrics(&inner, request)

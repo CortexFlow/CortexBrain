@@ -22,16 +22,7 @@ message ActiveConnectionResponse{
 
 // Network metrics
 
-
-
 // Latency metrics request and response messages
-
-message LatencyMetricsRequest {
-    optional uint32 tgid = 1;         // Filter by thread group ID
-    optional string process_name = 2; // Filter by process name
-    optional uint64 start_time = 3;   // Start timestamp (microseconds)
-    optional uint64 end_time = 4;     // End timestamp (microseconds)
-}
 
 message LatencyMetric {
     uint64 delta_us = 1;          // Latency in microseconds
@@ -56,39 +47,7 @@ message LatencyMetricsResponse {
     double max_latency_us = 6;        // Maximum latency
 }
 
-// Packet Loss Metrics
-
-message PacketLossMetricsRequest {
-    optional uint32 tgid = 1;         // Filter by thread group ID
-    optional uint64 start_time = 2;   // Start timestamp
-    optional uint64 end_time = 3;     // End timestamp
-}
-
-message PacketLossMetric {
-    uint32 tgid = 1;                          // Thread group ID
-    string process_name = 2;                  // Process name
-    uint64 timestamp_us = 3;                  // Event timestamp
-    uint32 total_packets_lost = 4;            // Total packets lost
-    uint32 total_packets_transmitted = 5;     // Total packets transmitted
-    double packet_loss_percentage = 6;        // % of total packet loss
-    uint64 total_data_loss_bytes = 7;         // Total size of data loss
-    uint64 total_data_transmitted_bytes = 8;  // Total transmitted data
-    double data_loss_ratio = 9;               // Ratio between loss and transmitted
-}
-
-message PacketLossMetricsResponse {
-    string status = 1;
-    repeated PacketLossMetric metrics = 2;
-    uint32 total_connections = 3;
-}
-
 // Dropped TCP Packets
-
-message DroppedPacketsRequest {
-    optional uint32 tgid = 1;         // Filter by thread group ID
-    optional uint64 start_time = 2;   // Start timestamp
-    optional uint64 end_time = 3;     // End timestamp
-}
 
 message DroppedPacketMetric {
     uint32 tgid = 1;                  // Thread group ID
@@ -112,7 +71,6 @@ message DroppedPacketsResponse {
 
 //declare agent api 
 service Agent{
-    
     // active connections endpoint 
     rpc ActiveConnections(RequestActiveConnections) returns (ActiveConnectionResponse);
     
@@ -124,11 +82,10 @@ service Agent{
     rpc RmIpFromBlocklist(RmIpFromBlocklistRequest) returns (RmIpFromBlocklistResponse);
 
     // metrics data
-    rpc GetLatencyMetrics(LatencyMetricsRequest) returns (LatencyMetricsResponse);
+    rpc GetLatencyMetrics(google.protobuf.Empty) returns (LatencyMetricsResponse);
 
-    rpc GetPacketLossMetrics(PacketLossMetricsRequest) returns (PacketLossMetricsResponse);
-
-    rpc GetDroppedPacketsMetrics(DroppedPacketsRequest) returns (DroppedPacketsResponse);
+    // dropped packets
+    rpc GetDroppedPacketsMetrics(google.protobuf.Empty) returns (DroppedPacketsResponse);
 }
 
 message AddIpToBlocklistRequest{
