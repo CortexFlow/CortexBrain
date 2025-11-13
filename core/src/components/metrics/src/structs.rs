@@ -1,7 +1,7 @@
 
 pub const TASK_COMM_LEN: usize = 16; // linux/sched.h
 
-#[repr(C)]
+#[repr(C, packed)]
 #[derive(Clone, Copy)]
 pub struct NetworkMetrics {
     pub tgid: u32,

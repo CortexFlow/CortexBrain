@@ -15,12 +15,8 @@ use crate::agent::BlocklistResponse;
 use crate::agent::AddIpToBlocklistRequest;
 use crate::agent::RmIpFromBlocklistRequest;
 use crate::agent::RmIpFromBlocklistResponse;
-use crate::agent::DroppedPacketsRequest;
 use crate::agent::DroppedPacketsResponse;
-use crate::agent::LatencyMetricsRequest;
 use crate::agent::LatencyMetricsResponse;
-use crate::agent::PacketLossMetricsRequest;
-use crate::agent::PacketLossMetricsResponse;
 
 #[cfg(feature = "client")]
 pub async fn send_active_connection_request(
@@ -76,52 +72,23 @@ pub async fn remove_ip_from_blocklist_request(
 }
 
 #[cfg(feature = "client")]
-pub async fn get_dropped_packets(
+pub async fn send_dropped_packets_request(
     mut client: AgentClient<Channel>,
-    tgid: Option<u32>,
-    start_time: Option<u64>,
-    end_time: Option<u64>,
 ) -> Result<Response<DroppedPacketsResponse>, Error> {
-    let request = Request::new(DroppedPacketsRequest {
-        tgid,
-        start_time,
-        end_time,
-    });
-    let response = client.get_dropped_packets_metrics(request).await?;
+    let request = Request::new(());
+    let response = client.get_dropped_packets_metrics(
+        request
+    ).await?;
     Ok(response)
 }
 
 #[cfg(feature = "client")]
-pub async fn get_latency_metrics(
+pub async fn send_latency_metrics_request(
     mut client: AgentClient<Channel>,
-    tgid: Option<u32>,
-    start_time: Option<u64>,
-    end_time: Option<u64>,
-    process_name: Option<String>,
 ) -> Result<Response<LatencyMetricsResponse>, Error> {
-
-    let request = Request::new(LatencyMetricsRequest {
-        tgid,
-        start_time,
-        end_time,
-        process_name
-    });
-    let response = client.get_latency_metrics(request).await?;
-    Ok(response)
-}
-
-#[cfg(feature = "client")]
-pub async fn get_packet_loss_metrics(
-    mut client: AgentClient<Channel>,
-    tgid: Option<u32>,
-    start_time: Option<u64>,
-    end_time: Option<u64>,
-) -> Result<Response<PacketLossMetricsResponse>, Error> {
-    let request = Request::new(PacketLossMetricsRequest {
-        tgid,
-        start_time,
-        end_time,
-    });
-    let response = client.get_packet_loss_metrics(request).await?;
+    let request = Request::new(());
+    let response = client.get_latency_metrics(
+        request
+    ).await?;
     Ok(response)
 }

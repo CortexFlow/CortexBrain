@@ -16,7 +16,7 @@ use tracing::debug;
 use crate::essential::{ CliError, info, update_cli };
 use crate::install::{ InstallArgs, InstallCommands, install_cortexflow, install_simple_example };
 use crate::logs::{ LogsArgs, logs_command };
-use crate::monitoring::{ MonitorArgs, MonitorCommands, list_features, monitor_identity_events };
+use crate::monitoring::{ MonitorArgs, MonitorCommands, list_features, monitor_dropped_packets, monitor_identity_events, monitor_latency_metrics };
 use crate::policies::{
     PoliciesArgs,
     PoliciesCommands,
@@ -108,6 +108,12 @@ async fn args_parser() -> Result<(), CliError> {
                 }
                 MonitorCommands::Connections => {
                     let _ = monitor_identity_events().await.map_err(|e| eprintln!("{}",e) )?;
+                }
+                MonitorCommands::Latencymetrics => {
+                    let _ = monitor_latency_metrics().await.map_err(|e| eprintln!("{}",e) )?;
+                }
+                MonitorCommands::Droppedpackets => {
+                    let _ = monitor_dropped_packets().await.map_err(|e| eprintln!("{}",e) )?;
                 }
             }
         Some(Commands::Policies(policies_args)) => {

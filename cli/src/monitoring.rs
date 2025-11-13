@@ -23,6 +23,14 @@ pub enum MonitorCommands {
         name = "connections",
         about = "Monitor the recent connections detected by the identity service"
     )] Connections,
+    #[command(
+        name = "latencymetrics",
+        about = "Monitor the latency metrics detected by the metrics service"
+    )] Latencymetrics,
+    #[command(
+        name = "droppedpackets",
+        about = "Monitor the dropped packets metrics detected by the metrics service"
+    )] Droppedpackets,
 }
 
 // cfcli monitor <args>
@@ -138,5 +146,122 @@ pub async fn monitor_identity_events() -> Result<(), Error> {
         }
     }
 
+    Ok(())
+}
+
+pub async fn monitor_latency_metrics() -> Result<(), Error> {
+    //function to monitor latency metrics
+    println!("{} {}", "=====>".blue().bold(), "Connecting to cortexflow Client".white());
+
+    match connect_to_client().await {
+        Ok(client) => {
+            println!("{} {}", "=====>".blue().bold(), "Connected to CortexFlow Client".green());
+            //send request to get latency metrics
+            match agent_api::requests::send_latency_metrics_request(client).await {
+                Ok(response) => {
+                    let resp = response.into_inner();
+                    if resp.metrics.is_empty() {
+                        println!("{} No latency metrics found", "=====>".blue().bold());
+                    } else {
+                        println!("{} Found {} latency metrics", "=====>".blue().bold(), resp.metrics.len());
+                        for (i, metric) in resp.metrics.iter().enumerate() {
+                            println!(
+                                "index {} Latency[{}], tgid {} process_name {} address_family {} delta_us {} src_address_v4 {} dst_address_v4 {} src_address_v6 {} dst_address_v6 {} local_port {} remote_port {} timestamp_us {}",
+                                "=====>".blue().bold(),
+                                i,
+                                metric.tgid,
+                                metric.process_name,
+                                metric.address_family,
+                                metric.delta_us,
+                                metric.src_address_v4,
+                                metric.dst_address_v4,
+                                format!("{:?}", metric.src_address_v6),
+                                format!("{:?}", metric.dst_address_v6),
+                                metric.local_port,
+                                metric.remote_port,
+                                metric.timestamp_us
+                            );
+                        }
+                    }
+                }
+                Err(e) => {
+                    println!(
+                        "{} {} {} {}",
+                        "=====>".blue().bold(),
+                        "An error occured".red(),
+                        "Error:",
+                        e
+                    );
+                    return Err(e);
+                }
+            }
+        }
+        Err(e) =>{
+            println!(
+                "{} {}",
+                "=====>".blue().bold(),
+                "Failed to connect to CortexFlow Client".red()
+            );
+            return Err(e);
+        }
+    }
+    Ok(())
+}
+
+pub async fn monitor_dropped_packets() -> Result<(), Error> {
+    //function to monitor dropped packets metrics
+    println!("{} {}", "=====>".blue().bold(), "Connecting to cortexflow Client".white());
+
+    match connect_to_client().await {
+        Ok(client) => {
+            println!("{} {}", "=====>".blue().bold(), "Connected to CortexFlow Client".green());
+            //send request to get dropped packets metrics
+            match agent_api::requests::send_dropped_packets_request(client).await {
+                Ok(response) => {
+                    let resp = response.into_inner();
+                    if resp.metrics.is_empty() {
+                        println!("{} No dropped packets metrics found", "=====>".blue().bold());
+                    } else {
+                        println!("{} Found {} dropped packets metrics", "=====>".blue().bold(), resp.metrics.len());
+                        for (i, metric) in resp.metrics.iter().enumerate() {
+                            println!(
+                                "{} DroppedPackets[{}]\n  TGID: {}\n  Process: {}\n  SK Drops: {}\n  Socket Errors: {}\n  Soft Errors: {}\n  Backlog Length: {}\n  Write Memory Queued: {}\n  Receive Buffer Size: {}\n  ACK Backlog: {}\n  Timestamp: {} µs",
+                                "=====>".blue().bold(),
+                                i,
+                                metric.tgid,
+                                metric.process_name,
+                                metric.sk_drops,
+                                metric.sk_err,
+                                metric.sk_err_soft,
+                                metric.sk_backlog_len,
+                                metric.sk_wmem_queued,
+                                metric.sk_rcvbuf,
+                                metric.sk_ack_backlog,
+                                metric.timestamp_us
+                            );
+                        }
+                    }
+                }
+                Err(e) => {
+                    println!(
+                        "{} {} {} {}",
+                        "=====>".blue().bold(),
+                        "An error occured".red(),
+                        "Error:",
+                        e
+                    );
+                    return Err(e);
+                }
+            }
+        }
+        Err(e) =>{
+            println!(
+                "{} {}",
+                "=====>".blue().bold(),
+                "Failed to connect to CortexFlow Client".red()
+            );
+            return Err(e);
+        }
+    }
     Ok(())
 }

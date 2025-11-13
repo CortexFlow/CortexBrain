@@ -1,6 +1,6 @@
 use anyhow::Error;
 use anyhow::Ok;
-use aya::Bpf;
+use aya::Ebpf;
 use aya::maps::HashMap;
 use aya::maps::Map;
 use k8s_openapi::api::core::v1::ConfigMap;
@@ -13,7 +13,7 @@ use std::sync::Mutex;
 use tokio::fs;
 use tracing::{error, info};
 
-pub fn init_bpf_maps(bpf: Arc<Mutex<Bpf>>) -> Result<(Map, Map, Map), anyhow::Error> {
+pub fn init_bpf_maps(bpf: Arc<Mutex<Ebpf>>) -> Result<(Map, Map, Map), anyhow::Error> {
     // this function init the bpfs maps used in the main program
     /*
        index 0: events_map

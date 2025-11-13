@@ -1,9 +1,11 @@
 #![allow(warnings)]
 use anyhow::Context;
 use chrono::Local;
-use cortexbrain_common::formatters::{format_ipv4, format_ipv6};
+use cortexbrain_common::{
+    formatters::{format_ipv4, format_ipv6},
+};
 use prost::bytes::BytesMut;
-use std::str::FromStr;
+use std::{str::FromStr, sync::Arc};
 use std::sync::Mutex;
 use tonic::{Request, Response, Status};
 use tracing::info;
@@ -20,7 +22,12 @@ use std::collections::HashMap;
 use tokio::sync::mpsc;
 use tokio::task;
 
-use crate::agent::{ConnectionEvent, DroppedPacketMetric, DroppedPacketsRequest, DroppedPacketsResponse, LatencyMetric, LatencyMetricsRequest, LatencyMetricsResponse, PacketLossMetricsRequest, PacketLossMetricsResponse};
+use crate::{
+    agent::{
+        ConnectionEvent, DroppedPacketMetric, DroppedPacketsResponse,
+        LatencyMetric, LatencyMetricsResponse,
+    }, 
+};
 
 use crate::structs::{NetworkMetrics, PacketLog, TimeStampMetrics};
 
@@ -43,10 +50,10 @@ pub struct AgentApi {
     //* is used to receive the data from the transmitter (tx)
     active_connection_event_rx: Mutex<mpsc::Receiver<Result<Vec<ConnectionEvent>, Status>>>,
     active_connection_event_tx: mpsc::Sender<Result<Vec<ConnectionEvent>, Status>>,
-    latency_metrics_rx: Mutex<mpsc::Receiver<LatencyMetric>>,
-    latency_metrics_tx: mpsc::Sender<LatencyMetric>,
-    dropped_packet_metrics_rx: Mutex<mpsc::Receiver<DroppedPacketMetric>>,
-    dropped_packet_metrics_tx: mpsc::Sender<DroppedPacketMetric>,
+    latency_metrics_rx: Mutex<mpsc::Receiver<Result<Vec<LatencyMetric>, Status>>>,
+    latency_metrics_tx: mpsc::Sender<Result<Vec<LatencyMetric>, Status>>,
+    dropped_packet_metrics_rx: Mutex<mpsc::Receiver<Result<Vec<DroppedPacketMetric>, Status>>>,
+    dropped_packet_metrics_tx: mpsc::Sender<Result<Vec<DroppedPacketMetric>, Status>>,
 }
 
 //* Event sender trait. Takes an event from a map and send that to the mpsc channel
@@ -64,6 +71,29 @@ pub trait EventSender: Send + Sync + 'static {
 
         let _ = tx.send(event).await;
     }
+
+    async fn send_latency_metrics_event(&self, event: Vec<LatencyMetric>);
+    async fn send_latency_metrics_event_map(
+        &self,
+        map: Vec<LatencyMetric>,
+        tx: mpsc::Sender<Result<Vec<LatencyMetric>, Status>>,
+    ) {
+        let status = Status::new(tonic::Code::Ok, "success");
+        let event = Ok(map);
+        let _ = tx.send(event).await;
+    }
+
+    async fn send_dropped_packet_metrics_event(&self, event: Vec<DroppedPacketMetric>);
+    async fn send_dropped_packet_metrics_event_map(
+        &self,
+        map: Vec<DroppedPacketMetric>,
+        tx: mpsc::Sender<Result<Vec<DroppedPacketMetric>, Status>>,
+    ) {
+        let status = Status::new(tonic::Code::Ok, "success");
+        let event = Ok(map);
+        let _ = tx.send(event).await;
+    }
+
 }
 
 // send event function. takes an HashMap and send that using mpsc event_tx
@@ -71,6 +101,16 @@ pub trait EventSender: Send + Sync + 'static {
 impl EventSender for AgentApi {
     async fn send_active_connection_event(&self, event: Vec<ConnectionEvent>) {
         self.send_active_connection_event_map(event, self.active_connection_event_tx.clone())
+            .await;
+    }
+
+    async fn send_latency_metrics_event(&self, event: Vec<LatencyMetric>) {
+        self.send_latency_metrics_event_map(event, self.latency_metrics_tx.clone())
+            .await;
+    }
+
+    async fn send_dropped_packet_metrics_event(&self, event: Vec<DroppedPacketMetric>) {
+        self.send_dropped_packet_metrics_event_map(event, self.dropped_packet_metrics_tx.clone())
             .await;
     }
 }
@@ -89,14 +129,14 @@ impl Default for AgentApi {
             .expect("Error while initializing events array");
 
         // load network metrics maps mapdata
-        let network_metrics_mapdata = MapData::from_pin("/sys/fs/bpf/maps/net_metrics")
+        let network_metrics_mapdata = MapData::from_pin("/sys/fs/bpf/trace_maps/net_metrics")
             .expect("cannot open net_metrics Mapdata");
         let network_metrics_map = Map::PerfEventArray(network_metrics_mapdata); //creates a PerfEventArray from the mapdata
         let mut network_metrics_events_array = PerfEventArray::try_from(network_metrics_map)
             .expect("Error while initializing network metrics array");
 
         // load time stamp events maps mapdata
-        let time_stamp_events_mapdata = MapData::from_pin("/sys/fs/bpf/maps/time_stamp_events")
+        let time_stamp_events_mapdata = MapData::from_pin("/sys/fs/bpf/trace_maps/time_stamp_events")
             .expect("cannot open time_stamp_events Mapdata");
         let time_stamp_events_map = Map::PerfEventArray(time_stamp_events_mapdata); //
         let mut time_stamp_events_array = PerfEventArray::try_from(time_stamp_events_map)
@@ -106,6 +146,7 @@ impl Default for AgentApi {
         let (conn_tx, conn_rx) = mpsc::channel(1024);
         let (lat_tx, lat_rx) = mpsc::channel(2048);
         let (drop_tx, drop_rx) = mpsc::channel(2048);
+
         let api = AgentApi {
             active_connection_event_rx: conn_rx.into(),
             active_connection_event_tx: conn_tx.clone(),
@@ -144,9 +185,7 @@ impl Default for AgentApi {
                             if events.read > 0 {
                                 for i in 0..events.read {
                                     let data = &buffers[i];
-                                    if data.len()
-                                        >= std::mem::size_of::<PacketLog>()
-                                    {
+                                    if data.len() >= std::mem::size_of::<PacketLog>() {
                                         let pl: PacketLog =
                                             unsafe { std::ptr::read(data.as_ptr() as *const _) };
                                         let src = Ipv4Addr::from(u32::from_be(pl.src_ip));
@@ -212,6 +251,7 @@ impl Default for AgentApi {
 
         task::spawn(async move {
             let mut net_metrics_buffer = Vec::new();
+
             //scan the cpus to read the data
             for cpu_id in online_cpus()
                 .map_err(|e| anyhow::anyhow!("Error {:?}", e))
@@ -236,9 +276,7 @@ impl Default for AgentApi {
                             if events.read > 0 {
                                 for i in 0..events.read {
                                     let data = &buffers[i];
-                                    if data.len()
-                                        >= std::mem::size_of::<NetworkMetrics>()
-                                    {
+                                    if data.len() >= std::mem::size_of::<NetworkMetrics>() {
                                         let nm: NetworkMetrics =
                                             unsafe { std::ptr::read(data.as_ptr() as *const _) };
 
@@ -248,7 +286,7 @@ impl Default for AgentApi {
                                             sk_drops: nm.sk_drops,
                                             sk_err: nm.sk_err,
                                             sk_err_soft: nm.sk_err_soft,
-                                            sk_backlog_len: nm.sk_backlog_len,
+                                            sk_backlog_len: nm.sk_backlog_len as u32,
                                             sk_wmem_queued: nm.sk_write_memory_queued,
                                             sk_rcvbuf: nm.sk_receive_buffer_size,
                                             sk_ack_backlog: nm.sk_ack_backlog,
@@ -256,6 +294,7 @@ impl Default for AgentApi {
                                         };
 
                                         if dropped_packet_metrics.sk_drops > 0 {
+                                            let mut evt = Vec::new();
                                             info!(
                                                     "Dropped Packet Metric - tgid: {}, process_name: {}, sk_drops: {}, sk_err: {}, sk_err_soft: {}, sk_backlog_len: {}, sk_wmem_queued: {}, sk_rcvbuf: {}, sk_ack_backlog: {}, timestamp_us: {}",
                                                     dropped_packet_metrics.tgid,
@@ -269,13 +308,8 @@ impl Default for AgentApi {
                                                     dropped_packet_metrics.sk_ack_backlog,
                                                     dropped_packet_metrics.timestamp_us
                                                 );
-                                            let _ = drop_tx.send(dropped_packet_metrics).await;
-                                        } else {
-                                            info!(
-                                                "No dropped packets for tgid: {}, process_name: {}",
-                                                dropped_packet_metrics.tgid,
-                                                dropped_packet_metrics.process_name
-                                            );
+                                            evt.push(dropped_packet_metrics.clone());
+                                            let _ = drop_tx.send(Ok(evt)).await;
                                         }
                                     } else {
                                         warn!(
@@ -323,9 +357,7 @@ impl Default for AgentApi {
                             if events.read > 0 {
                                 for i in 0..events.read {
                                     let data = &buffers[i];
-                                    if data.len()
-                                        >= std::mem::size_of::<TimeStampMetrics>()
-                                    {
+                                    if data.len() >= std::mem::size_of::<TimeStampMetrics>() {
                                         let tsm: TimeStampMetrics =
                                             unsafe { std::ptr::read(data.as_ptr() as *const _) };
                                         let latency_metric = LatencyMetric {
@@ -341,7 +373,23 @@ impl Default for AgentApi {
                                             src_address_v6: format_ipv6(&tsm.saddr_v6),
                                             dst_address_v6: format_ipv6(&tsm.daddr_v6),
                                         };
-                                        let _ = lat_tx.send(latency_metric).await;
+                                        info!(
+                                            "Latency Metric - tgid: {}, process_name: {}, delta_us: {}, timestamp_us: {}, local_port: {}, remote_port: {}, address_family: {}, src_address_v4: {}, dst_address_v4: {}, src_address_v6: {}, dst_address_v6: {}",
+                                            latency_metric.tgid,
+                                            latency_metric.process_name,
+                                            latency_metric.delta_us,
+                                            latency_metric.timestamp_us,
+                                            latency_metric.local_port,
+                                            latency_metric.remote_port,
+                                            latency_metric.address_family,
+                                            latency_metric.src_address_v4,
+                                            latency_metric.dst_address_v4,
+                                            latency_metric.src_address_v6,
+                                            latency_metric.dst_address_v6
+                                        );
+                                        let mut evt = Vec::new();
+                                        evt.push(latency_metric.clone());
+                                        let _ = lat_tx.send(Ok(evt)).await;
                                     } else {
                                         warn!(
                                             "Received time stamp metrics data too small: {} bytes",
@@ -515,7 +563,7 @@ impl Agent for AgentApi {
 
     async fn get_latency_metrics(
         &self,
-        request: Request<LatencyMetricsRequest>,
+        request: Request<()>,
     ) -> Result<Response<LatencyMetricsResponse>, Status> {
         // Extract the request parameters
         let req = request.into_inner();
@@ -523,32 +571,54 @@ impl Agent for AgentApi {
 
         // Here you would typically query your data source for the latency metrics
         // For demonstration purposes, we'll return a dummy response
+
+        let mut aggregated_latency_metrics_events: Vec<LatencyMetric> = Vec::new();
+
+        while let Ok(evt) = self.latency_metrics_rx.lock().unwrap().try_recv() {
+            if let Ok(vec) = evt {
+                aggregated_latency_metrics_events.extend(vec);
+            }
+        }
+
+        let total_count = aggregated_latency_metrics_events.len() as u32;
+
+        let (average_latency_us, min_latency_us, max_latency_us) =
+            if !aggregated_latency_metrics_events.is_empty() {
+                let sum: u64 = aggregated_latency_metrics_events
+                    .iter()
+                    .map(|m| m.delta_us)
+                    .sum();
+                let avg = sum as f64 / aggregated_latency_metrics_events.len() as f64;
+
+                let min = aggregated_latency_metrics_events
+                    .iter()
+                    .map(|m| m.delta_us)
+                    .min()
+                    .unwrap_or(0) as f64;
+
+                let max = aggregated_latency_metrics_events
+                    .iter()
+                    .map(|m| m.delta_us)
+                    .max()
+                    .unwrap_or(0) as f64;
+
+                (avg, min, max)
+            } else {
+                (0.0, 0.0, 0.0)
+            };
+
+        info!(
+            "Latency metrics - total_count: {}, average: {:.2}us, min: {:.2}us, max: {:.2}us",
+            total_count, average_latency_us, min_latency_us, max_latency_us
+        );
+
         let response = LatencyMetricsResponse {
             status: "success".to_string(),
-            metrics: vec![],
-            total_count: 0,
-            average_latency_us: 0.0,
-            min_latency_us: 0.0,
-            max_latency_us: 0.0,
-        };
-
-        Ok(Response::new(response))
-    }
-
-    async fn get_packet_loss_metrics(
-        &self,
-        request: Request<PacketLossMetricsRequest>,
-    ) -> Result<Response<PacketLossMetricsResponse>, Status> {
-        // Extract the request parameters
-        let req = request.into_inner();
-        info!("Getting packet loss metrics");
-
-        // Here you would typically query your data source for the packet loss metrics
-        // For demonstration purposes, we'll return a dummy response
-        let response = PacketLossMetricsResponse {
-            status: "success".to_string(),
-            metrics: vec![],
-            total_connections: 0,
+            metrics: aggregated_latency_metrics_events,
+            total_count,
+            average_latency_us,
+            max_latency_us,
+            min_latency_us,
         };
 
         Ok(Response::new(response))
@@ -556,18 +626,35 @@ impl Agent for AgentApi {
 
     async fn get_dropped_packets_metrics(
         &self,
-        request: Request<DroppedPacketsRequest>,
+        request: Request<()>,
     ) -> Result<Response<DroppedPacketsResponse>, Status> {
         // Extract the request parameters
         let req = request.into_inner();
         info!("Getting dropped packets metrics");
 
-        // Here you would typically query your data source for the dropped packets metrics
-        // For demonstration purposes, we'll return a dummy response
+        let mut aggregated_dropped_packet_metrics: Vec<DroppedPacketMetric> = Vec::new();
+        let mut total_drops = 0u32;
+
+        // Collect all metrics from channel
+        while let Ok(evt) = self.dropped_packet_metrics_rx.lock().unwrap().try_recv() {
+            if let Ok(vec) = evt {
+                for metric in vec {
+                    total_drops += metric.sk_drops as u32;
+                    aggregated_dropped_packet_metrics.push(metric);
+                }
+            }
+        }
+
+        info!(
+            "Dropped packets metrics - total_metrics: {}, total_drops: {}",
+            aggregated_dropped_packet_metrics.len(),
+            total_drops
+        );
+
         let response = DroppedPacketsResponse {
             status: "success".to_string(),
-            metrics: vec![],
-            total_drops: 0,
+            metrics: aggregated_dropped_packet_metrics,
+            total_drops,
         };
 
         Ok(Response::new(response))

@@ -14,7 +14,7 @@ pub struct PacketLog {
 }
 unsafe impl aya::Pod for PacketLog {}
 
-#[repr(C)]
+#[repr(C, packed)]
 #[derive(Clone, Copy, Zeroable)]
 pub struct NetworkMetrics {
     pub tgid: u32,
@@ -22,7 +22,7 @@ pub struct NetworkMetrics {
     pub ts_us: u64,
     pub sk_err: i32,
     pub sk_err_soft: i32,
-    pub sk_backlog_len: u32,
+    pub sk_backlog_len: i32,
     pub sk_write_memory_queued: i32,
     pub sk_receive_buffer_size: i32,
     pub sk_ack_backlog: u32,

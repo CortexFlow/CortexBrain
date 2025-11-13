@@ -1,5 +1,3 @@
-
-
 use crate::constants::TASK_COMM_LEN;
 
 pub fn comm_to_string(comm: &[u8; TASK_COMM_LEN]) -> String {
