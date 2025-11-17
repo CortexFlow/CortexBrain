@@ -6,11 +6,11 @@ edition = "2024"
 [dependencies]
 aya = "0.13.1"
 aya-log = "0.2.1"
-bytes = "1.4"
+bytes = "1.11"
 tokio = { version = "1", features = ["full"] }
 anyhow = "1.0"
 tracing = "0.1.41"
-tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
-libc = "0.2.172"
-bytemuck = "1.23.0"
+tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
+libc = "0.2.177"
+bytemuck = "1.24.0"
 nix  ={version="0.30.1",features=["net"]}

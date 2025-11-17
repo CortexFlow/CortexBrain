@@ -9,7 +9,7 @@ aya-ebpf = { git = "https://github.com/aya-rs/aya" }
 aya-log-ebpf = { git = "https://github.com/aya-rs/aya" }
 
 [build-dependencies]
-which = { version = "7.0.0", default-features = false }
+which = { version = "8.0.0", default-features = false }
 
 [[bin]]
 name = "conntracker"
