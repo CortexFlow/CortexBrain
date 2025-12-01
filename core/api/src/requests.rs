@@ -15,6 +15,8 @@ use crate::agent::BlocklistResponse;
 use crate::agent::AddIpToBlocklistRequest;
 use crate::agent::RmIpFromBlocklistRequest;
 use crate::agent::RmIpFromBlocklistResponse;
+use crate::agent::DroppedPacketsResponse;
+use crate::agent::LatencyMetricsResponse;
 
 #[cfg(feature = "client")]
 pub async fn send_active_connection_request(
@@ -66,5 +68,27 @@ pub async fn remove_ip_from_blocklist_request(
     let ip = ip.to_string();
     let request = Request::new(RmIpFromBlocklistRequest { ip });
     let response = client.rm_ip_from_blocklist(request).await?;
+    Ok(response)
+}
+
+#[cfg(feature = "client")]
+pub async fn send_dropped_packets_request(
+    mut client: AgentClient<Channel>,
+) -> Result<Response<DroppedPacketsResponse>, Error> {
+    let request = Request::new(());
+    let response = client.get_dropped_packets_metrics(
+        request
+    ).await?;
+    Ok(response)
+}
+
+#[cfg(feature = "client")]
+pub async fn send_latency_metrics_request(
+    mut client: AgentClient<Channel>,
+) -> Result<Response<LatencyMetricsResponse>, Error> {
+    let request = Request::new(());
+    let response = client.get_latency_metrics(
+        request
+    ).await?;
     Ok(response)
 }

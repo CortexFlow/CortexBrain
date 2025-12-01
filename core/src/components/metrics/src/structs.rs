@@ -1,8 +1,12 @@
+
 pub const TASK_COMM_LEN: usize = 16; // linux/sched.h
 
-#[repr(C)]
+#[repr(C, packed)]
 #[derive(Clone, Copy)]
 pub struct NetworkMetrics {
+    pub tgid: u32,
+    pub comm: [u8; TASK_COMM_LEN],
+    pub ts_us: u64,
     pub sk_err: i32,          // Offset 284
     pub sk_err_soft: i32,     // Offset 600
     pub sk_backlog_len: i32,  // Offset 196

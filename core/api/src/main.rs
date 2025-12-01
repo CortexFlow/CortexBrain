@@ -4,6 +4,9 @@ use cortexbrain_common::logger;
 
 mod agent;
 mod api;
+mod structs;
+mod constants;
+mod helpers;
 
 mod agent_proto {
     use tonic::include_file_descriptor_set;

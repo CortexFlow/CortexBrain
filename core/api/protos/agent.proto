@@ -3,6 +3,8 @@ package agent;
 
 import "google/protobuf/empty.proto";
 
+// Active connections
+
 message RequestActiveConnections{
     optional string pod_ip = 2 ;
 }
@@ -18,9 +20,57 @@ message ActiveConnectionResponse{
     repeated ConnectionEvent events = 2;  // List of connection events
 }
 
+// Network metrics
+
+// Latency metrics request and response messages
+
+message LatencyMetric {
+    uint64 delta_us = 1;          // Latency in microseconds
+    uint64 timestamp_us = 2;      // Event timestamp
+    uint32 tgid = 3;              // Thread group ID
+    string process_name = 4;      // Process name (comm)
+    uint32 local_port = 5;        // Local port
+    uint32 remote_port = 6;       // Remote port (big-endian)
+    uint32 address_family = 7;    // "IPv4" or "IPv6"
+    string src_address_v4 = 8;       // Source IP address
+    string dst_address_v4 = 9;       // Destination IP address
+    string src_address_v6 = 10;      // Source IPv6 address
+    string dst_address_v6 = 11;      // Destination IPv6 address
+}
+
+message LatencyMetricsResponse {
+    string status = 1;
+    repeated LatencyMetric metrics = 2;
+    uint32 total_count = 3;
+    double average_latency_us = 4;    // Average latency
+    double min_latency_us = 5;        // Minimum latency
+    double max_latency_us = 6;        // Maximum latency
+}
+
+// Dropped TCP Packets
+
+message DroppedPacketMetric {
+    uint32 tgid = 1;                  // Thread group ID
+    string process_name = 2;          // Process name
+    int32 sk_drops = 3;               // Socket drops (from sk_drops field)
+    int32 sk_err = 4;                 // Socket errors
+    int32 sk_err_soft = 5;            // Soft errors
+    uint32 sk_backlog_len = 6;        // Backlog length (congestion indicator)
+    int32 sk_wmem_queued = 7;         // Write memory queued
+    int32 sk_rcvbuf = 8;              // Receive buffer size
+    uint32 sk_ack_backlog = 9;        // ACK backlog
+    uint64 timestamp_us = 10;         // Event timestamp
+}
+
+message DroppedPacketsResponse {
+    string status = 1;
+    repeated DroppedPacketMetric metrics = 2;
+    uint32 total_drops = 3;           // Total drops across all connections
+}
+
+
 //declare agent api 
 service Agent{
-    
     // active connections endpoint 
     rpc ActiveConnections(RequestActiveConnections) returns (ActiveConnectionResponse);
     
@@ -31,6 +81,11 @@ service Agent{
     // remove ip from blocklist endpoint
     rpc RmIpFromBlocklist(RmIpFromBlocklistRequest) returns (RmIpFromBlocklistResponse);
 
+    // metrics data
+    rpc GetLatencyMetrics(google.protobuf.Empty) returns (LatencyMetricsResponse);
+
+    // dropped packets
+    rpc GetDroppedPacketsMetrics(google.protobuf.Empty) returns (DroppedPacketsResponse);
 }
 
 message AddIpToBlocklistRequest{

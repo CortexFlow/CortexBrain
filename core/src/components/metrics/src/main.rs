@@ -47,7 +47,9 @@ async fn main() -> Result<(), anyhow::Error> {
     match init_ebpf_maps(bpf.clone()) {
         std::result::Result::Ok(maps) => {
             info!("BPF maps loaded successfully");
-            match map_pinner(&maps, &bpf_map_save_path.clone().into()).await {
+            let pin_path = std::path::PathBuf::from(&bpf_map_save_path);
+            info!("About to call map_pinner with path: {:?}", pin_path);
+            match map_pinner(&maps, &pin_path).await {
                 std::result::Result::Ok(_) => {
                     info!("BPF maps pinned successfully to {}", bpf_map_save_path);
 

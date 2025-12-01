@@ -24,6 +24,103 @@ pub struct ActiveConnectionResponse {
     pub events: ::prost::alloc::vec::Vec<ConnectionEvent>,
 }
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct LatencyMetric {
+    /// Latency in microseconds
+    #[prost(uint64, tag = "1")]
+    pub delta_us: u64,
+    /// Event timestamp
+    #[prost(uint64, tag = "2")]
+    pub timestamp_us: u64,
+    /// Thread group ID
+    #[prost(uint32, tag = "3")]
+    pub tgid: u32,
+    /// Process name (comm)
+    #[prost(string, tag = "4")]
+    pub process_name: ::prost::alloc::string::String,
+    /// Local port
+    #[prost(uint32, tag = "5")]
+    pub local_port: u32,
+    /// Remote port (big-endian)
+    #[prost(uint32, tag = "6")]
+    pub remote_port: u32,
+    /// "IPv4" or "IPv6"
+    #[prost(uint32, tag = "7")]
+    pub address_family: u32,
+    /// Source IP address
+    #[prost(string, tag = "8")]
+    pub src_address_v4: ::prost::alloc::string::String,
+    /// Destination IP address
+    #[prost(string, tag = "9")]
+    pub dst_address_v4: ::prost::alloc::string::String,
+    /// Source IPv6 address
+    #[prost(string, tag = "10")]
+    pub src_address_v6: ::prost::alloc::string::String,
+    /// Destination IPv6 address
+    #[prost(string, tag = "11")]
+    pub dst_address_v6: ::prost::alloc::string::String,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct LatencyMetricsResponse {
+    #[prost(string, tag = "1")]
+    pub status: ::prost::alloc::string::String,
+    #[prost(message, repeated, tag = "2")]
+    pub metrics: ::prost::alloc::vec::Vec<LatencyMetric>,
+    #[prost(uint32, tag = "3")]
+    pub total_count: u32,
+    /// Average latency
+    #[prost(double, tag = "4")]
+    pub average_latency_us: f64,
+    /// Minimum latency
+    #[prost(double, tag = "5")]
+    pub min_latency_us: f64,
+    /// Maximum latency
+    #[prost(double, tag = "6")]
+    pub max_latency_us: f64,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct DroppedPacketMetric {
+    /// Thread group ID
+    #[prost(uint32, tag = "1")]
+    pub tgid: u32,
+    /// Process name
+    #[prost(string, tag = "2")]
+    pub process_name: ::prost::alloc::string::String,
+    /// Socket drops (from sk_drops field)
+    #[prost(int32, tag = "3")]
+    pub sk_drops: i32,
+    /// Socket errors
+    #[prost(int32, tag = "4")]
+    pub sk_err: i32,
+    /// Soft errors
+    #[prost(int32, tag = "5")]
+    pub sk_err_soft: i32,
+    /// Backlog length (congestion indicator)
+    #[prost(uint32, tag = "6")]
+    pub sk_backlog_len: u32,
+    /// Write memory queued
+    #[prost(int32, tag = "7")]
+    pub sk_wmem_queued: i32,
+    /// Receive buffer size
+    #[prost(int32, tag = "8")]
+    pub sk_rcvbuf: i32,
+    /// ACK backlog
+    #[prost(uint32, tag = "9")]
+    pub sk_ack_backlog: u32,
+    /// Event timestamp
+    #[prost(uint64, tag = "10")]
+    pub timestamp_us: u64,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct DroppedPacketsResponse {
+    #[prost(string, tag = "1")]
+    pub status: ::prost::alloc::string::String,
+    #[prost(message, repeated, tag = "2")]
+    pub metrics: ::prost::alloc::vec::Vec<DroppedPacketMetric>,
+    /// Total drops across all connections
+    #[prost(uint32, tag = "3")]
+    pub total_drops: u32,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct AddIpToBlocklistRequest {
     #[prost(string, optional, tag = "1")]
     pub ip: ::core::option::Option<::prost::alloc::string::String>,
@@ -244,6 +341,56 @@ pub mod agent_client {
                 .insert(GrpcMethod::new("agent.Agent", "RmIpFromBlocklist"));
             self.inner.unary(req, path, codec).await
         }
+        /// metrics data
+        pub async fn get_latency_metrics(
+            &mut self,
+            request: impl tonic::IntoRequest<()>,
+        ) -> std::result::Result<
+            tonic::Response<super::LatencyMetricsResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/agent.Agent/GetLatencyMetrics",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("agent.Agent", "GetLatencyMetrics"));
+            self.inner.unary(req, path, codec).await
+        }
+        /// dropped packets
+        pub async fn get_dropped_packets_metrics(
+            &mut self,
+            request: impl tonic::IntoRequest<()>,
+        ) -> std::result::Result<
+            tonic::Response<super::DroppedPacketsResponse>,
+            tonic::Status,
+        > {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/agent.Agent/GetDroppedPacketsMetrics",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut()
+                .insert(GrpcMethod::new("agent.Agent", "GetDroppedPacketsMetrics"));
+            self.inner.unary(req, path, codec).await
+        }
     }
 }
 /// Generated server implementations.
@@ -288,6 +435,22 @@ pub mod agent_server {
             request: tonic::Request<super::RmIpFromBlocklistRequest>,
         ) -> std::result::Result<
             tonic::Response<super::RmIpFromBlocklistResponse>,
+            tonic::Status,
+        >;
+        /// metrics data
+        async fn get_latency_metrics(
+            &self,
+            request: tonic::Request<()>,
+        ) -> std::result::Result<
+            tonic::Response<super::LatencyMetricsResponse>,
+            tonic::Status,
+        >;
+        /// dropped packets
+        async fn get_dropped_packets_metrics(
+            &self,
+            request: tonic::Request<()>,
+        ) -> std::result::Result<
+            tonic::Response<super::DroppedPacketsResponse>,
             tonic::Status,
         >;
     }
@@ -528,6 +691,87 @@ pub mod agent_server {
                     let inner = self.inner.clone();
                     let fut = async move {
                         let method = RmIpFromBlocklistSvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/agent.Agent/GetLatencyMetrics" => {
+                    #[allow(non_camel_case_types)]
+                    struct GetLatencyMetricsSvc<T: Agent>(pub Arc<T>);
+                    impl<T: Agent> tonic::server::UnaryService<()>
+                    for GetLatencyMetricsSvc<T> {
+                        type Response = super::LatencyMetricsResponse;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(&mut self, request: tonic::Request<()>) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as Agent>::get_latency_metrics(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = GetLatencyMetricsSvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/agent.Agent/GetDroppedPacketsMetrics" => {
+                    #[allow(non_camel_case_types)]
+                    struct GetDroppedPacketsMetricsSvc<T: Agent>(pub Arc<T>);
+                    impl<T: Agent> tonic::server::UnaryService<()>
+                    for GetDroppedPacketsMetricsSvc<T> {
+                        type Response = super::DroppedPacketsResponse;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(&mut self, request: tonic::Request<()>) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as Agent>::get_dropped_packets_metrics(&inner, request)
+                                    .await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = GetDroppedPacketsMetricsSvc(inner);
                         let codec = tonic_prost::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(
