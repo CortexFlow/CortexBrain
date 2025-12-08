@@ -12,24 +12,24 @@ readme = "../../README.md"
 
 
 [dependencies]
-anyhow = "1.0.98"
+anyhow = "1.0.100"
 prost = "0.14.1"
-tokio = { version = "1.47.0", features = ["full"] }
-tonic = "0.14.0"
-tonic-prost = "0.14.0"
-tracing = "0.1.41"
+tokio = { version = "1.48.0", features = ["full"] }
+tonic = "0.14.2"
+tonic-prost = "0.14.2"
+tracing = "0.1.43"
 aya = "0.13.1"
-tonic-reflection = "0.14.0"
-tonic-build = "0.14.0"
-tracing-subscriber = "0.3.19"
+tonic-reflection = "0.14.2"
+tonic-build = "0.14.2"
+tracing-subscriber = "0.3.22"
 tokio-stream = "0.1.17"
-bytemuck = {version ="1.23.0"}
+bytemuck = {version ="1.24.0"}
 bytemuck_derive = "1.10.1"
 cortexflow_identity = { version = "0.1.0", path = "../src/components/identity" }
 
 [build-dependencies]
-tonic-build = "0.14.0"
-tonic-prost-build = "0.14.0"
+tonic-build = "0.14.2"
+tonic-prost-build = "0.14.2"
 
 [lib]
 name = "agent_api"
