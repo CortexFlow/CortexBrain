@@ -34,12 +34,12 @@ spec:
               mountPath: /sys/fs/bpf
               mountPropagation: Bidirectional
               readOnly: false
-            - name: proc
-              mountPath: /host/proc
-              readOnly: false
             - name: kernel-dev
               mountPath: /lib/modules
               readOnly: false
+            - name: cgroup
+              mountPath: /sys/fs/cgroup
+              readOnly: true
           securityContext:
               runAsUser: 0
               privileged: true
@@ -53,7 +53,7 @@ spec:
                   - SYS_PTRACE 
       containers:
         - name: identity
-          image: lorenzotettamanti/cortexflow-identity:0.1.1-beta.2
+          image: lorenzotettamanti/cortexflow-identity:0.1.1-cgroup_scannerv16
           command: ["/bin/bash", "-c"]
           args:
             - |
@@ -82,12 +82,12 @@ spec:
               mountPath: /sys/fs/bpf
               mountPropagation: Bidirectional
               readOnly: false
-            - name: proc
-              mountPath: /host/proc
-              readOnly: false
             - name: kernel-dev
               mountPath: /lib/modules
               readOnly: false
+            - name: cgroup
+              mountPath: /sys/fs/cgroup
+              readOnly: true
           securityContext:
             privileged: true
             allowPrivilegeEscalation: true
@@ -106,12 +106,12 @@ spec:
               mountPath: /sys/fs/bpf
               mountPropagation: Bidirectional
               readOnly: false
-            - name: proc
-              mountPath: /host/proc
-              readOnly: false
             - name: kernel-dev
               mountPath: /lib/modules
               readOnly: false
+            - name: cgroup
+              mountPath: /sys/fs/cgroup
+              readOnly: true
           resources:
             limits:
               cpu: "1"
@@ -134,11 +134,11 @@ spec:
           hostPath:
             path: /sys/fs/bpf
             type: Directory
-        - name: proc
-          hostPath:
-            path: /proc
-            type: Directory
         - name: kernel-dev
           hostPath:
             path: /lib/modules
+            type: Directory
+        - name: cgroup
+          hostPath:
+            path: /sys/fs/cgroup
             type: Directory
