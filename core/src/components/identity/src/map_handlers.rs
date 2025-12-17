@@ -4,14 +4,14 @@ use aya::Ebpf;
 use aya::maps::HashMap;
 use aya::maps::Map;
 use k8s_openapi::api::core::v1::ConfigMap;
-use kube::{Api, Client};
+use kube::{ Api, Client };
 use std::net::Ipv4Addr;
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::sync::Mutex;
 use tokio::fs;
-use tracing::{error, info};
+use tracing::{ error, info };
 
 pub fn init_bpf_maps(bpf: Arc<Mutex<Ebpf>>) -> Result<(Map, Map, Map), anyhow::Error> {
     // this function init the bpfs maps used in the main program
@@ -34,16 +34,20 @@ pub fn init_bpf_maps(bpf: Arc<Mutex<Ebpf>>) -> Result<(Map, Map, Map), anyhow::E
         .take_map("Blocklist")
         .ok_or_else(|| anyhow::anyhow!("Blocklist map not found"))?;
 
+    let tcp_registry_map = bpf_new
+        .take_map("TcpPacketRegistry")
+        .ok_or_else(|| anyhow::anyhow!("TcpPacketRegistry map not found"))?;
+
     //
 
-    Ok((events_map, veth_map, blocklist_map))
+    Ok((events_map, veth_map, blocklist_map,tcp_registry_map))
 }
 
 //TODO: save bpf maps path in the cli metadata
 //takes an array of bpf maps and pin them to persiste session data
 //TODO: change maps type with a Vec<Map> instead of (Map,Map). This method is only for fast development and it's not optimized
 //TODO: add bpf mounts during cli installation
-pub async fn map_pinner(maps: &(Map, Map, Map), path: &PathBuf) -> Result<(), Error> {
+pub async fn map_pinner(maps: &(Map, Map, Map, Map), path: &PathBuf) -> Result<(), Error> {
     // check if the map exists
     if !path.exists() {
         info!("Pin path {:?} does not exist. Creating it...", path);
@@ -58,11 +62,13 @@ pub async fn map_pinner(maps: &(Map, Map, Map), path: &PathBuf) -> Result<(), Er
     let map1_path = path.join("events_map");
     let map2_path = path.join("veth_map");
     let map3_path = path.join("blocklist_map");
+    let map4_path = path.join("tcp_packet_registry");
 
     // maps pinning
     maps.0.pin(&map1_path)?;
     maps.1.pin(&map2_path)?;
     maps.2.pin(&map3_path)?;
+    maps.3.pin(&map4_path)?;
 
     Ok(())
 }
@@ -71,8 +77,7 @@ pub async fn populate_blocklist(map: &mut Map) -> Result<(), Error> {
     let namespace = "cortexflow";
     let configmap = "cortexbrain-client-config";
 
-    let mut blocklist_map =HashMap::<_, [u8; 4],[u8;4]>::try_from(map)?;
-
+    let mut blocklist_map = HashMap::<_, [u8; 4], [u8; 4]>::try_from(map)?;
 
     let api: Api<ConfigMap> = Api::namespaced(client, namespace);
     match api.get(configmap).await {
