@@ -60,9 +60,12 @@ impl OFFSETS {
     pub const DST_PORT_OFFSET_FROM_IP_HEADER: usize = 2; // destination port offset
 
     // TOTAL BYTES SUM
-    pub const ETH_STACK_BYTES: usize = OFFSETS::SRC_MAC + OFFSETS::DST_MAC + OFFSETS::ETHERTYPE_BYTES; // ethernet protocol total stacked bytes
+    pub const ETH_STACK_BYTES: usize =
+        OFFSETS::SRC_MAC + OFFSETS::DST_MAC + OFFSETS::ETHERTYPE_BYTES; // ethernet protocol total stacked bytes
     pub const DST_T0TAL_BYTES_OFFSET: usize = OFFSETS::ETH_STACK_BYTES + OFFSETS::DST_BYTE_OFFSET; // destination total bytes offset
     pub const SRC_T0TAL_BYTES_OFFSET: usize = OFFSETS::ETH_STACK_BYTES + OFFSETS::SRC_BYTE_OFFSET; // source total bytes offset
     pub const PROTOCOL_T0TAL_BYTES_OFFSET: usize =
         OFFSETS::ETH_STACK_BYTES + OFFSETS::IPV4_PROTOCOL_OFFSET; // total bytes offset
+
+    pub const SKB_DATA_POINTER: usize = 208; // sk_buff structure data pointer
 }

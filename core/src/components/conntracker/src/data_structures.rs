@@ -61,6 +61,21 @@ pub struct VethLog {
 
 }
 
+// TODO: write documentation about this structure
+#[repr(C)]
+#[derive(Clone,Copy,Debug)]
+pub struct TcpPacketRegistry{
+    pub proto: u8,
+    pub src_ip: u32,
+    pub dst_ip: u32,
+    pub src_port: u16,
+    pub dst_port: u16,
+    pub pid: u32,
+    pub command: [u8;16],
+    pub cgroup_id: u64,
+
+}
+
 // docs:
 //
 // BPF maps used in the conntracker programs 
@@ -91,3 +106,6 @@ pub static mut VETH_EVENTS: PerfEventArray<VethLog> = PerfEventArray::new(0);
 #[map(name = "Blocklist")]
 pub static mut BLOCKLIST: HashMap<[u8;4], [u8;4]> = HashMap::<[u8;4], [u8;4]>::with_max_entries(1024, 0);
 //here i need to pass an address like this: [135,171,168,192]
+
+#[map(name = "TcpPacketRegistry",pinning = "by_name")]
+pub static mut PACKET_REGISTRY: PerfEventArray<TcpPacketRegistry> = PerfEventArray::new(0);
