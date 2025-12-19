@@ -21,3 +21,25 @@ roleRef:
   kind: Role
   name: coredns-configmap-access
   apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: cf-api-pods-access
+rules:
+- apiGroups: [ "" ]
+  resources: [ "pods" ]
+  verbs: [ "get", "list", "watch" ]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: cf-api-pods-access-binding
+subjects:
+- kind: ServiceAccount
+  name: default
+  namespace: cortexflow
+roleRef:
+  kind: ClusterRole
+  name: cf-api-pods-access
+  apiGroup: rbac.authorization.k8s.io
