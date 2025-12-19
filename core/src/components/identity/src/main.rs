@@ -16,10 +16,7 @@ mod structs;
 mod map_handlers;
 
 use aya::{
-    Bpf,
-    maps::{ Map, MapData, perf::{ PerfEventArray, PerfEventArrayBuffer } },
-    programs::{ KProbe, SchedClassifier, TcAttachType, tc::SchedClassifierLinkId },
-    util::online_cpus,
+    Ebpf, maps::{ Map, MapData, perf::{ PerfEventArray, PerfEventArrayBuffer } }, programs::{ KProbe, SchedClassifier, TcAttachType, tc::SchedClassifierLinkId }, util::online_cpus
 };
 
 use crate::helpers::{
@@ -59,7 +56,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let data = fs::read(Path::new(&bpf_path)).await.context("failed to load file from path")?;
 
     //init bpf data
-    let bpf = Arc::new(Mutex::new(Bpf::load(&data)?));
+    let bpf = Arc::new(Mutex::new(Ebpf::load(&data)?));
     let bpf_map_save_path = std::env
         ::var(constants::PIN_MAP_PATH)
         .context("PIN_MAP_PATH environment variable required")?;
@@ -69,7 +66,7 @@ async fn main() -> Result<(), anyhow::Error> {
             info!("Successfully loaded bpf maps");
             let pin_path = std::path::PathBuf::from(&bpf_map_save_path);
             info!("About to call map_pinner with path: {:?}", pin_path);
-            match map_pinner(&bpf_maps, &pin_path).await {
+            match map_pinner(&bpf_maps, &pin_path) {
                 std::result::Result::Ok(_) => {
                     info!("maps pinned successfully");
                     //load veth_trace program ref veth_trace.rs
@@ -102,7 +99,6 @@ async fn main() -> Result<(), anyhow::Error> {
                 }
                 Err(e) => {
                     error!("Error while pinning bpf_maps: {}", e);
-                    signal::ctrl_c();
                 }
             }
         }
@@ -117,7 +113,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
 //attach the tc classifier program to a vector of interfaces
 async fn init_tc_classifier(
-    bpf: Arc<Mutex<Bpf>>,
+    bpf: Arc<Mutex<Ebpf>>,
     ifaces: Vec<String>,
     link_ids: Arc<Mutex<HashMap<String, SchedClassifierLinkId>>>
 ) -> Result<(), anyhow::Error> {
@@ -148,7 +144,7 @@ async fn init_tc_classifier(
     Ok(())
 }
 
-async fn init_veth_tracer(bpf: Arc<Mutex<Bpf>>) -> Result<(), anyhow::Error> {
+async fn init_veth_tracer(bpf: Arc<Mutex<Ebpf>>) -> Result<(), anyhow::Error> {
     //this functions init the veth_tracer used to make the InterfacesRegistry
 
     let mut bpf_new = bpf.lock().unwrap();
@@ -180,7 +176,7 @@ async fn init_veth_tracer(bpf: Arc<Mutex<Bpf>>) -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-async fn init_tcp_registry(bpf: Arc<Mutex<Bpf>>) -> Result<(), anyhow::Error> {
+async fn init_tcp_registry(bpf: Arc<Mutex<Ebpf>>) -> Result<(), anyhow::Error> {
     let mut bpf_new = bpf.lock().unwrap();
 
     // init tcp registry
@@ -216,7 +212,7 @@ async fn init_tcp_registry(bpf: Arc<Mutex<Bpf>>) -> Result<(), anyhow::Error> {
 async fn event_listener(
     bpf_maps: (Map, Map, Map, Map),
     link_ids: Arc<Mutex<HashMap<String, SchedClassifierLinkId>>>,
-    bpf: Arc<Mutex<Bpf>>
+    bpf: Arc<Mutex<Ebpf>>
 ) -> Result<(), anyhow::Error> {
     // this function init the event listener. Listens for veth events (creation/deletion) and network events (pod to pod communications)
     /* Doc:
