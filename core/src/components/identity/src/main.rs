@@ -12,29 +12,39 @@
 
 mod enums;
 mod helpers;
-mod structs;
 mod map_handlers;
+mod structs;
 
 use aya::{
-    Ebpf, maps::{ Map, MapData, perf::{ PerfEventArray, PerfEventArrayBuffer } }, programs::{ KProbe, SchedClassifier, TcAttachType, tc::SchedClassifierLinkId }, util::online_cpus
+    Ebpf,
+    maps::{
+        Map, MapData,
+        perf::{PerfEventArray, PerfEventArrayBuffer},
+    },
+    programs::{KProbe, SchedClassifier, TcAttachType, tc::SchedClassifierLinkId},
+    util::online_cpus,
 };
 
 use crate::helpers::{
-    display_events,
-    display_veth_events,
-    get_veth_channels,
-    display_tcp_registry_events,
-    scan_cgroup_cronjob
+    display_events, display_tcp_registry_events, display_veth_events, get_veth_channels,
+    scan_cgroup_cronjob,
 };
-use crate::map_handlers::{ init_bpf_maps, map_pinner, populate_blocklist };
+use crate::map_handlers::{init_bpf_maps, map_pinner, populate_blocklist};
 
 use bytes::BytesMut;
-use std::{ convert::TryInto, path::Path, sync::{ Arc, Mutex, atomic::{ AtomicBool, Ordering } } };
+use std::{
+    convert::TryInto,
+    path::Path,
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
+    },
+};
 
-use anyhow::{ Context, Ok };
-use tokio::{ fs, signal };
-use tracing::{ error, info };
-use cortexbrain_common::{ constants, logger };
+use anyhow::{Context, Ok};
+use cortexbrain_common::{constants, logger};
+use tokio::{fs, signal};
+use tracing::{error, info};
 
 use std::collections::HashMap;
 
@@ -50,15 +60,15 @@ async fn main() -> Result<(), anyhow::Error> {
     let link_ids = Arc::new(Mutex::new(HashMap::<String, SchedClassifierLinkId>::new()));
 
     //init conntracker data path
-    let bpf_path = std::env
-        ::var(constants::BPF_PATH)
-        .context("BPF_PATH environment variable required")?;
-    let data = fs::read(Path::new(&bpf_path)).await.context("failed to load file from path")?;
+    let bpf_path =
+        std::env::var(constants::BPF_PATH).context("BPF_PATH environment variable required")?;
+    let data = fs::read(Path::new(&bpf_path))
+        .await
+        .context("failed to load file from path")?;
 
     //init bpf data
     let bpf = Arc::new(Mutex::new(Ebpf::load(&data)?));
-    let bpf_map_save_path = std::env
-        ::var(constants::PIN_MAP_PATH)
+    let bpf_map_save_path = std::env::var(constants::PIN_MAP_PATH)
         .context("PIN_MAP_PATH environment variable required")?;
 
     match init_bpf_maps(bpf.clone()) {
@@ -82,20 +92,20 @@ async fn main() -> Result<(), anyhow::Error> {
                         populate_blocklist(&mut bpf_maps.2).await;
                     }
 
-                    //{
-                    //    init_tc_classifier(bpf.clone(), interfaces, link_ids.clone()).await.context(
-                    //        "An error occured during the execution of attach_bpf_program function"
-                    //    )?;
-                    //}
+                    {
+                        init_tc_classifier(bpf.clone(), interfaces, link_ids.clone()).await.context(
+                            "An error occured during the execution of attach_bpf_program function"
+                        )?;
+                    }
                     {
                         init_tcp_registry(bpf.clone()).await.context(
-                            "An error occured during the execution of init_tcp_registry function"
+                            "An error occured during the execution of init_tcp_registry function",
                         )?;
                     }
 
-                    event_listener(bpf_maps, link_ids.clone(), bpf.clone()).await.context(
-                        "Error initializing event_listener"
-                    )?;
+                    event_listener(bpf_maps, link_ids.clone(), bpf.clone())
+                        .await
+                        .context("Error initializing event_listener")?;
                 }
                 Err(e) => {
                     error!("Error while pinning bpf_maps: {}", e);
@@ -115,7 +125,7 @@ async fn main() -> Result<(), anyhow::Error> {
 async fn init_tc_classifier(
     bpf: Arc<Mutex<Ebpf>>,
     ifaces: Vec<String>,
-    link_ids: Arc<Mutex<HashMap<String, SchedClassifierLinkId>>>
+    link_ids: Arc<Mutex<HashMap<String, SchedClassifierLinkId>>>,
 ) -> Result<(), anyhow::Error> {
     //this funtion initialize the tc classifier program
     info!("Loading programs");
@@ -128,16 +138,24 @@ async fn init_tc_classifier(
         .try_into()
         .context("Failed to init SchedClassifier program")?;
 
-    program.load().context("Failed to load identity_classifier program")?;
+    program
+        .load()
+        .context("Failed to load identity_classifier program")?;
 
     for interface in ifaces {
         match program.attach(&interface, TcAttachType::Ingress) {
             std::result::Result::Ok(link_id) => {
-                info!("Program 'identity_classifier' attached to interface {}", interface);
+                info!(
+                    "Program 'identity_classifier' attached to interface {}",
+                    interface
+                );
                 let mut map = link_ids.lock().unwrap();
                 map.insert(interface.clone(), link_id);
             }
-            Err(e) => error!("Error attaching program to interface {}: {:?}", interface, e),
+            Err(e) => error!(
+                "Error attaching program to interface {}: {:?}",
+                interface, e
+            ),
         }
     }
 
@@ -166,7 +184,9 @@ async fn init_veth_tracer(bpf: Arc<Mutex<Ebpf>>) -> Result<(), anyhow::Error> {
         .program_mut("veth_deletion_trace")
         .ok_or_else(|| anyhow::anyhow!("program 'veth_deletion_trace' not found"))?
         .try_into()?;
-    veth_deletion_tracer.load().context("Failed to load deletetion_tracer program")?;
+    veth_deletion_tracer
+        .load()
+        .context("Failed to load deletetion_tracer program")?;
 
     match veth_deletion_tracer.attach("unregister_netdevice_queue", 0) {
         std::result::Result::Ok(_) => info!("veth_deletion_trace program attached successfully"),
@@ -185,25 +205,30 @@ async fn init_tcp_registry(bpf: Arc<Mutex<Ebpf>>) -> Result<(), anyhow::Error> {
         .ok_or_else(|| anyhow::anyhow!("program 'tcp_message_tracer' not found"))?
         .try_into()?;
 
-    tcp_analyzer.load().context("Failed to load tcp_message_tracer")?;
+    tcp_analyzer
+        .load()
+        .context("Failed to load tcp_message_tracer")?;
 
     info!("initializing tcp tracing functions");
 
     match tcp_analyzer.attach("tcp_v4_rcv", 0) {
-        std::result::Result::Ok(_) =>
-            info!("tcp_message_tracer attached successfully to the tcp_v4_rcv function "),
-        Err(e) =>
-            error!("Error attaching tcp_message_tracer to the tcp_v4_rcv function. Error: {:?}", e),
+        std::result::Result::Ok(_) => {
+            info!("tcp_message_tracer attached successfully to the tcp_v4_rcv function ")
+        }
+        Err(e) => error!(
+            "Error attaching tcp_message_tracer to the tcp_v4_rcv function. Error: {:?}",
+            e
+        ),
     }
 
     match tcp_analyzer.attach("tcp_v4_connect", 0) {
-        std::result::Result::Ok(_) =>
-            info!("tcp_message_tracer attached successfully to the tcp_v4_connect function "),
-        Err(e) =>
-            error!(
-                "Error attaching tcp_message_tracer to the tcp_v4_connect function. Error: {:?}",
-                e
-            ),
+        std::result::Result::Ok(_) => {
+            info!("tcp_message_tracer attached successfully to the tcp_v4_connect function ")
+        }
+        Err(e) => error!(
+            "Error attaching tcp_message_tracer to the tcp_v4_connect function. Error: {:?}",
+            e
+        ),
     }
 
     Ok(())
@@ -212,7 +237,7 @@ async fn init_tcp_registry(bpf: Arc<Mutex<Ebpf>>) -> Result<(), anyhow::Error> {
 async fn event_listener(
     bpf_maps: (Map, Map, Map, Map),
     link_ids: Arc<Mutex<HashMap<String, SchedClassifierLinkId>>>,
-    bpf: Arc<Mutex<Ebpf>>
+    bpf: Arc<Mutex<Ebpf>>,
 ) -> Result<(), anyhow::Error> {
     // this function init the event listener. Listens for veth events (creation/deletion) and network events (pod to pod communications)
     /* Doc:
@@ -252,10 +277,8 @@ async fn event_listener(
         perf_net_events_buffer.push(events_buf);
     }
     for cpu_id in online_cpus().map_err(|e| anyhow::anyhow!("Error {:?}", e))? {
-        let tcp_registry_buf: PerfEventArrayBuffer<MapData> = tcp_registry_array.open(
-            cpu_id,
-            None
-        )?;
+        let tcp_registry_buf: PerfEventArrayBuffer<MapData> =
+            tcp_registry_array.open(cpu_id, None)?;
         tcp_registry_buffer.push(tcp_registry_buf);
     }
 
@@ -284,13 +307,15 @@ async fn event_listener(
             perf_veth_buffer,
             veth_running,
             veth_buffers,
-            veth_link_ids
-        ).await;
+            veth_link_ids,
+        )
+        .await;
     });
 
-    //let net_events_displayer = tokio::spawn(async move {
-    //    display_events(perf_net_events_buffer, net_events_running, events_buffers).await;
-    //});
+    // IDEA: Maybe we don't need to display all this events
+    let net_events_displayer = tokio::spawn(async move {
+        display_events(perf_net_events_buffer, net_events_running, events_buffers).await;
+    });
 
     let tcp_registry_events_displayer: tokio::task::JoinHandle<()> = tokio::spawn(async move {
         display_tcp_registry_events(tcp_registry_buffer, tcp_registry_running, tcp_buffers).await;
@@ -314,13 +339,13 @@ async fn event_listener(
                 }
         }
 
-        //result = net_events_displayer=>{
-        //    match result{
-        //        Err(e)=>error!("net_event_displayer panicked {:?}",e),
-        //        std::result::Result::Ok(_)  => info!("Found new net_event"),
-        //    }
-        //}
-        
+        result = net_events_displayer=>{
+           match result{
+                Err(e)=>error!("net_event_displayer panicked {:?}",e),
+               std::result::Result::Ok(_)  => info!("Found new net_event"),
+            }
+        }
+
         result = tcp_registry_events_displayer => {
             match result{
                 Err(e)=>error!("tcp_registry_events_displayer panicked {:?}",e),
