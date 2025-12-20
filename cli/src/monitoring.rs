@@ -3,16 +3,17 @@
 //monitoring CLI function for identity service
 use anyhow::Error;
 use colored::Colorize;
+use k8s_openapi::chrono::DateTime;
 use prost::Message;
 use prost_types::FileDescriptorProto;
 use std::result::Result::Ok;
-use tonic_reflection::pb::v1::{ server_reflection_response::MessageResponse };
+use tonic_reflection::pb::v1::server_reflection_response::MessageResponse;
 
-use agent_api::client::{ connect_to_client, connect_to_server_reflection };
-use agent_api::requests::{ get_all_features, send_active_connection_request };
+use agent_api::client::{connect_to_client, connect_to_server_reflection};
+use agent_api::requests::{get_all_features, send_active_connection_request};
 
 use clap::command;
-use clap::{ Args, Parser, Subcommand };
+use clap::{Args, Parser, Subcommand};
 
 //monitoring subcommands
 #[derive(Subcommand, Debug, Clone)]
@@ -87,14 +88,14 @@ pub async fn list_features() -> Result<(), Error> {
                 }
             }
         }
-        Err(e) =>{
+        Err(e) => {
             println!(
                 "{} {}",
                 "=====>".blue().bold(),
                 "Failed to connect to CortexFlow Server Reflection".red()
             );
             return Err(e);
-            }
+        }
     }
     Ok(())
 }
@@ -111,7 +112,11 @@ pub async fn monitor_identity_events() -> Result<(), Error> {
                     if resp.events.is_empty() {
                         println!("{} No events found", "=====>".blue().bold());
                     } else {
-                        println!("{} Found {} events", "=====>".blue().bold(), resp.events.len());
+                        println!(
+                            "{} Found {} events",
+                            "=====>".blue().bold(),
+                            resp.events.len()
+                        );
                         for (i, ev) in resp.events.iter().enumerate() {
                             println!(
                                 "{} Event[{}] id: {}  src: {}  dst: {}",
@@ -136,7 +141,7 @@ pub async fn monitor_identity_events() -> Result<(), Error> {
                 }
             }
         }
-        Err(e) =>{
+        Err(e) => {
             println!(
                 "{} {}",
                 "=====>".blue().bold(),
@@ -163,10 +168,16 @@ pub async fn monitor_latency_metrics() -> Result<(), Error> {
                     if resp.metrics.is_empty() {
                         println!("{} No latency metrics found", "=====>".blue().bold());
                     } else {
-                        println!("{} Found {} latency metrics", "=====>".blue().bold(), resp.metrics.len());
+                        println!(
+                            "{} Found {} latency metrics",
+                            "=====>".blue().bold(),
+                            resp.metrics.len()
+                        );
+                        
                         for (i, metric) in resp.metrics.iter().enumerate() {
+                            let converted_timestamp= convert_timestamp_to_date(metric.timestamp_us);
                             println!(
-                                "index {} Latency[{}], tgid {} process_name {} address_family {} delta_us {} src_address_v4 {} dst_address_v4 {} src_address_v6 {} dst_address_v6 {} local_port {} remote_port {} timestamp_us {}",
+                                "{} Latency[{}] \n tgid: {} \n process_name: {} \n address_family: {} \n delta(us): {} \n src_address_v4: {} \n dst_address_v4: {} \n src_address_v6: {} \n dst_address_v6: {} \n local_port: {} \n remote_port: {} \n timestamp_us: {}\n",
                                 "=====>".blue().bold(),
                                 i,
                                 metric.tgid,
@@ -179,7 +190,7 @@ pub async fn monitor_latency_metrics() -> Result<(), Error> {
                                 format!("{:?}", metric.dst_address_v6),
                                 metric.local_port,
                                 metric.remote_port,
-                                metric.timestamp_us
+                                converted_timestamp
                             );
                         }
                     }
@@ -196,7 +207,7 @@ pub async fn monitor_latency_metrics() -> Result<(), Error> {
                 }
             }
         }
-        Err(e) =>{
+        Err(e) => {
             println!(
                 "{} {}",
                 "=====>".blue().bold(),
@@ -220,10 +231,18 @@ pub async fn monitor_dropped_packets() -> Result<(), Error> {
                 Ok(response) => {
                     let resp = response.into_inner();
                     if resp.metrics.is_empty() {
-                        println!("{} No dropped packets metrics found", "=====>".blue().bold());
+                        println!(
+                            "{} No dropped packets metrics found",
+                            "=====>".blue().bold()
+                        );
                     } else {
-                        println!("{} Found {} dropped packets metrics", "=====>".blue().bold(), resp.metrics.len());
+                        println!(
+                            "{} Found {} dropped packets metrics",
+                            "=====>".blue().bold(),
+                            resp.metrics.len()
+                        );
                         for (i, metric) in resp.metrics.iter().enumerate() {
+                            let converted_timestamp= convert_timestamp_to_date(metric.timestamp_us);
                             println!(
                                 "{} DroppedPackets[{}]\n  TGID: {}\n  Process: {}\n  SK Drops: {}\n  Socket Errors: {}\n  Soft Errors: {}\n  Backlog Length: {}\n  Write Memory Queued: {}\n  Receive Buffer Size: {}\n  ACK Backlog: {}\n  Timestamp: {} µs",
                                 "=====>".blue().bold(),
@@ -237,7 +256,7 @@ pub async fn monitor_dropped_packets() -> Result<(), Error> {
                                 metric.sk_wmem_queued,
                                 metric.sk_rcvbuf,
                                 metric.sk_ack_backlog,
-                                metric.timestamp_us
+                                converted_timestamp
                             );
                         }
                     }
@@ -254,7 +273,7 @@ pub async fn monitor_dropped_packets() -> Result<(), Error> {
                 }
             }
         }
-        Err(e) =>{
+        Err(e) => {
             println!(
                 "{} {}",
                 "=====>".blue().bold(),
@@ -264,4 +283,9 @@ pub async fn monitor_dropped_packets() -> Result<(), Error> {
         }
     }
     Ok(())
+}
+
+fn convert_timestamp_to_date(timestamp:u64)->String{
+    let datetime = DateTime::from_timestamp_micros(timestamp as i64).unwrap();
+    datetime.to_string()
 }
