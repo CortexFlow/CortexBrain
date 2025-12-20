@@ -41,3 +41,16 @@ pub struct VethLog {
     pub netns: u32,
     pub pid: u32,
 }
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct TcpPacketRegistry{
+    pub proto: u8,
+    pub src_ip: u32,
+    pub dst_ip: u32,
+    pub src_port: u16,
+    pub dst_port: u16,
+    pub pid: u32,
+    pub command: [u8;16],
+    pub cgroup_id: u64,
+}

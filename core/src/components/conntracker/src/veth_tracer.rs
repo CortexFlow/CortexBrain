@@ -77,7 +77,7 @@ pub fn try_veth_tracer(ctx: ProbeContext, mode: u8) -> Result<u32, i64> {
 //
 // Returns a Result type with a const pointer to an inner field or an error code as i64
 
-fn read_linux_inner_struct<T>(ptr: *const u8, offset: usize) -> Result<*const T, i64> {
+pub fn read_linux_inner_struct<T>(ptr: *const u8, offset: usize) -> Result<*const T, i64> {
     if ptr.is_null() {
         return Err(1);
     } else {
@@ -105,7 +105,7 @@ fn read_linux_inner_struct<T>(ptr: *const u8, offset: usize) -> Result<*const T,
 //
 // Returns a Result type with the value or an error code as i64
 
-fn read_linux_inner_value<T: Copy>(ptr: *const u8, offset: usize) -> Result<T, i64> {
+pub fn read_linux_inner_value<T: Copy>(ptr: *const u8, offset: usize) -> Result<T, i64> {
     if ptr.is_null() {
         return Err(1);
     }
