@@ -1,7 +1,7 @@
 !!! note 
     CortexBrain is currently in active development so that occasional bugs may occur. Your contributions and feedback are foundamental for refining and enhancing the project! 🚀  
 
-**CortexBrain** is an ambitious open-source project aimed at creating an intelligent, lightweight, and efficient architecture to seamlessly connect cloud and edge devices.  
+**CortexBrain** is an ambitious open-source project designed to build an intelligent, lightweight, and highly efficient monitoring platform for distributed cloud and hybrid (cloud–edge) workflows.  
 ## **Current Development Stage**
 
 You can see the development stage of every component here:
