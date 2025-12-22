@@ -9,18 +9,14 @@ use aya::{
     programs::{SchedClassifier, TcAttachType},
 };
 use bytes::BytesMut;
-use cortexbrain_common::constants;
 use k8s_openapi::api::core::v1::Pod;
 use kube::api::ObjectList;
 use kube::{Api, Client};
 use nix::net::if_::if_nameindex;
-use std::collections::HashMap;
+use std::collections::{HashMap};
 use std::fs;
-use std::hash::Hash;
-use std::path::PathBuf;
 use std::result::Result::Ok;
 use std::sync::Mutex;
-use std::time::Duration;
 use std::{
     borrow::BorrowMut,
     net::Ipv4Addr,
@@ -31,7 +27,6 @@ use std::{
 };
 use tokio::time;
 use tracing::{debug, error, info, warn};
-use tracing_subscriber::fmt::format;
 
 /*
  * TryFrom Trait implementation for IpProtocols enum
@@ -295,14 +290,6 @@ pub async fn display_tcp_registry_events<T: BorrowMut<MapData>>(
                             let command_str = String::from_utf8_lossy(&command[..end]).to_string();
                             let cgroup_id = tcp_pl.cgroup_id;
 
-                            // construct the parent path
-                            //let proc_path = PathBuf::from("/proc")
-                            //    .join(event_id.to_string())
-                            //    .join("cgroup");
-
-                            //let proc_content = fs::read_to_string(&proc_path);
-                            //match proc_content {
-                            //    Ok(proc_content) => {
                             match IpProtocols::try_from(tcp_pl.proto) {
                                 std::result::Result::Ok(proto) => {
                                     info!(
@@ -324,13 +311,6 @@ pub async fn display_tcp_registry_events<T: BorrowMut<MapData>>(
                                     );
                                 }
                             };
-                            //}
-                            //Err(e) =>
-                            //    eprintln!(
-                            //        "An error occured while accessing the content from the {:?} path: {}",
-                            //        &proc_path,
-                            //       e
-                            //    ),
                         } else {
                             warn!("Received packet data too small: {} bytes", data.len());
                         }
@@ -380,10 +360,14 @@ pub async fn scan_cgroup_paths(path: String) -> Result<Vec<String>, Error> {
     Ok(cgroup_paths)
 }
 
+struct ServiceIdentity {
+    uid: String,
+    container_id: String,
+}
+
 pub async fn scan_cgroup_cronjob(time_delta: u64) -> Result<(), Error> {
     let interval = std::time::Duration::from_secs(time_delta);
-    let mut discovered_pods = HashMap::<String, String>::new();
-    while true {
+    loop {
         let scanned_paths = scan_cgroup_paths("/sys/fs/cgroup/kubelet.slice".to_string())
             .await
             .expect("An error occured during the cgroup scan");
@@ -423,6 +407,7 @@ pub async fn scan_cgroup_cronjob(time_delta: u64) -> Result<(), Error> {
             match subpaths_v2 {
                 Ok(paths) => {
                     for sub2 in paths {
+                        info!("Debugging sub2: {}", &sub2); //return e.g. /sys/fs/cgroup/kubepods.slice/kubepods-besteffort.slice/kubepods-besteffort-podb8701d38_3791_422d_ad15_890ad1a0844b.slice/docker-f2e265659293676231ecb38fafccc97b1a42b75be192c32a602bc8ea579dc866.scope
                         scanned_subpaths_v2.push(sub2);
                         // this contains the addressed like this
                         //kubelet-kubepods-besteffort-pod088f8704_24f0_4636_a8e2_13f75646f370.slice
@@ -435,21 +420,34 @@ pub async fn scan_cgroup_cronjob(time_delta: u64) -> Result<(), Error> {
             }
         }
 
-        //read the subpaths
+        
         let mut uids = Vec::<String>::new();
+        let mut identites = Vec::<ServiceIdentity>::new();
+
+        //read the subpaths to extract the pod uid
         for subpath in scanned_subpaths_v2 {
             let uid = extract_pod_uid(subpath.clone())
                 .expect("An error occured during the extraction of pod UIDs");
+            let container_id = extract_container_id(subpath.clone())
+                .expect("An error occured during the extraction of the docker container id");
             debug!("Debugging extracted UID: {:?}", &uid);
-            uids.push(uid);
+            // create a linked list for each service
+            let service_identity = ServiceIdentity { uid, container_id };
+            identites.push(service_identity); //push the linked list in a vector of ServiceIdentity structure. Each struct contains the uid and the container id
         }
+
         // get pod information from UID and store the info in an HashMqp for O(1) access
         let service_map = get_pod_info().await?;
 
-        for (uid) in uids {
-            if let Some(name) = service_map.get(&uid) {
-                info!("UID (from eBPF): {} name:(from K8s): {}", &uid, name);
-            }
+        //info!("Debugging Identites vector: {:?}", identites);
+        for service in identites {
+            let name = service_cache(service_map.clone(), service.uid.clone());
+            let uid = service.uid;
+            let id = service.container_id;
+            info!(
+                "[Identity]: name: {:?} uid: {:?} docker container id {:?} ",
+                name, uid, id
+            );
         }
 
         info!(
@@ -458,10 +456,22 @@ pub async fn scan_cgroup_cronjob(time_delta: u64) -> Result<(), Error> {
         );
         time::sleep(interval).await;
     }
-
-    Ok(())
 }
+fn service_cache(service_map: HashMap<String, String>, uid: String) -> String {
+    service_map.get(&uid).cloned().unwrap_or_else(|| {
+        error!("Service not found for uid: {}", uid);
+        "unknown".to_string()
+    })
+}
+fn extract_container_id(cgroup_path: String) -> Result<String, Error> {
+    let splits: Vec<&str> = cgroup_path.split("/").collect();
 
+    let index = extract_target_from_splits(splits.clone(), "docker-")?;
+    let docker_id_split = splits[index]
+        .trim_start_matches("docker-")
+        .trim_end_matches(".scope");
+    Ok(docker_id_split.to_string())
+}
 fn extract_pod_uid(cgroup_path: String) -> Result<String, Error> {
     // example of cgroup path:
     // /sys/fs/cgroup/kubelet.slice/kubelet-kubepods.slice/kubelet-kubepods-besteffort.slice/kubelet-kubepods-besteffort-pod93580201_87d5_44e6_9779_f6153ca17637.slice
@@ -470,12 +480,9 @@ fn extract_pod_uid(cgroup_path: String) -> Result<String, Error> {
 
     // split the path by "/"
     let splits: Vec<&str> = cgroup_path.split("/").collect();
-    let mut uid_vec = Vec::<String>::new();
     debug!("Debugging splits: {:?}", &splits);
 
-    let mut pod_split_vec = Vec::<String>::new();
-
-    let index = extract_target_from_splits(splits.clone())?;
+    let index = extract_target_from_splits(splits.clone(), "-pod")?;
 
     let pod_split = splits[index]
         .trim_start_matches("kubelet-kubepods-besteffort-")
@@ -491,10 +498,10 @@ fn extract_pod_uid(cgroup_path: String) -> Result<String, Error> {
     Ok(uid.to_string())
 }
 
-fn extract_target_from_splits(splits: Vec<&str>) -> Result<usize, Error> {
+fn extract_target_from_splits(splits: Vec<&str>, target: &str) -> Result<usize, Error> {
     for (index, split) in splits.iter().enumerate() {
         // find the split that contains the word 'pod'
-        if split.contains("-pod") {
+        if split.contains(target) {
             debug!("Target index; {}", index);
             return Ok(index);
         }
@@ -527,7 +534,7 @@ async fn get_pod_info() -> Result<HashMap<String, String>, Error> {
         if let (Some(name), Some(uid)) = (pod.metadata.name, pod.metadata.uid) {
             service_map.insert(uid, name);
         }
-    }
+    } // insert the pod name and uid from the KubeAPI
 
     Ok(service_map)
 }
@@ -535,7 +542,7 @@ async fn get_pod_info() -> Result<HashMap<String, String>, Error> {
 mod tests {
     use tracing_subscriber::fmt::format;
 
-    use crate::helpers::{extract_pod_uid, extract_target_from_splits};
+    use crate::helpers::{extract_container_id, extract_pod_uid, extract_target_from_splits};
 
     #[test]
     fn extract_uid_from_string() {
@@ -566,12 +573,29 @@ mod tests {
 
         let mut index_vec = Vec::<usize>::new();
         for cgroup_path in cgroup_paths {
-            let mut splits: Vec<&str> = cgroup_path.split("/").collect();
+            let splits: Vec<&str> = cgroup_path.split("/").collect();
 
-            let target_index = extract_target_from_splits(splits).unwrap();
+            let target_index = extract_target_from_splits(splits, "-pod").unwrap();
             index_vec.push(target_index);
         }
         let index_check = vec![6, 7];
         assert_eq!(index_vec, index_check);
+    }
+
+    #[test]
+    fn extract_docker_id() {
+        let cgroup_paths = vec!["/sys/fs/cgroup/kubepods.slice/kubepods-besteffort.slice/kubepods-besteffort-pod17fd3f7c_37e4_4009_8c38_e58b30691af3.slice/docker-13abd64c0ba349975a762476c9703b642d18077eabeb3aa1d941132048afc861.scope".to_string(),
+                                             "/sys/fs/cgroup/kubelet.slice/kubelet-kubepods.slice/kubelet-kubepods-besteffort.slice/kubelet-kubepods-besteffort-pod17fd3f7c_37e4_4009_8c38_e58b30691af3.slice/docker-13abd64c0ba349975a762476c9703b642d18077eabeb3aa1d941132048afc861.scope".to_string()];
+
+        let mut id_vec = Vec::<String>::new();
+        for cgroup_path in cgroup_paths {
+            let id = extract_container_id(cgroup_path).unwrap();
+            id_vec.push(id);
+        }
+        let id_check = vec![
+            "13abd64c0ba349975a762476c9703b642d18077eabeb3aa1d941132048afc861".to_string(),
+            "13abd64c0ba349975a762476c9703b642d18077eabeb3aa1d941132048afc861".to_string(),
+        ];
+        assert_eq!(id_vec, id_check);
     }
 }
