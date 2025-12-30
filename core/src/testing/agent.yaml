@@ -19,7 +19,7 @@ spec:
       hostNetwork: true
       containers:
         - name: agent
-          image: lorenzotettamanti/cortexflow-agent:0.1.1-beta.1
+          image: lorenzotettamanti/cortexflow-agent:latest
           command: ["/bin/bash", "-c"]
           args:
             - |
