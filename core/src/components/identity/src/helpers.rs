@@ -13,7 +13,7 @@ use k8s_openapi::api::core::v1::Pod;
 use kube::api::ObjectList;
 use kube::{Api, Client};
 use nix::net::if_::if_nameindex;
-use std::collections::{HashMap};
+use std::collections::HashMap;
 use std::fs;
 use std::result::Result::Ok;
 use std::sync::Mutex;
@@ -325,6 +325,7 @@ pub async fn display_tcp_registry_events<T: BorrowMut<MapData>>(
     }
 }
 
+#[cfg(feature = "experimental")]
 pub async fn scan_cgroup_paths(path: String) -> Result<Vec<String>, Error> {
     let mut cgroup_paths: Vec<String> = Vec::new();
     let default_path = "/sys/fs/cgroup/kubepods.slice".to_string();
@@ -360,11 +361,13 @@ pub async fn scan_cgroup_paths(path: String) -> Result<Vec<String>, Error> {
     Ok(cgroup_paths)
 }
 
+#[cfg(feature = "experimental")]
 struct ServiceIdentity {
     uid: String,
     container_id: String,
 }
 
+#[cfg(feature = "experimental")]
 pub async fn scan_cgroup_cronjob(time_delta: u64) -> Result<(), Error> {
     let interval = std::time::Duration::from_secs(time_delta);
     loop {
@@ -420,7 +423,6 @@ pub async fn scan_cgroup_cronjob(time_delta: u64) -> Result<(), Error> {
             }
         }
 
-        
         let mut uids = Vec::<String>::new();
         let mut identites = Vec::<ServiceIdentity>::new();
 
@@ -457,12 +459,14 @@ pub async fn scan_cgroup_cronjob(time_delta: u64) -> Result<(), Error> {
         time::sleep(interval).await;
     }
 }
+#[cfg(feature = "experimental")]
 fn service_cache(service_map: HashMap<String, String>, uid: String) -> String {
     service_map.get(&uid).cloned().unwrap_or_else(|| {
         error!("Service not found for uid: {}", uid);
         "unknown".to_string()
     })
 }
+#[cfg(feature = "experimental")]
 fn extract_container_id(cgroup_path: String) -> Result<String, Error> {
     let splits: Vec<&str> = cgroup_path.split("/").collect();
 
@@ -472,6 +476,9 @@ fn extract_container_id(cgroup_path: String) -> Result<String, Error> {
         .trim_end_matches(".scope");
     Ok(docker_id_split.to_string())
 }
+
+// IDEA: add cgroup docker process mapping in ServiceIdentity structure
+#[cfg(feature = "experimental")]
 fn extract_pod_uid(cgroup_path: String) -> Result<String, Error> {
     // example of cgroup path:
     // /sys/fs/cgroup/kubelet.slice/kubelet-kubepods.slice/kubelet-kubepods-besteffort.slice/kubelet-kubepods-besteffort-pod93580201_87d5_44e6_9779_f6153ca17637.slice
@@ -497,7 +504,7 @@ fn extract_pod_uid(cgroup_path: String) -> Result<String, Error> {
     let uid = uid_.replace("_", "-");
     Ok(uid.to_string())
 }
-
+#[cfg(feature = "experimental")]
 fn extract_target_from_splits(splits: Vec<&str>, target: &str) -> Result<usize, Error> {
     for (index, split) in splits.iter().enumerate() {
         // find the split that contains the word 'pod'
@@ -510,6 +517,7 @@ fn extract_target_from_splits(splits: Vec<&str>, target: &str) -> Result<usize, 
 }
 
 /* unfortunately you cannot query the pods using the uids directly from ListParams */
+#[cfg(feature = "experimental")]
 async fn query_all_pods() -> Result<ObjectList<Pod>, Error> {
     let client = Client::try_default()
         .await
@@ -525,6 +533,7 @@ async fn query_all_pods() -> Result<ObjectList<Pod>, Error> {
 }
 
 // fast pod caching system
+#[cfg(feature = "experimental")]
 async fn get_pod_info() -> Result<HashMap<String, String>, Error> {
     let all_pods = query_all_pods().await?;
 
@@ -539,6 +548,7 @@ async fn get_pod_info() -> Result<HashMap<String, String>, Error> {
     Ok(service_map)
 }
 
+#[cfg(feature = "experimental")]
 mod tests {
     use tracing_subscriber::fmt::format;
 
