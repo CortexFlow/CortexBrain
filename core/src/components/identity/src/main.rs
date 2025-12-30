@@ -1,13 +1,12 @@
 /*
  * CortexBrain Identity Service
- * Open Issues: #105 #107
  * Features:
- *   1. TCP, UDP , ICMP events tracker
- *   2. Track Connections using a PerfEventArray named ConnArray
- *   3. Track veth creation and deletion events
+ *   1. TCP events tracker
+ *   2. veth creation and deletion tracker
+ *   3. TC (traffic control) tracker
+ *   4. [Experimental]: cgroup scanner
  *
  */
-#![allow(unused_mut)]
 #![allow(warnings)]
 
 mod enums;
@@ -27,8 +26,11 @@ use aya::{
 
 use crate::helpers::{
     display_events, display_tcp_registry_events, display_veth_events, get_veth_channels,
-    scan_cgroup_cronjob,
 };
+
+#[cfg(feature = "experimental")]
+use crate::helpers::scan_cgroup_cronjob;
+
 use crate::map_handlers::{init_bpf_maps, map_pinner, populate_blocklist};
 
 use bytes::BytesMut;
@@ -321,12 +323,51 @@ async fn event_listener(
         display_tcp_registry_events(tcp_registry_buffer, tcp_registry_running, tcp_buffers).await;
     });
 
+    #[cfg(feature = "experimental")]
     let scan_cgroup_cronjob = tokio::spawn(async move {
         let _ = scan_cgroup_cronjob(180).await;
     });
 
+    #[cfg(not(feature = "experimental"))]
     tokio::select! {
-        result = scan_cgroup_cronjob=>{
+        /* result = scan_cgroup_cronjob=>{
+            match result{
+                Err(e)=>error!("scan_cgroup_cronjob panicked {:?}",e),
+                std::result::Result::Ok(_) => info!("cgroup scan cronjob exited"),
+                }
+            } */
+        result = veth_events_displayer=>{
+            match result{
+                Err(e)=>error!("veth_event_displayer panicked {:?}",e),
+                std::result::Result::Ok(_) => info!("Found new veth_event"),
+                }
+        }
+
+        result = net_events_displayer=>{
+           match result{
+                Err(e)=>error!("net_event_displayer panicked {:?}",e),
+               std::result::Result::Ok(_)  => info!("Found new net_event"),
+            }
+        }
+
+        result = tcp_registry_events_displayer => {
+            match result{
+                Err(e)=>error!("tcp_registry_events_displayer panicked {:?}",e),
+                std::result::Result::Ok(_)=>info!("Found new tcp_register event")
+            }
+        }
+
+        _= signal::ctrl_c()=>{
+            info!("Triggered Exiting...");
+            veth_running_signal.store(false, Ordering::SeqCst);
+            net_events_running_signal.store(false, Ordering::SeqCst);
+            tcp_registry_running_signal.store(false, Ordering::SeqCst);
+        }
+
+    }
+    #[cfg(feature = "experimental")]
+    tokio::select! {
+         result = scan_cgroup_cronjob=>{
             match result{
                 Err(e)=>error!("scan_cgroup_cronjob panicked {:?}",e),
                 std::result::Result::Ok(_) => info!("cgroup scan cronjob exited"),
