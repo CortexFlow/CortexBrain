@@ -369,7 +369,7 @@ dependencies = [
 
 [[package]]
 name = "cortexflow-cli"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
  "anyhow",
  "clap",
@@ -390,6 +390,8 @@ dependencies = [
 [[package]]
 name = "cortexflow_agent_api"
 version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2bfebbb2894a8d2edec3c4f3631952860c34706b798aa8d77ea2806ddd6fc476"
 dependencies = [
  "anyhow",
  "aya",
