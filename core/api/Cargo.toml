@@ -21,12 +21,12 @@ prost = "0.14.1"
 tokio = { version = "1.47.0", features = ["full"] }
 tonic = "0.14.0"
 tonic-prost = "0.14.0"
-tracing = "0.1.41"
+tracing = "0.1.44"
 aya = "0.13.1"
 cortexbrain-common = { path = "../common" }
 tonic-reflection = "0.14.0"
 tonic-build = "0.14.0"
-tracing-subscriber = "0.3.19"
+tracing-subscriber = "0.3.22"
 tokio-stream = "0.1.17"
 bytemuck = {version ="1.23.0"}
 bytemuck_derive = "1.10.1"
