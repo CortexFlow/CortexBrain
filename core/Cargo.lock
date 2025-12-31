@@ -435,11 +435,10 @@ dependencies = [
 
 [[package]]
 name = "cortexflow_identity"
-version = "0.1.1-beta.1"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "aya",
- "aya-log",
  "bytemuck",
  "bytemuck_derive",
  "bytes",

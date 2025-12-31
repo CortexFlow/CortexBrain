@@ -1,6 +1,6 @@
 [package]
 name = "cortexflow_identity"
-version = "0.1.1-beta.2"
+version = "0.1.1"
 edition = "2024"
 description = "CortexFlow identity service package"
 license = "Apache-2.0"
