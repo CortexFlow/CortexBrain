@@ -10,6 +10,8 @@ repo_url: "https://github.com/CortexFlow/CortexBrain"
 theme:
   language: en
   name: material
+  icon: 
+    repo: fontawesome/brands/github
   font: 
     text: Lato
   logo : ./assets/logo512.png
@@ -19,13 +21,13 @@ theme:
       primary: "#7D88EC"  #light mode
       accent: "#FF5733"  
       toggle:
-        icon: material/weather-night
+        icon: material/brightness-3
         name: Switch to dark mode
     - scheme: slate
-      primary: "#121212"  # Dark mode
-      accent: "#FF5733"
+      primary: "#030712"  # Dark mode
+      accent: "#030712"
       toggle:
-        icon: material/weather-sunny
+        icon: material/brightness-5
         name: Switch to light mode
   
   markdown_extensions:

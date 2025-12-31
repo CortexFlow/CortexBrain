@@ -16,7 +16,7 @@ Since CortexFlow works in both environments, you can choose which one suits you 
 
     Then you can create a cluster with Calico CNI using the command:
     ```bash  
-      minikube start --cni=calico
+    minikube start --cni=calico
     ```
     You can **verify** the Calico installation using this command:
     ```bash  
