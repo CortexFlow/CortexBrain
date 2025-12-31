@@ -1,7 +1,13 @@
 [package]
 name = "cortexbrain-common"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
+description = "CortexFlow common packages"
+license = "Apache-2.0"
+readme = "../../../../README.md"
+documentation = "https://docs.cortexflow.org"
+homepage = "https://docs.cortexflow.org"
+repository = "https://github.com/CortexFlow/CortexBrain"
 
 [dependencies]
 tracing = "0.1"
