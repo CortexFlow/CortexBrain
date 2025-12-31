@@ -423,15 +423,15 @@ dependencies = [
 
 [[package]]
 name = "cortexflow_agent_api"
-version = "0.1.1-beta.2"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "aya",
  "bytemuck",
  "bytemuck_derive",
  "chrono",
- "cortexbrain-common 0.1.0",
- "cortexflow_identity",
+ "cortexbrain-common 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "cortexflow_identity 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "prost",
  "tokio",
  "tokio-stream",
@@ -447,6 +447,27 @@ dependencies = [
 [[package]]
 name = "cortexflow_identity"
 version = "0.1.1"
+dependencies = [
+ "anyhow",
+ "aya",
+ "bytemuck",
+ "bytemuck_derive",
+ "bytes",
+ "cortexbrain-common 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "k8s-openapi",
+ "kube",
+ "libc",
+ "nix",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "cortexflow_identity"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5725a802e4f494b5fab4c69b1455a32dd3804b52a58c665a7d751eeae93ddfca"
 dependencies = [
  "anyhow",
  "aya",
