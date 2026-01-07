@@ -1,4 +1,4 @@
-# CortexBrain © 2025
+# CortexBrain © 2026
 
 **Enabling developers to effectively monitor and analyze distributed applications for rapid and efficient problem solving**
 
