@@ -1,8 +1,8 @@
 use colored::Colorize;
-use std::{ io::stdin, process::Command, time::Duration, thread };
+use std::{io::stdin, process::Command, thread, time::Duration};
 
-use crate::essential::{ BASE_COMMAND, CliError, connect_to_client };
-use kube::{ Error, core::ErrorResponse };
+use crate::essential::{BASE_COMMAND, CliError, connect_to_client};
+use kube::{Error, core::ErrorResponse};
 
 //docs:
 //
@@ -18,11 +18,17 @@ use kube::{ Error, core::ErrorResponse };
 pub async fn uninstall() -> Result<(), CliError> {
     match connect_to_client().await {
         Ok(_) => {
-            println!("{} {}", "=====>".blue().bold(), "Uninstalling cortexflow...");
+            println!(
+                "{} {}",
+                "=====>".blue().bold(),
+                "Uninstalling cortexflow..."
+            );
             let mut userinput: String = String::new();
             println!("{} {}", "=====>".blue().bold(), "Select one option:");
             display_uninstall_options();
-            stdin().read_line(&mut userinput).expect("Error reading user input");
+            stdin()
+                .read_line(&mut userinput)
+                .expect("Error reading user input");
 
             let trimmed_input = userinput.trim();
             if trimmed_input == "1" {
@@ -32,18 +38,12 @@ pub async fn uninstall() -> Result<(), CliError> {
             }
             Ok(())
         }
-        Err(_) => {
-            Err(
-                CliError::ClientError(
-                    Error::Api(ErrorResponse {
-                        status: "failed".to_string(),
-                        message: "Failed to connect to kubernetes client".to_string(),
-                        reason: "Your cluster is probably disconnected".to_string(),
-                        code: 404,
-                    })
-                )
-            )
-        }
+        Err(_) => Err(CliError::ClientError(Error::Api(ErrorResponse {
+            status: "failed".to_string(),
+            message: "Failed to connect to kubernetes client".to_string(),
+            reason: "Your cluster is probably disconnected".to_string(),
+            code: 404,
+        }))),
     }
 }
 
@@ -68,7 +68,11 @@ fn display_uninstall_options() {
 async fn uninstall_all() -> Result<(), CliError> {
     match connect_to_client().await {
         Ok(_) => {
-            println!("{} {}", "=====>".blue().bold(), "Deleting cortexflow components".red());
+            println!(
+                "{} {}",
+                "=====>".blue().bold(),
+                "Deleting cortexflow components".red().bold()
+            );
             let output = Command::new(BASE_COMMAND)
                 .args(["delete", "namespace", "cortexflow"])
                 .output()
@@ -87,18 +91,12 @@ async fn uninstall_all() -> Result<(), CliError> {
                 })
             }
         }
-        Err(_) => {
-            Err(
-                CliError::ClientError(
-                    Error::Api(ErrorResponse {
-                        status: "failed".to_string(),
-                        message: "Failed to connect to kubernetes client".to_string(),
-                        reason: "Your cluster is probably disconnected".to_string(),
-                        code: 404,
-                    })
-                )
-            )
-        }
+        Err(_) => Err(CliError::ClientError(Error::Api(ErrorResponse {
+            status: "failed".to_string(),
+            message: "Failed to connect to kubernetes client".to_string(),
+            reason: "Your cluster is probably disconnected".to_string(),
+            code: 404,
+        }))),
     }
 }
 
@@ -111,13 +109,15 @@ async fn uninstall_all() -> Result<(), CliError> {
 //
 // Returns an InstallerError if something fails
 
-async fn uninstall_component(
-    component_type: &str,
-    component: &str
-) -> Result<(), CliError> {
+async fn uninstall_component(component_type: &str, component: &str) -> Result<(), CliError> {
     match connect_to_client().await {
         Ok(_) => {
-            println!("{} {} {}", "=====>".blue().bold(), "Deleting service", component);
+            println!(
+                "{} {} {}",
+                "=====>".blue().bold(),
+                "Deleting service",
+                component
+            );
 
             let output = Command::new(BASE_COMMAND)
                 .args(["delete", component_type, component, "-n", "cortexflow"])
@@ -137,18 +137,12 @@ async fn uninstall_component(
                 })
             }
         }
-        Err(_) => {
-            Err(
-                CliError::ClientError(
-                    Error::Api(ErrorResponse {
-                        status: "failed".to_string(),
-                        message: "Failed to connect to kubernetes client".to_string(),
-                        reason: "Your cluster is probably disconnected".to_string(),
-                        code: 404,
-                    })
-                )
-            )
-        }
+        Err(_) => Err(CliError::ClientError(Error::Api(ErrorResponse {
+            status: "failed".to_string(),
+            message: "Failed to connect to kubernetes client".to_string(),
+            reason: "Your cluster is probably disconnected".to_string(),
+            code: 404,
+        }))),
     }
 }
 
