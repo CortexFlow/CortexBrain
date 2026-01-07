@@ -1,11 +1,11 @@
-use colored::Colorize;
-use kube::{ core::ErrorResponse };
-use clap::{ Args, Subcommand, command };
-use std::{ process::{ Command }, thread, time::Duration };
-use crate::{
-    essential::{ connect_to_client, create_config_file, create_configs, BASE_COMMAND, CliError },
+use crate::essential::{
+    BASE_COMMAND, CliError, connect_to_client, create_config_file, create_configs,
 };
+use clap::{Args, Subcommand, command};
+use colored::Colorize;
 use kube::Error;
+use kube::core::ErrorResponse;
+use std::{process::Command, thread, time::Duration};
 
 // docs:
 //
@@ -29,7 +29,10 @@ enum InstallationType {
 
 #[derive(Subcommand, Debug, Clone)]
 pub enum InstallCommands {
-    #[command(name = "cortexflow", about = "Install all the CortexBrain core components")]
+    #[command(
+        name = "cortexflow",
+        about = "Install all the CortexBrain core components"
+    )]
     All,
     #[command(
         name = "simple-example",
@@ -51,9 +54,21 @@ pub struct InstallArgs {
 // This function creates the cortexflow namespace, manages the metadata file creation and removes the temporary installation files
 
 pub async fn install_cortexflow() -> Result<(), CliError> {
-    println!("{} {}", "=====>".blue().bold(), "Preparing cortexflow installation".white());
-    println!("{} {}", "=====>".blue().bold(), "Creating the config files".white());
-    println!("{} {}", "=====>".blue().bold(), "Creating cortexflow namespace".white());
+    println!(
+        "{} {}",
+        "=====>".blue().bold(),
+        "Preparing cortexflow installation".white()
+    );
+    println!(
+        "{} {}",
+        "=====>".blue().bold(),
+        "Creating the config files".white()
+    );
+    println!(
+        "{} {}",
+        "=====>".blue().bold(),
+        "Creating cortexflow namespace".white()
+    );
     Command::new("kubectl")
         .args(["create", "namespace", "cortexflow"])
         .output()
@@ -71,7 +86,11 @@ pub async fn install_cortexflow() -> Result<(), CliError> {
 // This function installs the demostration examples
 
 pub async fn install_simple_example() -> Result<(), CliError> {
-    println!("{} {}", "=====>".blue().bold(), "Installing simple example".white());
+    println!(
+        "{} {}",
+        "=====>".blue().bold(),
+        "Installing simple example".white()
+    );
     install_simple_example_component().await?;
     Ok(())
 }
@@ -90,47 +109,47 @@ pub async fn install_simple_example() -> Result<(), CliError> {
 async fn install_cluster_components() -> Result<(), CliError> {
     match connect_to_client().await {
         Ok(_) => {
-            println!("{} {}", "=====>".blue().bold(), "Copying installation files".white());
+            println!(
+                "{} {}",
+                "=====>".blue().bold(),
+                "Copying installation files".white()
+            );
             download_installation_files(
                 InstallationType::Components(
                     vec![
                         "https://raw.githubusercontent.com/CortexFlow/CortexBrain/refs/heads/main/core/src/testing/configmap-role.yaml".to_string(),
                         "https://raw.githubusercontent.com/CortexFlow/CortexBrain/refs/heads/main/core/src/testing/rolebinding.yaml".to_string(),
                         "https://raw.githubusercontent.com/CortexFlow/CortexBrain/refs/heads/main/core/src/testing/cortexflow-rolebinding.yaml".to_string(),
-                        "https://raw.githubusercontent.com/CortexFlow/CortexBrain/refs/heads/feature/ebpf-core/core/src/testing/identity.yaml".to_string(),
-                        "https://raw.githubusercontent.com/CortexFlow/CortexBrain/refs/heads/feature/ebpf-core/core/src/testing/agent.yaml".to_string()
+                        "https://raw.githubusercontent.com/CortexFlow/CortexBrain/refs/heads/main/core/src/testing/identity.yaml".to_string(),
+                        "https://raw.githubusercontent.com/CortexFlow/CortexBrain/refs/heads/main/core/src/testing/agent.yaml".to_string(),
+                        "https://raw.githubusercontent.com/CortexFlow/CortexBrain/refs/heads/main/core/src/testing/metrics.yaml".to_string()
                     ]
                 )
             )?;
             thread::sleep(Duration::from_secs(1));
             install_components("cortexbrain")?;
             println!("\n");
-            rm_installation_files(
-                InstallationType::Components(
-                    vec![
-                        "configmap-role.yaml".to_string(),
-                        "rolebinding.yaml".to_string(),
-                        "cortexflow-rolebinding.yaml".to_string(),
-                        "identity.yaml".to_string(),
-                        "agent.yaml".to_string()
-                    ]
-                )
-            )?;
-            println!("{} {}", "=====>".blue().bold(), "installation completed".white());
+            rm_installation_files(InstallationType::Components(vec![
+                "configmap-role.yaml".to_string(),
+                "rolebinding.yaml".to_string(),
+                "cortexflow-rolebinding.yaml".to_string(),
+                "identity.yaml".to_string(),
+                "metrics.yaml".to_string(),
+                "agent.yaml".to_string(),
+            ]))?;
+            println!(
+                "{} {}",
+                "=====>".blue().bold(),
+                "installation completed".white()
+            );
             Ok(())
         }
-        Err(e) => {
-            Err(
-                CliError::ClientError(
-                    Error::Api(ErrorResponse {
-                        status: "failed".to_string(),
-                        message: "Failed to connect to kubernetes client".to_string(),
-                        reason: "Your cluster is probably disconnected".to_string(),
-                        code: 404,
-                    })
-                )
-            )
-        }
+        Err(e) => Err(CliError::ClientError(Error::Api(ErrorResponse {
+            status: "failed".to_string(),
+            message: "Failed to connect to kubernetes client".to_string(),
+            reason: "Your cluster is probably disconnected".to_string(),
+            code: 404,
+        }))),
     }
 }
 
@@ -148,7 +167,11 @@ async fn install_cluster_components() -> Result<(), CliError> {
 async fn install_simple_example_component() -> Result<(), CliError> {
     match connect_to_client().await {
         Ok(_) => {
-            println!("{} {}", "=====>".blue().bold(), "Copying installation files".white());
+            println!(
+                "{} {}",
+                "=====>".blue().bold(),
+                "Copying installation files".white()
+            );
             download_installation_files(
                 InstallationType::SimpleExample(
                     "https://raw.githubusercontent.com/CortexFlow/CortexBrain/refs/heads/feature/ebpf-core/core/src/testing/deploy-test-pod.yaml".to_string()
@@ -157,24 +180,22 @@ async fn install_simple_example_component() -> Result<(), CliError> {
             thread::sleep(Duration::from_secs(1));
             install_components("simple-example")?;
             println!("\n");
-            rm_installation_files(
-                InstallationType::SimpleExample("deploy-test-pod.yaml".to_string())
-            )?;
-            println!("{} {}", "=====>".blue().bold(), "installation completed".white());
+            rm_installation_files(InstallationType::SimpleExample(
+                "deploy-test-pod.yaml".to_string(),
+            ))?;
+            println!(
+                "{} {}",
+                "=====>".blue().bold(),
+                "installation completed".white()
+            );
             Ok(())
         }
-        Err(e) => {
-            Err(
-                CliError::ClientError(
-                    Error::Api(ErrorResponse {
-                        status: "failed".to_string(),
-                        message: "Failed to connect to kubernetes client".to_string(),
-                        reason: "Your cluster is probably disconnected".to_string(),
-                        code: 404,
-                    })
-                )
-            )
-        }
+        Err(e) => Err(CliError::ClientError(Error::Api(ErrorResponse {
+            status: "failed".to_string(),
+            message: "Failed to connect to kubernetes client".to_string(),
+            reason: "Your cluster is probably disconnected".to_string(),
+            code: 404,
+        }))),
     }
 }
 
@@ -193,24 +214,29 @@ fn install_components(components_type: &str) -> Result<(), CliError> {
             "rolebinding.yaml",
             "cortexflow-rolebinding.yaml",
             "identity.yaml",
-            "agent.yaml"
+            "metrics.yaml",
+            "agent.yaml",
         ];
         let tot_files = files_to_install.len();
 
-        println!("{} {}", "=====>".blue().bold(), "Installing cortexflow components".white());
+        println!(
+            "{} {}",
+            "=====>".blue().bold(),
+            "Installing cortexflow components".white()
+        );
         let mut i = 1;
 
         for component in files_to_install {
             println!(
-                "{} {}{}{}{} {} {} {}",
+                "{} {}{}{}{}{} {} {}",
                 "=====>".blue().bold(),
                 "(",
                 i,
                 "/",
                 tot_files,
                 ")",
-                "Applying ",
-                component
+                "Applying",
+                component.to_string().green().bold()
             );
             apply_component(component);
             i = i + 1;
@@ -222,15 +248,15 @@ fn install_components(components_type: &str) -> Result<(), CliError> {
 
         for component in files_to_install {
             println!(
-                "{} {}{}{}{} {} {} {}",
+                "{} {}{}{}{}{} {} {}",
                 "=====>".blue().bold(),
                 "(",
                 i,
                 "/",
                 tot_files,
                 ")",
-                "Applying ",
-                component
+                "Applying",
+                component.to_string().green().bold()
             );
             apply_component(component);
             i = i + 1;
@@ -261,7 +287,11 @@ fn apply_component(file: &str) -> Result<(), CliError> {
         })?;
 
     if !output.status.success() {
-        eprintln!("Error installing file: {}:\n{}", file, String::from_utf8_lossy(&output.stderr));
+        eprintln!(
+            "Error installing file: {}:\n{}",
+            file,
+            String::from_utf8_lossy(&output.stderr)
+        );
     } else {
         println!("✅ Applied {}", file);
     }
@@ -303,7 +333,11 @@ fn download_installation_files(installation_files: InstallationType) -> Result<(
 // Returns an CliError if something fails
 
 fn rm_installation_files(file_to_remove: InstallationType) -> Result<(), CliError> {
-    println!("{} {}", "=====>".blue().bold(), "Removing temporary installation files".white());
+    println!(
+        "{} {}",
+        "=====>".blue().bold(),
+        "Removing temporary installation files".white()
+    );
     match file_to_remove {
         InstallationType::Components(files) => {
             for src in files.iter() {
@@ -328,15 +362,20 @@ fn rm_installation_files(file_to_remove: InstallationType) -> Result<(), CliErro
 // Returns a CliError if something fails
 
 fn download_file(src: &str) -> Result<(), CliError> {
-    let output = Command::new("wget")
-        .args([src])
-        .output()
-        .map_err(|_| CliError::InstallerError {
-            reason: "An error occured: component download failed".to_string(),
-        })?;
+    let output =
+        Command::new("wget")
+            .args([src])
+            .output()
+            .map_err(|_| CliError::InstallerError {
+                reason: "An error occured: component download failed".to_string(),
+            })?;
 
     if !output.status.success() {
-        eprintln!("Error copying file: {}.\n{}", src, String::from_utf8_lossy(&output.stderr));
+        eprintln!(
+            "Error copying file: {}.\n{}",
+            src,
+            String::from_utf8_lossy(&output.stderr)
+        );
     } else {
         println!("✅ Copied file from {} ", src);
     }
