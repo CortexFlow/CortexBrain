@@ -1,12 +1,18 @@
-use std::{ collections::BTreeMap, fmt, process::Command, result::Result::Ok };
+use std::borrow::Cow;
+use std::process::Output;
+use std::thread;
+use std::time::Duration;
+use std::{collections::BTreeMap, fmt, process::Command, result::Result::Ok};
 
+use anyhow::Error;
+use colored::Colorize;
+use k8s_openapi::apimachinery::pkg::version;
 use kube::core::ErrorResponse;
 use serde::Serialize;
-use colored::Colorize;
 
 use k8s_openapi::api::core::v1::ConfigMap;
 use k8s_openapi::serde_json::json;
-use kube::api::{ Api, ObjectMeta, Patch, PatchParams, PostParams };
+use kube::api::{Api, ObjectMeta, Patch, PatchParams, PostParams};
 use kube::client::Client;
 
 pub static BASE_COMMAND: &str = "kubectl"; // docs: Kubernetes base command
@@ -41,17 +47,11 @@ pub static BASE_COMMAND: &str = "kubectl"; // docs: Kubernetes base command
 
 #[derive(Debug)]
 pub enum CliError {
-    InstallerError {
-        reason: String,
-    },
+    InstallerError { reason: String },
     ClientError(kube::Error),
-    UninstallError {
-        reason: String,
-    },
+    UninstallError { reason: String },
     AgentError(tonic_reflection::server::Error),
-    MonitoringError {
-        reason: String,
-    },
+    MonitoringError { reason: String },
 }
 // docs:
 // error type conversions
@@ -63,12 +63,14 @@ impl From<kube::Error> for CliError {
 }
 impl From<anyhow::Error> for CliError {
     fn from(e: anyhow::Error) -> Self {
-        CliError::MonitoringError { reason: format!("{}", e) }
+        CliError::MonitoringError {
+            reason: format!("{}", e),
+        }
     }
 }
 impl From<()> for CliError {
-    fn from (v: ()) -> Self{
-        return ().into()
+    fn from(v: ()) -> Self {
+        return ().into();
     }
 }
 
@@ -142,16 +144,112 @@ pub async fn connect_to_client() -> Result<Client, kube::Error> {
 // Returns an error if the command fails
 
 pub fn update_cli() {
+    let latest_version = get_latest_cfcli_version().expect("Can't get the latest version");
     println!("{} {}", "=====>".blue().bold(), "Updating CortexFlow CLI");
-    println!("{} {}", "=====>".blue().bold(), "Looking for a newer version");
+    println!(
+        "{} {}",
+        "=====>".blue().bold(),
+        "Looking for a newer version \n "
+    );
 
-    let output = Command::new("cargo").args(["update", "cortexflow-cli"]).output().expect("error");
+    let output = Command::new("cfcli")
+        .args(["--version"])
+        .output()
+        .expect("error");
 
     if !output.status.success() {
-        eprintln!("Error updating CLI : {}", String::from_utf8_lossy(&output.stderr));
+        eprintln!(
+            "Error extracting the version : {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
     } else {
-        println!("✅ Updated CLI");
+        // extract the cli version:
+        let version = String::from_utf8_lossy(&output.stdout)
+            .split_whitespace()
+            .last()
+            .expect("An error occured during the version extraction")
+            .to_string();
+
+        if version == latest_version {
+            println!(
+                "{} {} {} {} {} {}{}",
+                "=====>".blue().bold(),
+                "Your version".green().bold(),
+                (&version.to_string()).green().bold(),
+                "is already up to date".green().bold(),
+                "(latest:".green().bold(),
+                (&latest_version).green().bold(),
+                ")\n".green().bold()
+            );
+        } else {
+            println!(
+                "{} {} {} {} {} {}{}",
+                "=====>".blue().bold(),
+                "Your version".red().bold(),
+                (&version.to_string()).red().bold(),
+                "needs to be updated".red().bold(),
+                "(latest:".red().bold(),
+                (&latest_version).red().bold(),
+                ")\n".red().bold()
+            );
+            thread::sleep(Duration::from_secs(1));
+            println!("{} {}", "=====>".blue().bold(), "Updating the CLI...");
+            let update_command = Command::new("cargo")
+                .args(["install", "cortexflow-cli", "--force"])
+                .output()
+                .expect("error");
+            if !update_command.status.success() {
+                eprintln!(
+                    "Error updating the CLI: {} ",
+                    String::from_utf8_lossy(&update_command.stderr)
+                );
+            } else {
+                println!(
+                    "{} {}",
+                    "=====>".blue().bold(),
+                    "CLI updated".green().bold()
+                )
+            }
+        }
     }
+}
+
+// docs:
+//
+// This function returns the latest version of the CLI from the crates.io registry
+pub fn get_latest_cfcli_version() -> Result<String, Error> {
+    let output = Command::new("cargo")
+        .args(["search", "cortexflow-cli", "--limit", "1"])
+        .output()
+        .expect("Error");
+
+    if !output.status.success() {
+        return Err(Error::msg(format!(
+            "An error occured during the latest version extraction"
+        )));
+    } else {
+        let command_stdout = String::from_utf8_lossy(&output.stdout);
+
+        // here the data output have this structure:
+        // cortexflow-cli = "0.1.4"    # CortexFlow command line interface made to interact with the CortexBrain core components
+        // ... and 3 crates more (use --limit N to see more)
+
+        // i need to extract only the version tag
+        let version = extract_version_from_output(command_stdout);
+
+        Ok(version)
+    }
+}
+
+// docs:
+// this is an helper function used in a unit test
+//
+// Takes a Clone-On-Write (Cow) smart pointer (the same type returned by the String::from_utf8_lossy(&output.stdout) code )
+// and returns a String that contains the cfcli version
+
+fn extract_version_from_output(command_stdout: Cow<'_, str>) -> String {
+    let version = command_stdout.split('"').nth(1).unwrap().to_string();
+    version
 }
 
 // docs:
@@ -159,9 +257,24 @@ pub fn update_cli() {
 // This is a function to display the CLI Version,Author and Description using a fancy output style
 
 pub fn info() {
-    println!("{} {} {}", "=====>".blue().bold(), "Version:", env!("CARGO_PKG_VERSION"));
-    println!("{} {} {}", "=====>".blue().bold(), "Author:", env!("CARGO_PKG_AUTHORS"));
-    println!("{} {} {}", "=====>".blue().bold(), "Description:", env!("CARGO_PKG_DESCRIPTION"));
+    println!(
+        "{} {} {}",
+        "=====>".blue().bold(),
+        "Version:",
+        env!("CARGO_PKG_VERSION")
+    );
+    println!(
+        "{} {} {}",
+        "=====>".blue().bold(),
+        "Author:",
+        env!("CARGO_PKG_AUTHORS")
+    );
+    println!(
+        "{} {} {}",
+        "=====>".blue().bold(),
+        "Description:",
+        env!("CARGO_PKG_DESCRIPTION")
+    );
 }
 
 // docs:
@@ -210,18 +323,12 @@ pub async fn read_configs() -> Result<Vec<String>, CliError> {
 
             Ok(Vec::new()) //in case the key fails
         }
-        Err(_) => {
-            Err(
-                CliError::ClientError(
-                    kube::Error::Api(ErrorResponse {
-                        status: "failed".to_string(),
-                        message: "Failed to connect to kubernetes client".to_string(),
-                        reason: "Your cluster is probably disconnected".to_string(),
-                        code: 404,
-                    })
-                )
-            )
-        }
+        Err(_) => Err(CliError::ClientError(kube::Error::Api(ErrorResponse {
+            status: "failed".to_string(),
+            message: "Failed to connect to kubernetes client".to_string(),
+            reason: "Your cluster is probably disconnected".to_string(),
+            code: 404,
+        }))),
     }
 }
 
@@ -271,18 +378,12 @@ pub async fn create_config_file(config_struct: MetadataConfigFile) -> Result<(),
             }
             Ok(())
         }
-        Err(_) => {
-            Err(
-                CliError::ClientError(
-                    kube::Error::Api(ErrorResponse {
-                        status: "failed".to_string(),
-                        message: "Failed to connect to kubernetes client".to_string(),
-                        reason: "Your cluster is probably disconnected".to_string(),
-                        code: 404,
-                    })
-                )
-            )
-        }
+        Err(_) => Err(CliError::ClientError(kube::Error::Api(ErrorResponse {
+            status: "failed".to_string(),
+            message: "Failed to connect to kubernetes client".to_string(),
+            reason: "Your cluster is probably disconnected".to_string(),
+            code: 404,
+        }))),
     }
 }
 
@@ -350,21 +451,20 @@ pub async fn update_configmap(config_struct: MetadataConfigFile) -> Result<(), C
             let name = "cortexbrain-client-config";
             let api: Api<ConfigMap> = Api::namespaced(client, namespace);
 
-            let blocklist_yaml = config_struct.blocklist
+            let blocklist_yaml = config_struct
+                .blocklist
                 .iter()
                 .map(|x| format!("{}", x))
                 .collect::<Vec<String>>()
                 .join("\n");
 
-            let patch = Patch::Apply(
-                json!({
-                    "apiVersion": "v1",
-                    "kind": "ConfigMap",
-                    "data": {
-                        "blocklist": blocklist_yaml
-                    }
-                })
-            );
+            let patch = Patch::Apply(json!({
+                "apiVersion": "v1",
+                "kind": "ConfigMap",
+                "data": {
+                    "blocklist": blocklist_yaml
+                }
+            }));
 
             let patch_params = PatchParams::apply("cortexbrain").force();
             match api.patch(name, &patch_params, &patch).await {
@@ -379,17 +479,28 @@ pub async fn update_configmap(config_struct: MetadataConfigFile) -> Result<(), C
 
             Ok(())
         }
-        Err(_) => {
-            Err(
-                CliError::ClientError(
-                    kube::Error::Api(ErrorResponse {
-                        status: "failed".to_string(),
-                        message: "Failed to connect to kubernetes client".to_string(),
-                        reason: "Your cluster is probably disconnected".to_string(),
-                        code: 404,
-                    })
-                )
-            )
-        }
+        Err(_) => Err(CliError::ClientError(kube::Error::Api(ErrorResponse {
+            status: "failed".to_string(),
+            message: "Failed to connect to kubernetes client".to_string(),
+            reason: "Your cluster is probably disconnected".to_string(),
+            code: 404,
+        }))),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::essential::extract_version_from_output;
+
+    #[test]
+    fn test_version_extraction() {
+        let command_stdout = String::from(
+            r#"cortexflow-cli = "0.1.4-test_123"    
+            # CortexFlow command line interface made to interact with the CortexBrain core components...
+             and 3 crates more (use --limit N to see more)"#,
+        );
+
+        let extracted_command = extract_version_from_output(command_stdout.into());
+        assert_eq!(extracted_command, "0.1.4-test_123");
     }
 }

@@ -1,12 +1,12 @@
 // module imports
-use tonic::transport::{Error, Server};
 use cortexbrain_common::logger;
+use tonic::transport::{Error, Server};
 
 mod agent;
 mod api;
-mod structs;
 mod constants;
 mod helpers;
+mod structs;
 
 mod agent_proto {
     use tonic::include_file_descriptor_set;
@@ -26,7 +26,7 @@ async fn main() -> Result<(), Error> {
     logger::init_default_logger();
 
     info!("Starting agent server...");
-    info!("fetching data");
+    info!("Fetching data");
 
     //FIXME: binding on 0.0.0.0 address is not ideal for a production environment. This will need future fixes
     let address = "0.0.0.0:9090".parse().unwrap();
@@ -37,7 +37,7 @@ async fn main() -> Result<(), Error> {
         .build_v1()
     {
         Ok(reflection_server) => {
-            info!("reflection server started correctly");
+            info!("Reflection server started correctly");
             match Server::builder()
                 .add_service(AgentServer::new(api))
                 .add_service(reflection_server)
@@ -46,7 +46,7 @@ async fn main() -> Result<(), Error> {
             {
                 Ok(_) => info!("Server started with no errors"),
                 Err(e) => error!(
-                    "An error occured during the Server::builder processe. Error {}",
+                    "An error occured during the Server::builder process. Error {}",
                     e
                 ),
             }
