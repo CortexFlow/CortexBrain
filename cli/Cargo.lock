@@ -369,7 +369,7 @@ dependencies = [
 
 [[package]]
 name = "cortexflow-cli"
-version = "0.1.4"
+version = "0.1.4-bf1"
 dependencies = [
  "anyhow",
  "clap",
