@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::process::Output;
 use std::thread;
 use std::time::Duration;
@@ -234,10 +235,21 @@ pub fn get_latest_cfcli_version() -> Result<String, Error> {
         // ... and 3 crates more (use --limit N to see more)
 
         // i need to extract only the version tag
-        let version = command_stdout.split('"').nth(1).unwrap().to_string();
+        let version = extract_version_from_output(command_stdout);
 
         Ok(version)
     }
+}
+
+// docs:
+// this is an helper function used in a unit test
+//
+// Takes a Clone-On-Write (Cow) smart pointer (the same type returned by the String::from_utf8_lossy(&output.stdout) code )
+// and returns a String that contains the cfcli version
+
+fn extract_version_from_output(command_stdout: Cow<'_, str>) -> String {
+    let version = command_stdout.split('"').nth(1).unwrap().to_string();
+    version
 }
 
 // docs:
@@ -473,5 +485,22 @@ pub async fn update_configmap(config_struct: MetadataConfigFile) -> Result<(), C
             reason: "Your cluster is probably disconnected".to_string(),
             code: 404,
         }))),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::essential::extract_version_from_output;
+
+    #[test]
+    fn test_version_extraction() {
+        let command_stdout = String::from(
+            r#"cortexflow-cli = "0.1.4-test_123"    
+            # CortexFlow command line interface made to interact with the CortexBrain core components...
+             and 3 crates more (use --limit N to see more)"#,
+        );
+
+        let extracted_command = extract_version_from_output(command_stdout.into());
+        assert_eq!(extracted_command, "0.1.4-test_123");
     }
 }
