@@ -53,7 +53,7 @@ spec:
                   - SYS_PTRACE 
       containers:
         - name: identity
-          image: lorenzotettamanti/cortexflow-identity:latest
+          image: ghcr.io/cortexflow/identity:latest
           command: ["/bin/bash", "-c"]
           args:
             - |
