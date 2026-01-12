@@ -15,10 +15,6 @@ use std::fmt;
 //      - used for Kubernetes client errors. Can be used for:
 //          - Return client connection errors
 //
-// UninstallError:
-//      - used for general installation errors occured during the uninstall for cortexflow components. Can be used for:
-//          -  Return components removal errors
-//
 // AgentError:
 //      - used for cortexflow agent errors. Can be used for:
 //          - return errors from the reflection server
@@ -33,12 +29,15 @@ use std::fmt;
 pub enum CliError {
     InstallerError { reason: String },
     ClientError(kube::Error),
-    UninstallError { reason: String },
     AgentError(tonic_reflection::server::Error),
     MonitoringError { reason: String },
 }
 // docs:
-// error type conversions
+//
+// The following functions implements the trait From conversions
+//
+// The From Trait is used to perform a value-to-value conversion while consuming input values.
+// We use that to return a single error type 'CliError' that incapsulates multiple error types
 
 impl From<kube::Error> for CliError {
     fn from(e: kube::Error) -> Self {
@@ -48,29 +47,28 @@ impl From<kube::Error> for CliError {
 impl From<anyhow::Error> for CliError {
     fn from(e: anyhow::Error) -> Self {
         CliError::MonitoringError {
-            reason: format!("{}", e),
+            reason: e.to_string(),
         }
-    }
-}
-impl From<()> for CliError {
-    fn from(e: ()) -> Self {
-        return ().into();
     }
 }
 impl From<prost::DecodeError> for CliError {
     fn from(e: prost::DecodeError) -> Self {
-        todo!()
+        return CliError::AgentError(tonic_reflection::server::Error::DecodeError(e));
     }
 }
 impl From<tonic::Status> for CliError {
     fn from(e: tonic::Status) -> Self {
-        todo!()
+        return CliError::MonitoringError {
+            reason: e.to_string(),
+        };
     }
 }
 
 // docs:
-// fmt::Display implementation for CliError type. Creates a user friendly message error message.
-// TODO: implement colored messages using the colorize crate for better output display
+//
+// The Trait fmt::Display is used to create a user friendly error message for the CliError type.
+// This Trait automatically implements the ToString trait for the type allowing
+// the usage of .to_string() method
 
 impl fmt::Display for CliError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -83,31 +81,36 @@ impl fmt::Display for CliError {
                     "An error occured while installing cortexflow components. Reason:"
                         .bold()
                         .red(),
-                    reason
-                )
-            }
-            CliError::UninstallError { reason } => {
-                write!(
-                    f,
-                    "An error occured while installing cortexflow components. Reason: {}",
-                    reason
+                    reason.red().bold()
                 )
             }
             CliError::MonitoringError { reason } => {
                 write!(
                     f,
-                    "An error occured while installing cortexflow components. Reason: {}",
-                    reason
+                    "{} {} {}",
+                    "=====>".blue().bold(),
+                    "An error occured while installing cortexflow components. Reason:"
+                        .bold()
+                        .red(),
+                    reason.red().bold()
                 )
             }
-            CliError::ClientError(e) => write!(f, "Client Error: {}", e),
+            CliError::ClientError(e) => {
+                write!(
+                    f,
+                    "{} {} {}",
+                    "=====>".blue().bold(),
+                    "Client Error:".bold().red(),
+                    e.to_string().red().bold()
+                )
+            }
             CliError::AgentError(e) => {
                 write!(
                     f,
                     "{} {} {}",
                     "=====>".bold().blue(),
                     "Agent Error:".bold().red(),
-                    e
+                    e.to_string().bold().red()
                 )
             }
         }
