@@ -3,7 +3,8 @@ use colored::Colorize;
 use kube::{Error, core::ErrorResponse};
 use std::{process::Command, str};
 
-use crate::essential::{BASE_COMMAND, CliError, connect_to_client};
+use crate::errors::CliError;
+use crate::essential::{BASE_COMMAND, connect_to_client};
 use crate::logs::{check_namespace_exists, get_available_namespaces};
 
 //service subcommands

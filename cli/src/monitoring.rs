@@ -10,7 +10,7 @@ use tonic_reflection::pb::v1::server_reflection_response::MessageResponse;
 use agent_api::client::{connect_to_client, connect_to_server_reflection};
 use agent_api::requests::{get_all_features, send_active_connection_request};
 
-use crate::essential::CliError;
+use crate::errors::CliError;
 use clap::{Args, Subcommand};
 
 //monitoring subcommands

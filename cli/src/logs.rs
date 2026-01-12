@@ -1,8 +1,9 @@
-use std::{ str, process::Command, result::Result::Ok };
-use colored::Colorize;
+use crate::errors::CliError;
+use crate::essential::{BASE_COMMAND, connect_to_client};
 use clap::Args;
-use kube::{ Error, core::ErrorResponse };
-use crate::essential::{ connect_to_client, BASE_COMMAND, CliError };
+use colored::Colorize;
+use kube::{Error, core::ErrorResponse};
+use std::{process::Command, result::Result::Ok, str};
 
 #[derive(Args, Debug, Clone)]
 pub struct LogsArgs {
@@ -53,7 +54,7 @@ impl Component {
 pub async fn logs_command(
     service: Option<String>,
     component: Option<String>,
-    namespace: Option<String>
+    namespace: Option<String>,
 ) -> Result<(), CliError> {
     match connect_to_client().await {
         Ok(_) => {
@@ -92,12 +93,18 @@ pub async fn logs_command(
                         .collect()
                 }
                 (Some(service_name), None) => {
-                    println!("Getting logs for service '{}' in namespace '{}'", service_name, ns);
+                    println!(
+                        "Getting logs for service '{}' in namespace '{}'",
+                        service_name, ns
+                    );
                     get_pods_for_service(&ns, &service_name).await?
                 }
                 (None, Some(component_str)) => {
                     let comp = Component::from(component_str);
-                    println!("Getting logs for component '{:?}' in namespace '{}'", comp, ns);
+                    println!(
+                        "Getting logs for component '{:?}' in namespace '{}'",
+                        comp, ns
+                    );
                     get_pods_for_component(&ns, &comp).await?
                 }
                 (None, None) => {
@@ -117,8 +124,9 @@ pub async fn logs_command(
 
             for pod in pods {
                 println!("{} Logs for pod: {:?}", "=====>".blue().bold(), pod);
-                match
-                    Command::new(BASE_COMMAND).args(["logs", &pod, "-n", &ns, "--tail=50"]).output()
+                match Command::new(BASE_COMMAND)
+                    .args(["logs", &pod, "-n", &ns, "--tail=50"])
+                    .output()
                 {
                     Ok(output) => {
                         if output.status.success() {
@@ -136,9 +144,7 @@ pub async fn logs_command(
                     Err(err) => {
                         eprintln!(
                             "Failed to execute {} logs for pod '{:?}': {}",
-                            BASE_COMMAND,
-                            pod,
-                            err
+                            BASE_COMMAND, pod, err
                         );
                     }
                 }
@@ -147,16 +153,12 @@ pub async fn logs_command(
             Ok(())
         }
         Err(e) => {
-            return Err(
-                CliError::ClientError(
-                    Error::Api(ErrorResponse {
-                        status: "failed".to_string(),
-                        message: "Failed to connect to kubernetes client".to_string(),
-                        reason: e.to_string(),
-                        code: 404,
-                    })
-                )
-            )
+            return Err(CliError::ClientError(Error::Api(ErrorResponse {
+                status: "failed".to_string(),
+                message: "Failed to connect to kubernetes client".to_string(),
+                reason: e.to_string(),
+                code: 404,
+            })));
         }
     }
 }
@@ -174,7 +176,9 @@ pub async fn logs_command(
 pub async fn check_namespace_exists(namespace: &str) -> Result<bool, CliError> {
     match connect_to_client().await {
         Ok(_) => {
-            let output = Command::new(BASE_COMMAND).args(["get", "namespace", namespace]).output();
+            let output = Command::new(BASE_COMMAND)
+                .args(["get", "namespace", namespace])
+                .output();
 
             match output {
                 Ok(output) => Ok(output.status.success()),
@@ -182,16 +186,12 @@ pub async fn check_namespace_exists(namespace: &str) -> Result<bool, CliError> {
             }
         }
         Err(e) => {
-            return Err(
-                CliError::ClientError(
-                    Error::Api(ErrorResponse {
-                        status: "failed".to_string(),
-                        message: "Failed to connect to kubernetes client".to_string(),
-                        reason: e.to_string(),
-                        code: 404,
-                    })
-                )
-            )
+            return Err(CliError::ClientError(Error::Api(ErrorResponse {
+                status: "failed".to_string(),
+                message: "Failed to connect to kubernetes client".to_string(),
+                reason: e.to_string(),
+                code: 404,
+            })));
         }
     }
 }
@@ -233,16 +233,12 @@ pub async fn get_available_namespaces() -> Result<Vec<String>, CliError> {
             }
         }
         Err(e) => {
-            return Err(
-                CliError::ClientError(
-                    Error::Api(ErrorResponse {
-                        status: "failed".to_string(),
-                        message: "Failed to connect to kubernetes client".to_string(),
-                        reason: e.to_string(),
-                        code: 404,
-                    })
-                )
-            )
+            return Err(CliError::ClientError(Error::Api(ErrorResponse {
+                status: "failed".to_string(),
+                message: "Failed to connect to kubernetes client".to_string(),
+                reason: e.to_string(),
+                code: 404,
+            })));
         }
     }
 }
@@ -259,7 +255,7 @@ pub async fn get_available_namespaces() -> Result<Vec<String>, CliError> {
 
 async fn get_pods_for_service(
     namespace: &str,
-    service_name: &str
+    service_name: &str,
 ) -> Result<Vec<String>, CliError> {
     match connect_to_client().await {
         Ok(_) => {
@@ -291,16 +287,12 @@ async fn get_pods_for_service(
             }
         }
         Err(e) => {
-            return Err(
-                CliError::ClientError(
-                    Error::Api(ErrorResponse {
-                        status: "failed".to_string(),
-                        message: "Failed to connect to kubernetes client".to_string(),
-                        reason: e.to_string(),
-                        code: 404,
-                    })
-                )
-            )
+            return Err(CliError::ClientError(Error::Api(ErrorResponse {
+                status: "failed".to_string(),
+                message: "Failed to connect to kubernetes client".to_string(),
+                reason: e.to_string(),
+                code: 404,
+            })));
         }
     }
 }
@@ -318,7 +310,7 @@ async fn get_pods_for_service(
 
 async fn get_pods_for_component(
     namespace: &str,
-    component: &Component
+    component: &Component,
 ) -> Result<Vec<String>, CliError> {
     match connect_to_client().await {
         Ok(_) => {
@@ -350,16 +342,12 @@ async fn get_pods_for_component(
             }
         }
         Err(e) => {
-            return Err(
-                CliError::ClientError(
-                    Error::Api(ErrorResponse {
-                        status: "failed".to_string(),
-                        message: "Failed to connect to kubernetes client".to_string(),
-                        reason: e.to_string(),
-                        code: 404,
-                    })
-                )
-            )
+            return Err(CliError::ClientError(Error::Api(ErrorResponse {
+                status: "failed".to_string(),
+                message: "Failed to connect to kubernetes client".to_string(),
+                reason: e.to_string(),
+                code: 404,
+            })));
         }
     }
 }
@@ -403,16 +391,12 @@ async fn get_all_pods(namespace: &str) -> Result<Vec<String>, CliError> {
             }
         }
         Err(e) => {
-            return Err(
-                CliError::ClientError(
-                    Error::Api(ErrorResponse {
-                        status: "failed".to_string(),
-                        message: "Failed to connect to kubernetes client".to_string(),
-                        reason: e.to_string(),
-                        code: 404,
-                    })
-                )
-            )
+            return Err(CliError::ClientError(Error::Api(ErrorResponse {
+                status: "failed".to_string(),
+                message: "Failed to connect to kubernetes client".to_string(),
+                reason: e.to_string(),
+                code: 404,
+            })));
         }
     }
 }
