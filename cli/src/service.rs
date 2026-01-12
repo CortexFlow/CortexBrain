@@ -1,19 +1,21 @@
-use std::{ str, process::Command };
+use clap::{Args, Subcommand};
 use colored::Colorize;
-use clap::{ Args, Subcommand };
-use kube::{ core::ErrorResponse, Error };
+use kube::{Error, core::ErrorResponse};
+use std::{process::Command, str};
 
-use crate::essential::{ BASE_COMMAND, connect_to_client, CliError };
-use crate::logs::{ get_available_namespaces, check_namespace_exists };
+use crate::essential::{BASE_COMMAND, CliError, connect_to_client};
+use crate::logs::{check_namespace_exists, get_available_namespaces};
 
 //service subcommands
 #[derive(Subcommand, Debug, Clone)]
 pub enum ServiceCommands {
-    #[command(name = "list", about = "Check services list")] List {
+    #[command(name = "list", about = "Check services list")]
+    List {
         #[arg(long)]
         namespace: Option<String>,
     },
-    #[command(name = "describe", about = "Describe service")] Describe {
+    #[command(name = "describe", about = "Describe service")]
+    Describe {
         service_name: String,
         #[arg(long)]
         namespace: Option<String>,
@@ -44,7 +46,12 @@ pub async fn list_services(namespace: Option<String>) -> Result<(), CliError> {
         Ok(_) => {
             let ns = namespace.unwrap_or_else(|| "cortexflow".to_string());
 
-            println!("{} {} {}", "=====>".blue().bold(), "Listing services in namespace:", ns);
+            println!(
+                "{} {} {}",
+                "=====>".blue().bold(),
+                "Listing services in namespace:",
+                ns
+            );
 
             // Check if namespace exists first
             if !check_namespace_exists(&ns).await? {
@@ -87,7 +94,10 @@ pub async fn list_services(namespace: Option<String>) -> Result<(), CliError> {
                     }
 
                     // header for Table
-                    println!("{:<40} {:<20} {:<10} {:<10}", "NAME", "STATUS", "RESTARTS", "AGE");
+                    println!(
+                        "{:<40} {:<20} {:<10} {:<10}",
+                        "NAME", "STATUS", "RESTARTS", "AGE"
+                    );
                     println!("{}", "-".repeat(80));
 
                     // Display Each Pod.
@@ -108,40 +118,33 @@ pub async fn list_services(namespace: Option<String>) -> Result<(), CliError> {
 
                             println!(
                                 "{:<40} {:<20} {:<10} {:<10}",
-                                name,
-                                full_status,
-                                restarts,
-                                age
+                                name, full_status, restarts, age
                             );
                         }
                     }
                     Ok(())
                 }
                 Err(err) => {
-                    Err(
-                        CliError::ClientError(
-                            Error::Api(ErrorResponse {
-                                status: "failed".to_string(),
-                                message: "Failed to execute the kubectl command".to_string(),
-                                reason: "Your cluster is probably disconnected".to_string(),
-                                code: 404,
-                            })
-                        )
-                    )
+                    return {
+                        Err(CliError::ClientError(Error::Api(ErrorResponse {
+                            status: "failed".to_string(),
+                            message: "Failed to execute the kubectl command".to_string(),
+                            reason: err.to_string(),
+                            code: 404,
+                        })))
+                    };
                 }
             }
         }
-        Err(_) => {
-            Err(
-                CliError::ClientError(
-                    Error::Api(ErrorResponse {
-                        status: "failed".to_string(),
-                        message: "Failed to connect to kubernetes client".to_string(),
-                        reason: "Your cluster is probably disconnected".to_string(),
-                        code: 404,
-                    })
-                )
-            )
+        Err(e) => {
+            return {
+                Err(CliError::ClientError(Error::Api(ErrorResponse {
+                    status: "failed".to_string(),
+                    message: "Failed to connect to kubernetes client".to_string(),
+                    reason: e.to_string(),
+                    code: 404,
+                })))
+            };
         }
     }
 }
@@ -161,7 +164,7 @@ pub async fn list_services(namespace: Option<String>) -> Result<(), CliError> {
 
 pub async fn describe_service(
     service_name: String,
-    namespace: &Option<String>
+    namespace: &Option<String>,
 ) -> Result<(), CliError> {
     match connect_to_client().await {
         Ok(_) => {
@@ -169,7 +172,9 @@ pub async fn describe_service(
                 Ok(_) => {
                     //let file_path = get_config_directory().unwrap().1;
 
-                    let ns = namespace.clone().unwrap_or_else(|| "cortexflow".to_string());
+                    let ns = namespace
+                        .clone()
+                        .unwrap_or_else(|| "cortexflow".to_string());
 
                     println!(
                         "{} {} {} {} {}",
@@ -193,7 +198,10 @@ pub async fn describe_service(
                             for available_ns in &available_namespaces {
                                 println!("  • {}", available_ns);
                             }
-                            println!("\nTry: cortex service describe {} --namespace <namespace-name>", service_name);
+                            println!(
+                                "\nTry: cortex service describe {} --namespace <namespace-name>",
+                                service_name
+                            );
                         } else {
                             println!("No namespaces found in the cluster.");
                         }
@@ -207,14 +215,12 @@ pub async fn describe_service(
                     match output {
                         Ok(output) => {
                             if !output.status.success() {
-                                let error = str
-                                    ::from_utf8(&output.stderr)
-                                    .unwrap_or("Unknown error");
+                                let error =
+                                    str::from_utf8(&output.stderr).unwrap_or("Unknown error");
                                 eprintln!("Error executing kubectl describe: {}", error);
                                 eprintln!(
                                     "Make sure the pod '{}' exists in namespace '{}'",
-                                    service_name,
-                                    ns
+                                    service_name, ns
                                 );
                             }
 
@@ -229,33 +235,29 @@ pub async fn describe_service(
                             Ok(())
                         }
                         Err(err) => {
-                            Err(
-                                CliError::ClientError(
-                                    Error::Api(ErrorResponse {
-                                        status: "failed".to_string(),
-                                        message: "Failed to execute the kubectl command ".to_string(),
-                                        reason: "Your cluster is probably disconnected".to_string(),
-                                        code: 404,
-                                    })
-                                )
-                            )
+                            return {
+                                Err(CliError::ClientError(Error::Api(ErrorResponse {
+                                    status: "failed".to_string(),
+                                    message: "Failed to execute the kubectl command ".to_string(),
+                                    reason: err.to_string(),
+                                    code: 404,
+                                })))
+                            };
                         }
                     }
                 }
                 Err(e) => todo!(),
             }
         }
-        Err(_) => {
-            Err(
-                CliError::ClientError(
-                    Error::Api(ErrorResponse {
-                        status: "failed".to_string(),
-                        message: "Failed to connect to kubernetes client".to_string(),
-                        reason: "Your cluster is probably disconnected".to_string(),
-                        code: 404,
-                    })
-                )
-            )
+        Err(e) => {
+            return {
+                Err(CliError::ClientError(Error::Api(ErrorResponse {
+                    status: "failed".to_string(),
+                    message: "Failed to connect to kubernetes client".to_string(),
+                    reason: e.to_string(),
+                    code: 404,
+                })))
+            };
         }
     }
 }

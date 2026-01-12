@@ -38,12 +38,16 @@ pub async fn uninstall() -> Result<(), CliError> {
             }
             Ok(())
         }
-        Err(_) => Err(CliError::ClientError(Error::Api(ErrorResponse {
-            status: "failed".to_string(),
-            message: "Failed to connect to kubernetes client".to_string(),
-            reason: "Your cluster is probably disconnected".to_string(),
-            code: 404,
-        }))),
+        Err(e) => {
+            return {
+                Err(CliError::ClientError(Error::Api(ErrorResponse {
+                    status: "failed".to_string(),
+                    message: "Failed to connect to kubernetes client".to_string(),
+                    reason: e.to_string(),
+                    code: 404,
+                })))
+            };
+        }
     }
 }
 
@@ -85,18 +89,21 @@ async fn uninstall_all() -> Result<(), CliError> {
                 Ok(())
             } else {
                 let stderr = String::from_utf8_lossy(&output.stderr);
-                eprintln!("Error deleting cortexflow namespace. Error: {} ", stderr);
-                Err(CliError::InstallerError {
+                return Err(CliError::InstallerError {
                     reason: format!("Failed to delete cortexflow namespace. Error: {}", stderr),
-                })
+                });
             }
         }
-        Err(_) => Err(CliError::ClientError(Error::Api(ErrorResponse {
-            status: "failed".to_string(),
-            message: "Failed to connect to kubernetes client".to_string(),
-            reason: "Your cluster is probably disconnected".to_string(),
-            code: 404,
-        }))),
+        Err(e) => {
+            return {
+                Err(CliError::ClientError(Error::Api(ErrorResponse {
+                    status: "failed".to_string(),
+                    message: "Failed to connect to kubernetes client".to_string(),
+                    reason: e.to_string(),
+                    code: 404,
+                })))
+            };
+        }
     }
 }
 
@@ -131,18 +138,21 @@ async fn uninstall_component(component_type: &str, component: &str) -> Result<()
                 Ok(())
             } else {
                 let stderr = String::from_utf8_lossy(&output.stderr);
-                eprintln!("Error deleting {}:\n{}", component, stderr);
-                Err(CliError::InstallerError {
+                return Err(CliError::InstallerError {
                     reason: format!("Failed to delete component '{}': {}", component, stderr),
-                })
+                });
             }
         }
-        Err(_) => Err(CliError::ClientError(Error::Api(ErrorResponse {
-            status: "failed".to_string(),
-            message: "Failed to connect to kubernetes client".to_string(),
-            reason: "Your cluster is probably disconnected".to_string(),
-            code: 404,
-        }))),
+        Err(e) => {
+            return {
+                Err(CliError::ClientError(Error::Api(ErrorResponse {
+                    status: "failed".to_string(),
+                    message: "Failed to connect to kubernetes client".to_string(),
+                    reason: e.to_string(),
+                    code: 404,
+                })))
+            };
+        }
     }
 }
 

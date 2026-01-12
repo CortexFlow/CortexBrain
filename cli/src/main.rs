@@ -1,4 +1,3 @@
-#![allow(warnings)]
 mod essential;
 mod install;
 mod logs;

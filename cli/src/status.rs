@@ -130,13 +130,13 @@ pub async fn status_command(
                 }
             }
         }
-        Err(_) => {
-            Err(
+        Err(e) => {
+            return Err(
                 CliError::ClientError(
                     Error::Api(ErrorResponse {
                         status: "failed".to_string(),
                         message: "Failed to connect to kubernetes client".to_string(),
-                        reason: "Your cluster is probably disconnected".to_string(),
+                        reason: e.to_string(),
                         code: 404,
                     })
                 )
@@ -185,13 +185,13 @@ async fn get_pods_status(namespace: &str) -> Result<Vec<(String, String, String)
                 _ => Ok(Vec::new()),
             }
         }
-        Err(_) => {
-            Err(
+        Err(e) => {
+            return Err(
                 CliError::ClientError(
                     Error::Api(ErrorResponse {
                         status: "failed".to_string(),
                         message: "Failed to connect to kubernetes client".to_string(),
-                        reason: "Your cluster is probably disconnected".to_string(),
+                        reason: e.to_string(),
                         code: 404,
                     })
                 )
@@ -240,13 +240,13 @@ async fn get_services_status(namespace: &str) -> Result<Vec<(String, String, Str
                 _ => Ok(Vec::new()),
             }
         }
-        Err(_) => {
-            Err(
+        Err(e) => {
+            return Err(
                 CliError::ClientError(
                     Error::Api(ErrorResponse {
                         status: "failed".to_string(),
                         message: "Failed to connect to kubernetes client".to_string(),
-                        reason: "Your cluster is probably disconnected".to_string(),
+                        reason: e.to_string(),
                         code: 404,
                     })
                 )
