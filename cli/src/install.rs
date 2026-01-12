@@ -1,6 +1,7 @@
 use crate::essential::{
-    BASE_COMMAND, CliError, connect_to_client, create_config_file, create_configs,
+    BASE_COMMAND, connect_to_client, create_config_file, create_configs,
 };
+use crate::errors::CliError;
 use clap::{Args, Subcommand};
 use colored::Colorize;
 use kube::Error;

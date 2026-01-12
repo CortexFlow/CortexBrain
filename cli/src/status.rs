@@ -4,7 +4,8 @@ use clap::Args;
 use kube::{ Error, core::ErrorResponse };
 
 use crate::logs::{ get_available_namespaces, check_namespace_exists };
-use crate::essential::{ BASE_COMMAND, connect_to_client, CliError };
+use crate::essential::{ BASE_COMMAND, connect_to_client };
+use crate::errors::CliError;
 
 #[derive(Debug)]
 pub enum OutputFormat {

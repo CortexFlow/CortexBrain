@@ -1,7 +1,8 @@
 use colored::Colorize;
 use std::{io::stdin, process::Command, thread, time::Duration};
 
-use crate::essential::{BASE_COMMAND, CliError, connect_to_client};
+use crate::errors::CliError;
+use crate::essential::{BASE_COMMAND, connect_to_client};
 use kube::{Error, core::ErrorResponse};
 
 //docs:
