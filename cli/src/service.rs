@@ -1,5 +1,6 @@
 use clap::{Args, Subcommand};
 use colored::Colorize;
+use kube::Client;
 use kube::{Error, core::ErrorResponse};
 use std::{process::Command, str};
 

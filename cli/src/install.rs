@@ -247,7 +247,7 @@ fn install_components(components_type: &str) -> Result<(), CliError> {
                 "Applying",
                 component.to_string().green().bold()
             );
-            apply_component(component);
+            apply_component(component)?;
             i = i + 1;
         }
     } else if components_type == "simple-example" {
@@ -267,7 +267,7 @@ fn install_components(components_type: &str) -> Result<(), CliError> {
                 "Applying",
                 component.to_string().green().bold()
             );
-            apply_component(component);
+            apply_component(component)?;
             i = i + 1;
         }
     } else {

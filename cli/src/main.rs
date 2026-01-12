@@ -76,16 +76,14 @@ async fn args_parser() -> Result<(), CliError> {
     match args.cmd {
         Some(Commands::Install(installation_args)) => match installation_args.install_cmd {
             InstallCommands::All => {
-                install_cortexflow().await.map_err(|e| eprintln!("{}", e))?;
+                install_cortexflow().await?;
             }
             InstallCommands::TestPods => {
-                install_simple_example()
-                    .await
-                    .map_err(|e| eprintln!("{}", e))?;
+                install_simple_example().await?;
             }
         },
         Some(Commands::Uninstall) => {
-            uninstall().await.map_err(|e| eprintln!("{}", e))?;
+            uninstall().await?;
         }
         Some(Commands::Update) => {
             update_cli();
@@ -95,53 +93,39 @@ async fn args_parser() -> Result<(), CliError> {
         }
         Some(Commands::Service(service_args)) => match service_args.service_cmd {
             ServiceCommands::List { namespace } => {
-                list_services(namespace)
-                    .await
-                    .map_err(|e| eprintln!("{}", e))?;
+                list_services(namespace).await?;
             }
             ServiceCommands::Describe {
                 service_name,
                 namespace,
             } => {
-                describe_service(service_name, &namespace)
-                    .await
-                    .map_err(|e| eprintln!("{}", e))?;
+                describe_service(service_name, &namespace).await?;
             }
         },
         Some(Commands::Status(status_args)) => {
-            status_command(status_args.output, status_args.namespace)
-                .await
-                .map_err(|e| eprintln!("{}", e))?;
+            status_command(status_args.output, status_args.namespace).await?;
         }
         Some(Commands::Logs(logs_args)) => {
-            logs_command(logs_args.service, logs_args.component, logs_args.namespace)
-                .await
-                .map_err(|e| eprintln!("{}", e))?;
+            logs_command(logs_args.service, logs_args.component, logs_args.namespace).await?;
         }
         Some(Commands::Monitor(monitor_args)) => match monitor_args.monitor_cmd {
             MonitorCommands::List => {
-                let _ = list_features().await.map_err(|e| eprintln!("{}", e))?;
+                let _ = list_features().await?;
             }
             MonitorCommands::Connections => {
-                let _ = monitor_identity_events()
-                    .await
-                    .map_err(|e| eprintln!("{}", e))?;
+                let _ = monitor_identity_events().await?;
             }
             MonitorCommands::Latencymetrics => {
-                let _ = monitor_latency_metrics()
-                    .await
-                    .map_err(|e| eprintln!("{}", e))?;
+                let _ = monitor_latency_metrics().await?;
             }
             MonitorCommands::Droppedpackets => {
-                let _ = monitor_dropped_packets()
-                    .await
-                    .map_err(|e| eprintln!("{}", e))?;
+                let _ = monitor_dropped_packets().await?;
             }
         },
         Some(Commands::Policies(policies_args)) => {
             match policies_args.policy_cmd {
                 PoliciesCommands::CheckBlocklist => {
-                    let _ = check_blocklist().await.map_err(|e| eprintln!("{}", e))?;
+                    let _ = check_blocklist().await?;
                 }
                 PoliciesCommands::CreateBlocklist => {
                     // pass the ip as a monitoring flag
@@ -155,9 +139,7 @@ async fn args_parser() -> Result<(), CliError> {
                             match create_blocklist(&ip).await {
                                 Ok(_) => {
                                     //update the config metadata
-                                    let _ = update_config_metadata(&ip, "add")
-                                        .await
-                                        .map_err(|e| eprintln!("{}", e))?;
+                                    let _ = update_config_metadata(&ip, "add").await?;
                                 }
                                 Err(e) => {
                                     eprintln!("{}", e);
@@ -177,9 +159,7 @@ async fn args_parser() -> Result<(), CliError> {
                         println!("Inserted ip: {}", ip);
                         match remove_ip(&ip).await {
                             Ok(_) => {
-                                let _ = update_config_metadata(&ip, "delete")
-                                    .await
-                                    .map_err(|e| eprintln!("{}", e))?;
+                                let _ = update_config_metadata(&ip, "delete").await?;
                             }
                             Err(e) => {
                                 eprintln!("{}", e);
@@ -198,5 +178,5 @@ async fn args_parser() -> Result<(), CliError> {
 
 #[tokio::main]
 async fn main() {
-    let _ = args_parser().await;
+    let _ = args_parser().await.map_err(|e| eprintln!("{}", e));
 }
