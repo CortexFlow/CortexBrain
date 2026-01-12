@@ -1,12 +1,10 @@
 use std::borrow::Cow;
-use std::process::Output;
 use std::thread;
 use std::time::Duration;
 use std::{collections::BTreeMap, fmt, process::Command, result::Result::Ok};
 
 use anyhow::Error;
 use colored::Colorize;
-use k8s_openapi::apimachinery::pkg::version;
 use kube::core::ErrorResponse;
 use serde::Serialize;
 
@@ -69,8 +67,18 @@ impl From<anyhow::Error> for CliError {
     }
 }
 impl From<()> for CliError {
-    fn from(v: ()) -> Self {
+    fn from(e: ()) -> Self {
         return ().into();
+    }
+}
+impl From<prost::DecodeError> for CliError {
+    fn from(e: prost::DecodeError) -> Self {
+        todo!()
+    }
+}
+impl From<tonic::Status> for CliError {
+    fn from(e: tonic::Status) -> Self {
+        todo!()
     }
 }
 
@@ -84,7 +92,11 @@ impl fmt::Display for CliError {
             CliError::InstallerError { reason } => {
                 write!(
                     f,
-                    "An error occured while installing cortexflow components. Reason: {}",
+                    "{} {} {}",
+                    "=====>".blue().bold(),
+                    "An error occured while installing cortexflow components. Reason:"
+                        .bold()
+                        .red(),
                     reason
                 )
             }
@@ -103,7 +115,15 @@ impl fmt::Display for CliError {
                 )
             }
             CliError::ClientError(e) => write!(f, "Client Error: {}", e),
-            CliError::AgentError(e) => write!(f, "Agent Error: {}", e),
+            CliError::AgentError(e) => {
+                write!(
+                    f,
+                    "{} {} {}",
+                    "=====>".bold().blue(),
+                    "Agent Error:".bold().red(),
+                    e
+                )
+            }
         }
     }
 }
@@ -217,16 +237,17 @@ pub fn update_cli() {
 // docs:
 //
 // This function returns the latest version of the CLI from the crates.io registry
-pub fn get_latest_cfcli_version() -> Result<String, Error> {
+// TODO: implement CliError here
+pub fn get_latest_cfcli_version() -> Result<String, CliError> {
     let output = Command::new("cargo")
         .args(["search", "cortexflow-cli", "--limit", "1"])
         .output()
         .expect("Error");
 
     if !output.status.success() {
-        return Err(Error::msg(format!(
-            "An error occured during the latest version extraction"
-        )));
+        return Err(CliError::InstallerError {
+            reason: "Cannot extract the latest version".to_string(),
+        });
     } else {
         let command_stdout = String::from_utf8_lossy(&output.stdout);
 
@@ -323,10 +344,10 @@ pub async fn read_configs() -> Result<Vec<String>, CliError> {
 
             Ok(Vec::new()) //in case the key fails
         }
-        Err(_) => Err(CliError::ClientError(kube::Error::Api(ErrorResponse {
+        Err(e) => Err(CliError::ClientError(kube::Error::Api(ErrorResponse {
             status: "failed".to_string(),
             message: "Failed to connect to kubernetes client".to_string(),
-            reason: "Your cluster is probably disconnected".to_string(),
+            reason: e.to_string(),
             code: 404,
         }))),
     }
@@ -351,7 +372,7 @@ pub async fn create_config_file(config_struct: MetadataConfigFile) -> Result<(),
     match connect_to_client().await {
         Ok(client) => {
             let namespace = "cortexflow";
-            let configmap = "cortexbrain-client-config";
+            //let configmap = "cortexbrain-client-config";
 
             let api: Api<ConfigMap> = Api::namespaced(client, namespace);
 
@@ -378,10 +399,10 @@ pub async fn create_config_file(config_struct: MetadataConfigFile) -> Result<(),
             }
             Ok(())
         }
-        Err(_) => Err(CliError::ClientError(kube::Error::Api(ErrorResponse {
+        Err(e) => Err(CliError::ClientError(kube::Error::Api(ErrorResponse {
             status: "failed".to_string(),
             message: "Failed to connect to kubernetes client".to_string(),
-            reason: "Your cluster is probably disconnected".to_string(),
+            reason: e.to_string(),
             code: 404,
         }))),
     }
@@ -479,10 +500,10 @@ pub async fn update_configmap(config_struct: MetadataConfigFile) -> Result<(), C
 
             Ok(())
         }
-        Err(_) => Err(CliError::ClientError(kube::Error::Api(ErrorResponse {
+        Err(e) => Err(CliError::ClientError(kube::Error::Api(ErrorResponse {
             status: "failed".to_string(),
             message: "Failed to connect to kubernetes client".to_string(),
-            reason: "Your cluster is probably disconnected".to_string(),
+            reason: e.to_string(),
             code: 404,
         }))),
     }

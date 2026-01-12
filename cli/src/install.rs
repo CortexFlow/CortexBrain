@@ -1,7 +1,7 @@
 use crate::essential::{
     BASE_COMMAND, CliError, connect_to_client, create_config_file, create_configs,
 };
-use clap::{Args, Subcommand, command};
+use clap::{Args, Subcommand};
 use colored::Colorize;
 use kube::Error;
 use kube::core::ErrorResponse;
@@ -144,12 +144,16 @@ async fn install_cluster_components() -> Result<(), CliError> {
             );
             Ok(())
         }
-        Err(e) => Err(CliError::ClientError(Error::Api(ErrorResponse {
-            status: "failed".to_string(),
-            message: "Failed to connect to kubernetes client".to_string(),
-            reason: "Your cluster is probably disconnected".to_string(),
-            code: 404,
-        }))),
+        Err(e) => {
+            return {
+                Err(CliError::ClientError(Error::Api(ErrorResponse {
+                    status: "failed".to_string(),
+                    message: "Failed to connect to kubernetes client".to_string(),
+                    reason: e.to_string(),
+                    code: 404,
+                })))
+            };
+        }
     }
 }
 
@@ -190,12 +194,16 @@ async fn install_simple_example_component() -> Result<(), CliError> {
             );
             Ok(())
         }
-        Err(e) => Err(CliError::ClientError(Error::Api(ErrorResponse {
-            status: "failed".to_string(),
-            message: "Failed to connect to kubernetes client".to_string(),
-            reason: "Your cluster is probably disconnected".to_string(),
-            code: 404,
-        }))),
+        Err(e) => {
+            return {
+                Err(CliError::ClientError(Error::Api(ErrorResponse {
+                    status: "failed".to_string(),
+                    message: "Failed to connect to kubernetes client".to_string(),
+                    reason: e.to_string(),
+                    code: 404,
+                })))
+            };
+        }
     }
 }
 
@@ -282,8 +290,8 @@ fn apply_component(file: &str) -> Result<(), CliError> {
     let output = Command::new(BASE_COMMAND)
         .args(["apply", "-f", file])
         .output()
-        .map_err(|_| CliError::InstallerError {
-            reason: "Can't install component from file".to_string(),
+        .map_err(|e| CliError::InstallerError {
+            reason: e.to_string(),
         })?;
 
     if !output.status.success() {
@@ -366,8 +374,8 @@ fn download_file(src: &str) -> Result<(), CliError> {
         Command::new("wget")
             .args([src])
             .output()
-            .map_err(|_| CliError::InstallerError {
-                reason: "An error occured: component download failed".to_string(),
+            .map_err(|e| CliError::InstallerError {
+                reason: e.to_string(),
             })?;
 
     if !output.status.success() {
@@ -396,8 +404,8 @@ fn rm_file(file_to_remove: &str) -> Result<(), CliError> {
     let output = Command::new("rm")
         .args(["-f", file_to_remove])
         .output()
-        .map_err(|_| CliError::InstallerError {
-            reason: "cannot remove temporary installation file".to_string(),
+        .map_err(|e| CliError::InstallerError {
+            reason: e.to_string(),
         })?;
 
     if !output.status.success() {
