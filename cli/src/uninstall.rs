@@ -156,30 +156,3 @@ async fn uninstall_component(component_type: &str, component: &str) -> Result<()
         }
     }
 }
-
-//
-//
-//docs:
-//
-// This function is deprecated and will be removed in the next version
-//
-// Do not include or refactor this function
-#[deprecated(since = "0.1.4")]
-fn rm_dir(directory_to_remove: &str) {
-    let output = Command::new("rm")
-        .args(["-rf", directory_to_remove])
-        .output()
-        .expect("cannot remove directory");
-
-    if !output.status.success() {
-        eprintln!(
-            "Error removing directory: {}:\n{}",
-            directory_to_remove,
-            String::from_utf8_lossy(&output.stderr)
-        );
-    } else {
-        println!("✅ Removed directory {}", directory_to_remove);
-    }
-
-    thread::sleep(Duration::from_secs(2));
-}
