@@ -9,7 +9,7 @@ aya-log-ebpf = { git = "https://github.com/aya-rs/aya" }
 bytemuck = {version ="1.23.0",features = ["derive"]}
 
 [build-dependencies]
-which = { version = "7.0.0", default-features = false }
+which = { version = "8.0.0", default-features = false }
 
 [[bin]]
 name = "metrics_tracer"
