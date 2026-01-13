@@ -41,7 +41,7 @@ pub enum InstallCommands {
 }
 
 //install args
-#[derive(Args, Debug, Clone)]
+#[derive(Args, Debug)]
 pub struct InstallArgs {
     #[command(subcommand)]
     pub install_cmd: InstallCommands,
