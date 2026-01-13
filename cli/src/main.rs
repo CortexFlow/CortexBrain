@@ -42,7 +42,7 @@ struct Cli {
     cmd: Option<Commands>,
 }
 
-#[derive(Subcommand, Debug, Clone)]
+#[derive(Subcommand, Debug)]
 enum Commands {
     /* list of available commands */
     #[command(name = "install", about = "Manage installation")]
@@ -64,7 +64,7 @@ enum Commands {
     #[command(name = "policy", about = "Network Policies")]
     Policies(PoliciesArgs),
 }
-#[derive(Args, Debug, Clone)]
+#[derive(Args)]
 struct SetArgs {
     val: String,
 }
