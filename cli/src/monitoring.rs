@@ -77,19 +77,19 @@ pub async fn list_features() -> Result<(), CliError> {
                     }
                 }
                 Err(e) => {
-                    return Err(CliError::ClientError(kube::Error::Api(ErrorResponse {
-                        status: "failed".to_string(),
-                        message: "Failed to connect to kubernetes client".to_string(),
-                        reason: e.to_string(),
-                        code: 404,
-                    })));
+                    return Err(CliError::AgentError(
+                        tonic_reflection::server::Error::InvalidFileDescriptorSet(e.to_string()),
+                    ));
                 }
             }
         }
         Err(e) => {
-            return Err(CliError::AgentError(
-                tonic_reflection::server::Error::InvalidFileDescriptorSet(e.to_string()),
-            ));
+            return Err(CliError::ClientError(kube::Error::Api(ErrorResponse {
+                status: "failed".to_string(),
+                message: "Failed to connect to kubernetes client".to_string(),
+                reason: e.to_string(),
+                code: 404,
+            })));
         }
     }
     Ok(())
@@ -133,19 +133,19 @@ pub async fn monitor_identity_events() -> Result<(), CliError> {
                     }
                 }
                 Err(e) => {
-                    return Err(CliError::ClientError(kube::Error::Api(ErrorResponse {
-                        status: "failed".to_string(),
-                        message: "Failed to connect to kubernetes client".to_string(),
-                        reason: e.to_string(),
-                        code: 404,
-                    })));
+                    return Err(CliError::AgentError(
+                        tonic_reflection::server::Error::InvalidFileDescriptorSet(e.to_string()),
+                    ));
                 }
             }
         }
         Err(e) => {
-            return Err(CliError::AgentError(
-                tonic_reflection::server::Error::InvalidFileDescriptorSet(e.to_string()),
-            ));
+            return Err(CliError::ClientError(kube::Error::Api(ErrorResponse {
+                status: "failed".to_string(),
+                message: "Failed to connect to kubernetes client".to_string(),
+                reason: e.to_string(),
+                code: 404,
+            })));
         }
     }
 
@@ -203,12 +203,9 @@ pub async fn monitor_latency_metrics() -> Result<(), CliError> {
                     }
                 }
                 Err(e) => {
-                    return Err(CliError::ClientError(kube::Error::Api(ErrorResponse {
-                        status: "failed".to_string(),
-                        message: "Failed to connect to kubernetes client".to_string(),
-                        reason: e.to_string(),
-                        code: 404,
-                    })));
+                    return Err(CliError::AgentError(
+                        tonic_reflection::server::Error::InvalidFileDescriptorSet(e.to_string()),
+                    ));
                 }
             }
         }
@@ -276,12 +273,9 @@ pub async fn monitor_dropped_packets() -> Result<(), CliError> {
                     }
                 }
                 Err(e) => {
-                    return Err(CliError::ClientError(kube::Error::Api(ErrorResponse {
-                        status: "failed".to_string(),
-                        message: "Failed to connect to kubernetes client".to_string(),
-                        reason: e.to_string(),
-                        code: 404,
-                    })));
+                    return Err(CliError::AgentError(
+                        tonic_reflection::server::Error::InvalidFileDescriptorSet(e.to_string()),
+                    ));
                 }
             }
         }
