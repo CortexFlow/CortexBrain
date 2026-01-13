@@ -1,7 +1,5 @@
-use crate::essential::{
-    BASE_COMMAND, connect_to_client, create_config_file, create_configs,
-};
 use crate::errors::CliError;
+use crate::essential::{BASE_COMMAND, connect_to_client, create_config_file, create_configs};
 use clap::{Args, Subcommand};
 use colored::Colorize;
 use kube::Error;
@@ -296,11 +294,13 @@ fn apply_component(file: &str) -> Result<(), CliError> {
         })?;
 
     if !output.status.success() {
-        eprintln!(
-            "Error installing file: {}:\n{}",
-            file,
-            String::from_utf8_lossy(&output.stderr)
-        );
+        return Err(CliError::InstallerError {
+            reason: format!(
+                "Error installing file: {}:\n{}",
+                file,
+                String::from_utf8_lossy(&output.stderr)
+            ),
+        });
     } else {
         println!("✅ Applied {}", file);
     }
@@ -380,11 +380,13 @@ fn download_file(src: &str) -> Result<(), CliError> {
             })?;
 
     if !output.status.success() {
-        eprintln!(
-            "Error copying file: {}.\n{}",
-            src,
-            String::from_utf8_lossy(&output.stderr)
-        );
+        return Err(CliError::InstallerError {
+            reason: format!(
+                "Error copying file: {}.\n{}",
+                src,
+                String::from_utf8_lossy(&output.stderr)
+            ),
+        });
     } else {
         println!("✅ Copied file from {} ", src);
     }
@@ -410,11 +412,13 @@ fn rm_file(file_to_remove: &str) -> Result<(), CliError> {
         })?;
 
     if !output.status.success() {
-        eprintln!(
-            "Error removing file: {}:\n{}",
-            file_to_remove,
-            String::from_utf8_lossy(&output.stderr)
-        );
+        return Err(CliError::InstallerError {
+            reason: format!(
+                "Error removing file: {}:\n{}",
+                file_to_remove,
+                String::from_utf8_lossy(&output.stderr)
+            ),
+        });
     } else {
         println!("✅ Removed file {}", file_to_remove);
     }

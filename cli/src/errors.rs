@@ -1,11 +1,15 @@
 use colored::Colorize;
-use std::fmt;
+use std::{error::Error, fmt};
 
 // docs:
 //
 // CliError enum to group all the errors
 //
 // Custom error definition
+//
+// BaseError:
+//      - used for general errors
+//
 // InstallerError:
 //      - used for general installation errors occured during the installation of cortexflow components. Can be used for:
 //          - Return downloading errors
@@ -20,8 +24,6 @@ use std::fmt;
 //          - return errors from the reflection server
 //          - return unavailable agent errors (404)
 //
-// MonitoringError:
-//      - used for general monitoring errors. TODO: currently under implementation
 //
 // implements fmt::Display for user friendly error messages
 
@@ -30,7 +32,7 @@ pub enum CliError {
     InstallerError { reason: String },
     ClientError(kube::Error),
     AgentError(tonic_reflection::server::Error),
-    MonitoringError { reason: String },
+    BaseError { reason: String },
 }
 // docs:
 //
@@ -46,7 +48,7 @@ impl From<kube::Error> for CliError {
 }
 impl From<anyhow::Error> for CliError {
     fn from(e: anyhow::Error) -> Self {
-        CliError::MonitoringError {
+        CliError::BaseError {
             reason: e.to_string(),
         }
     }
@@ -58,7 +60,7 @@ impl From<prost::DecodeError> for CliError {
 }
 impl From<tonic::Status> for CliError {
     fn from(e: tonic::Status) -> Self {
-        return CliError::MonitoringError {
+        return CliError::BaseError {
             reason: e.to_string(),
         };
     }
@@ -84,33 +86,37 @@ impl fmt::Display for CliError {
                     reason.red().bold()
                 )
             }
-            CliError::MonitoringError { reason } => {
+            CliError::BaseError { reason } => {
                 write!(
                     f,
                     "{} {} {}",
                     "=====>".blue().bold(),
-                    "An error occured while installing cortexflow components. Reason:"
+                    "An error occured. Reason:"
                         .bold()
                         .red(),
                     reason.red().bold()
                 )
             }
             CliError::ClientError(e) => {
+                // raw error looks like this
+                // (ErrorResponse { status: "failed", message: "Failed to connect to kubernetes client", reason: "transport error", code: 404 }
+                let msg = Error::source(e).unwrap(); // msg = Failed to connect to kubernetes client: transport error
                 write!(
                     f,
                     "{} {} {}",
                     "=====>".blue().bold(),
                     "Client Error:".bold().red(),
-                    e.to_string().red().bold()
+                    msg.to_string().red().bold()
                 )
             }
             CliError::AgentError(e) => {
+                let msg = Error::source(e).unwrap();
                 write!(
                     f,
                     "{} {} {}",
                     "=====>".bold().blue(),
                     "Agent Error:".bold().red(),
-                    e.to_string().bold().red()
+                    msg.to_string().bold().red()
                 )
             }
         }

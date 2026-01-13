@@ -292,6 +292,7 @@ pub async fn monitor_dropped_packets() -> Result<(), CliError> {
 }
 
 fn convert_timestamp_to_date(timestamp: u64) -> String {
-    let datetime = DateTime::from_timestamp_micros(timestamp as i64).unwrap();
-    datetime.to_string()
+    DateTime::from_timestamp_micros(timestamp as i64)
+        .map(|dt| dt.to_string())
+        .unwrap_or_else(|| "Cannot convert timestamp to date".to_string())
 }

@@ -1,6 +1,5 @@
 use clap::{Args, Subcommand};
 use colored::Colorize;
-use kube::Client;
 use kube::{Error, core::ErrorResponse};
 use std::{process::Command, str};
 
@@ -81,7 +80,9 @@ pub async fn list_services(namespace: Option<String>) -> Result<(), CliError> {
                 Ok(output) => {
                     if !output.status.success() {
                         let error = str::from_utf8(&output.stderr).unwrap_or("Unknown error");
-                        eprintln!("Error executing {}: {}", BASE_COMMAND, error);
+                        return Err(CliError::BaseError {
+                            reason: format!("Error executing {}: {}", BASE_COMMAND, error),
+                        });
                     }
 
                     let stdout = str::from_utf8(&output.stdout).unwrap_or("");
@@ -162,7 +163,7 @@ pub async fn list_services(namespace: Option<String>) -> Result<(), CliError> {
 //          - else return an empty Vector
 //
 //
-// Returns a CliError if the connection fails
+// Returns a CliError if the connection failsss
 
 pub async fn describe_service(
     service_name: String,
@@ -172,8 +173,6 @@ pub async fn describe_service(
         Ok(_) => {
             match list_services(namespace.clone()).await {
                 Ok(_) => {
-                    //let file_path = get_config_directory().unwrap().1;
-
                     let ns = namespace
                         .clone()
                         .unwrap_or_else(|| "cortexflow".to_string());
@@ -201,7 +200,7 @@ pub async fn describe_service(
                                 println!("  • {}", available_ns);
                             }
                             println!(
-                                "\nTry: cortex service describe {} --namespace <namespace-name>",
+                                "\nTry: cortexflow service describe {} --namespace <namespace-name>",
                                 service_name
                             );
                         } else {
@@ -219,11 +218,12 @@ pub async fn describe_service(
                             if !output.status.success() {
                                 let error =
                                     str::from_utf8(&output.stderr).unwrap_or("Unknown error");
-                                eprintln!("Error executing kubectl describe: {}", error);
-                                eprintln!(
-                                    "Make sure the pod '{}' exists in namespace '{}'",
-                                    service_name, ns
-                                );
+                                return Err(CliError::BaseError {
+                                    reason: format!(
+                                        "Error executing kubectl describe: {}.Make sure the pod '{}' exists in namespace '{}'",
+                                        error, service_name, ns
+                                    ),
+                                });
                             }
 
                             let stdout = str::from_utf8(&output.stdout).unwrap_or("");
@@ -248,7 +248,11 @@ pub async fn describe_service(
                         }
                     }
                 }
-                Err(e) => todo!(),
+                Err(e) => {
+                    return Err(CliError::BaseError {
+                        reason: format!("Cannot list services: {}", e),
+                    });
+                }
             }
         }
         Err(e) => {
