@@ -86,7 +86,7 @@ async fn args_parser() -> Result<(), CliError> {
             uninstall().await?;
         }
         Some(Commands::Update) => {
-            update_cli();
+            update_cli()?;
         }
         Some(Commands::Info) => {
             info();

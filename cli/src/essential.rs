@@ -50,7 +50,7 @@ pub async fn connect_to_client() -> Result<Client, kube::Error> {
 //
 // Returns an error if the command fails
 
-pub fn update_cli() {
+pub fn update_cli() -> Result<(), CliError> {
     let latest_version = get_latest_cfcli_version().expect("Can't get the latest version");
     println!("{} {}", "=====>".blue().bold(), "Updating CortexFlow CLI");
     println!(
@@ -65,10 +65,12 @@ pub fn update_cli() {
         .expect("error");
 
     if !output.status.success() {
-        eprintln!(
-            "Error extracting the version : {}",
-            String::from_utf8_lossy(&output.stderr)
-        );
+        return Err(CliError::InstallerError {
+            reason: format!(
+                "Error extracting the version : {}",
+                String::from_utf8_lossy(&output.stderr)
+            ),
+        });
     } else {
         // extract the cli version:
         let version = String::from_utf8_lossy(&output.stdout)
@@ -106,10 +108,12 @@ pub fn update_cli() {
                 .output()
                 .expect("error");
             if !update_command.status.success() {
-                eprintln!(
-                    "Error updating the CLI: {} ",
-                    String::from_utf8_lossy(&update_command.stderr)
-                );
+                return Err(CliError::InstallerError {
+                    reason: format!(
+                        "Error updating the CLI: {} ",
+                        String::from_utf8_lossy(&update_command.stderr)
+                    ),
+                });
             } else {
                 println!(
                     "{} {}",
@@ -119,6 +123,7 @@ pub fn update_cli() {
             }
         }
     }
+    Ok(())
 }
 
 // docs:
@@ -280,7 +285,12 @@ pub async fn create_config_file(config_struct: MetadataConfigFile) -> Result<(),
                     println!("Configmap created successfully");
                 }
                 Err(e) => {
-                    eprintln!("An error occured: {}", e);
+                    return Err(CliError::ClientError(kube::Error::Api(ErrorResponse {
+                        status: "failed".to_string(),
+                        message: "Failed to create configmap".to_string(),
+                        reason: e.to_string(),
+                        code: 404,
+                    })));
                 }
             }
             Ok(())
@@ -329,7 +339,9 @@ pub async fn update_config_metadata(input: &str, action: &str) -> Result<(), Cli
         if let Some(index) = ips.iter().position(|target| target == &input.to_string()) {
             ips.remove(index);
         } else {
-            eprintln!("Index of element not found");
+            return Err(CliError::BaseError {
+                reason: "Index of element not found".to_string(),
+            });
         }
 
         // override blocklist parameters
@@ -379,8 +391,9 @@ pub async fn update_configmap(config_struct: MetadataConfigFile) -> Result<(), C
                     println!("Map updated successfully");
                 }
                 Err(e) => {
-                    eprintln!("An error occured during the patching process: {}", e);
-                    return Err(e.into());
+                    return Err(CliError::BaseError {
+                        reason: format!("An error occured during the patching process: {}", e),
+                    });
                 }
             }
 

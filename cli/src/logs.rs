@@ -138,14 +138,21 @@ pub async fn logs_command(
                             }
                         } else {
                             let stderr = str::from_utf8(&output.stderr).unwrap_or("Unknown error");
-                            eprintln!("Error getting logs for pod '{:?}': {}", pod, stderr);
+                            return Err(CliError::BaseError {
+                                reason: format!(
+                                    "Error getting logs for pod '{:?}': {}",
+                                    pod, stderr
+                                ),
+                            });
                         }
                     }
                     Err(err) => {
-                        eprintln!(
-                            "Failed to execute {} logs for pod '{:?}': {}",
-                            BASE_COMMAND, pod, err
-                        );
+                        return Err(CliError::BaseError {
+                            reason: format!(
+                                "Failed to execute {} logs for pod '{:?}': {}",
+                                BASE_COMMAND, pod, err
+                            ),
+                        });
                     }
                 }
             }
