@@ -9,7 +9,6 @@ mod status;
 mod uninstall;
 
 use clap::{Args, Parser, Subcommand};
-use colored::Colorize;
 use std::result::Result::Ok;
 use tracing::debug;
 
@@ -131,7 +130,9 @@ async fn args_parser() -> Result<(), CliError> {
                     // pass the ip as a monitoring flag
                     match policies_args.flags {
                         None => {
-                            eprintln!("{}", "Insert at least one ip to create a blocklist".red());
+                            return Err(CliError::BaseError {
+                                reason: "Insert at least one ip to create a blocklist".to_string(),
+                            });
                         }
                         Some(ip) => {
                             println!("inserted ip: {} ", ip);
@@ -142,7 +143,9 @@ async fn args_parser() -> Result<(), CliError> {
                                     let _ = update_config_metadata(&ip, "add").await?;
                                 }
                                 Err(e) => {
-                                    eprintln!("{}", e);
+                                    return Err(CliError::BaseError {
+                                        reason: e.to_string(),
+                                    });
                                 }
                             }
                         }
@@ -150,10 +153,10 @@ async fn args_parser() -> Result<(), CliError> {
                 }
                 PoliciesCommands::RemoveIpFromBlocklist => match policies_args.flags {
                     None => {
-                        eprintln!(
-                            "{}",
-                            "Insert at least one ip to remove from the blocklist".red()
-                        );
+                        return Err(CliError::BaseError {
+                            reason: "Insert at least one ip to remove from the blocklist"
+                                .to_string(),
+                        });
                     }
                     Some(ip) => {
                         println!("Inserted ip: {}", ip);
@@ -162,7 +165,9 @@ async fn args_parser() -> Result<(), CliError> {
                                 let _ = update_config_metadata(&ip, "delete").await?;
                             }
                             Err(e) => {
-                                eprintln!("{}", e);
+                                return Err(CliError::BaseError {
+                                    reason: e.to_string(),
+                                });
                             }
                         }
                     }
@@ -170,7 +175,9 @@ async fn args_parser() -> Result<(), CliError> {
             }
         }
         None => {
-            eprintln!("CLI unknown argument. Cli arguments passed: {:?}", args.cmd);
+            return Err(CliError::BaseError {
+                reason: format!("CLI unknown argument. Cli arguments passed: {:?}", args.cmd),
+            });
         }
     }
     Ok(())
