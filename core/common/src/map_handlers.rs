@@ -13,39 +13,49 @@ use std::sync::Mutex;
 use tracing::warn;
 use tracing::{error, info};
 
-pub fn init_bpf_maps(bpf: Arc<Mutex<Ebpf>>) -> Result<(Map, Map, Map, Map), anyhow::Error> {
-    // this function init the bpfs maps used in the main program
-    /*
-       index 0: events_map
-       index 1: veth_map
-       index 2: blocklist map
-    */
-    let mut bpf_new = bpf.lock().unwrap();
+// docs
+//
+// this function init the bpfs maps used in the main program
+//
+//  index 0: events_map
+//  index 1: veth_map
+//  index 2: blocklist map
+//  index 3: tcp_registry map
+//
 
-    let events_map = bpf_new
-        .take_map("EventsMap")
-        .ok_or_else(|| anyhow::anyhow!("EventsMap map not found"))?;
+#[cfg(feature = "map-handlers")]
+pub struct BpfMapsData {
+    pub bpf_obj_names: Vec<String>,
+    pub bpf_obj_map: Vec<Map>,
+}
 
-    let veth_map = bpf_new
-        .take_map("veth_identity_map")
-        .ok_or_else(|| anyhow::anyhow!("veth_identity_map map not found"))?;
+#[cfg(feature = "map-handlers")]
+pub fn init_bpf_maps(
+    bpf: Arc<Mutex<Ebpf>>,
+    map_names: Vec<String>,
+) -> Result<BpfMapsData, anyhow::Error> {
+    let mut bpf_new = bpf.lock().expect("Cannot get value from lock");
+    let mut maps = Vec::new(); // stores bpf_maps_objects
 
-    let blocklist_map = bpf_new
-        .take_map("Blocklist")
-        .ok_or_else(|| anyhow::anyhow!("Blocklist map not found"))?;
-
-    let tcp_registry_map = bpf_new
-        .take_map("TcpPacketRegistry")
-        .ok_or_else(|| anyhow::anyhow!("TcpPacketRegistry map not found"))?;
-
-    Ok((events_map, veth_map, blocklist_map, tcp_registry_map))
+    for name in &map_names {
+        let bpf_map_init = bpf_new
+            .take_map(&name)
+            .ok_or_else(|| anyhow::anyhow!("{} map not found", &name))?;
+        maps.push(bpf_map_init);
+    }
+    Ok(BpfMapsData {
+        bpf_obj_names: map_names.clone(),
+        bpf_obj_map: maps,
+    })
 }
 
 //TODO: save bpf maps path in the cli metadata
+
 //takes an array of bpf maps and pin them to persiste session data
-//TODO: change maps type with a Vec<Map> instead of (Map,Map). This method is only for fast development and it's not optimized
-//TODO: add bpf mounts during cli installation
-pub fn map_pinner(maps: &(Map, Map, Map, Map), path: &PathBuf) -> Result<(), Error> {
+// FIXME: is this ok that we are returning a BpfMapsData?
+
+#[cfg(feature = "map-handlers")]
+pub fn map_pinner(maps: BpfMapsData, path: &PathBuf) -> Result<Vec<Map>, Error> {
     if !path.exists() {
         info!("Pin path {:?} does not exist. Creating it...", path);
         std::fs::create_dir_all(&path)?;
@@ -56,28 +66,32 @@ pub fn map_pinner(maps: &(Map, Map, Map, Map), path: &PathBuf) -> Result<(), Err
         }
     }
 
-    let configs = [
-        (&maps.0, "events_map"),
-        (&maps.1, "veth_map"),
-        (&maps.2, "blocklist_map"),
-        (&maps.3, "tcp_packet_registry"),
-    ];
-
-    for (name, paths) in configs {
-        let map_path = path.join(paths);
+    let mut owned_maps = Vec::new(); // aya::Maps does not implement the clone trait i need to create a raw copy of the vec map
+    // an iterator that iterates two iterators simultaneously
+    for (map_obj, name) in maps
+        .bpf_obj_map
+        .into_iter()
+        .zip(maps.bpf_obj_names.into_iter())
+    {
+        let map_path = path.join(&name);
         if map_path.exists() {
-            warn!("Path {} already exists", paths);
-            warn!("Removing path {}", paths);
-            let _ = std::fs::remove_file(&map_path);
+            warn!("Path {} already exists", name);
+            warn!("Removing path {}", name);
+            std::fs::remove_file(&map_path)?;
         }
         info!("Trying to pin map {:?} in map path: {:?}", name, &map_path);
-        name.pin(&map_path)?;
+        map_obj.pin(&map_path)?;
+        owned_maps.push(map_obj);
     }
 
-    Ok(())
+    Ok(owned_maps)
 }
+
+#[cfg(feature = "map-handlers")]
 pub async fn populate_blocklist(map: &mut Map) -> Result<(), Error> {
-    let client = Client::try_default().await.unwrap();
+    let client = Client::try_default()
+        .await
+        .expect("Cannot connect to Kubernetes Client");
     let namespace = "cortexflow";
     let configmap = "cortexbrain-client-config";
 

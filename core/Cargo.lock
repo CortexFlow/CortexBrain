@@ -406,6 +406,9 @@ name = "cortexbrain-common"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "aya",
+ "k8s-openapi",
+ "kube",
  "tracing",
  "tracing-subscriber",
 ]
@@ -453,10 +456,9 @@ dependencies = [
  "bytemuck",
  "bytemuck_derive",
  "bytes",
- "cortexbrain-common 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "cortexbrain-common 0.1.0",
  "k8s-openapi",
  "kube",
- "libc",
  "nix",
  "tokio",
  "tracing",
