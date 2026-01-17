@@ -7,46 +7,36 @@
  *   4. [Experimental]: cgroup scanner
  *
  */
-#![allow(warnings)]
 
 mod enums;
 mod helpers;
-mod map_handlers;
 mod structs;
-
-use aya::{
-    Ebpf,
-    maps::{
-        Map, MapData,
-        perf::{PerfEventArray, PerfEventArrayBuffer},
-    },
-    programs::{KProbe, SchedClassifier, TcAttachType, tc::SchedClassifierLinkId},
-    util::online_cpus,
-};
 
 use crate::helpers::{
     display_events, display_tcp_registry_events, display_veth_events, get_veth_channels,
+};
+use aya::{
+    Ebpf,
+    maps::{Map, perf::PerfEventArray},
+    programs::{KProbe, SchedClassifier, TcAttachType, tc::SchedClassifierLinkId},
+    util::online_cpus,
 };
 
 #[cfg(feature = "experimental")]
 use crate::helpers::scan_cgroup_cronjob;
 
-use crate::map_handlers::{init_bpf_maps, map_pinner, populate_blocklist};
-
 use bytes::BytesMut;
+use cortexbrain_common::map_handlers::{init_bpf_maps, map_pinner, populate_blocklist};
 use std::{
     convert::TryInto,
     path::Path,
-    sync::{
-        Arc, Mutex,
-        atomic::{AtomicBool, Ordering},
-    },
+    sync::{Arc, Mutex},
 };
 
 use anyhow::{Context, Ok};
 use cortexbrain_common::{constants, logger};
 use tokio::{fs, signal};
-use tracing::{error, info};
+use tracing::{debug, error, info};
 
 use std::collections::HashMap;
 
@@ -72,14 +62,19 @@ async fn main() -> Result<(), anyhow::Error> {
     let bpf = Arc::new(Mutex::new(Ebpf::load(&data)?));
     let bpf_map_save_path = std::env::var(constants::PIN_MAP_PATH)
         .context("PIN_MAP_PATH environment variable required")?;
-
-    match init_bpf_maps(bpf.clone()) {
-        std::result::Result::Ok(mut bpf_maps) => {
+    let data = vec![
+        "EventsMap".to_string(),
+        "veth_identity_map".to_string(),
+        //"Blocklist".to_string(),
+        "TcpPacketRegistry".to_string(),
+    ];
+    match init_bpf_maps(bpf.clone(), data) {
+        std::result::Result::Ok(bpf_maps) => {
             info!("Successfully loaded bpf maps");
             let pin_path = std::path::PathBuf::from(&bpf_map_save_path);
             info!("About to call map_pinner with path: {:?}", pin_path);
-            match map_pinner(&bpf_maps, &pin_path) {
-                std::result::Result::Ok(_) => {
+            match map_pinner(bpf_maps, &pin_path) {
+                std::result::Result::Ok(maps) => {
                     info!("maps pinned successfully");
                     //load veth_trace program ref veth_trace.rs
                     {
@@ -90,9 +85,9 @@ async fn main() -> Result<(), anyhow::Error> {
 
                     info!("Found interfaces: {:?}", interfaces);
 
-                    {
-                        populate_blocklist(&mut bpf_maps.2).await;
-                    }
+                    //{ FIXME: paused for testing the other features
+                    //    populate_blocklist(&mut maps.2).await?;
+                    //}
 
                     {
                         init_tc_classifier(bpf.clone(), interfaces, link_ids.clone()).await.context(
@@ -105,9 +100,11 @@ async fn main() -> Result<(), anyhow::Error> {
                         )?;
                     }
 
-                    event_listener(bpf_maps, link_ids.clone(), bpf.clone())
+                    event_listener(maps, link_ids.clone(), bpf.clone())
                         .await
-                        .context("Error initializing event_listener")?;
+                        .map_err(|e| {
+                            anyhow::anyhow!("Error inizializing event_listener. Reason: {}", e)
+                        })?;
                 }
                 Err(e) => {
                     error!("Error while pinning bpf_maps: {}", e);
@@ -116,7 +113,7 @@ async fn main() -> Result<(), anyhow::Error> {
         }
         Err(e) => {
             error!("Error while loading bpf maps {}", e);
-            signal::ctrl_c();
+            let _ = signal::ctrl_c().await;
         }
     }
 
@@ -132,7 +129,9 @@ async fn init_tc_classifier(
     //this funtion initialize the tc classifier program
     info!("Loading programs");
 
-    let mut bpf_new = bpf.lock().unwrap();
+    let mut bpf_new = bpf
+        .lock()
+        .map_err(|e| anyhow::anyhow!("Cannot get value from lock. Reason: {}", e))?;
 
     let program: &mut SchedClassifier = bpf_new
         .program_mut("identity_classifier")
@@ -151,7 +150,9 @@ async fn init_tc_classifier(
                     "Program 'identity_classifier' attached to interface {}",
                     interface
                 );
-                let mut map = link_ids.lock().unwrap();
+                let mut map = link_ids
+                    .lock()
+                    .map_err(|e| anyhow::anyhow!("Cannot get value from lock. Reason: {}", e))?;
                 map.insert(interface.clone(), link_id);
             }
             Err(e) => error!(
@@ -167,7 +168,9 @@ async fn init_tc_classifier(
 async fn init_veth_tracer(bpf: Arc<Mutex<Ebpf>>) -> Result<(), anyhow::Error> {
     //this functions init the veth_tracer used to make the InterfacesRegistry
 
-    let mut bpf_new = bpf.lock().unwrap();
+    let mut bpf_new = bpf
+        .lock()
+        .map_err(|e| anyhow::anyhow!("Cannot get value from lock. Reason: {}", e))?;
 
     //creation tracer
     let veth_creation_tracer: &mut KProbe = bpf_new
@@ -199,7 +202,9 @@ async fn init_veth_tracer(bpf: Arc<Mutex<Ebpf>>) -> Result<(), anyhow::Error> {
 }
 
 async fn init_tcp_registry(bpf: Arc<Mutex<Ebpf>>) -> Result<(), anyhow::Error> {
-    let mut bpf_new = bpf.lock().unwrap();
+    let mut bpf_new = bpf
+        .lock()
+        .map_err(|e| anyhow::anyhow!("Cannot get value from lock. Reason: {}", e))?;
 
     // init tcp registry
     let tcp_analyzer: &mut KProbe = bpf_new
@@ -236,91 +241,81 @@ async fn init_tcp_registry(bpf: Arc<Mutex<Ebpf>>) -> Result<(), anyhow::Error> {
     Ok(())
 }
 
+// this function init the event listener. Listens for veth events (creation/deletion) and network events (pod to pod communications)
+// Doc:
+//
+//   perf_net_events_array: contains is associated with the network events stored in the events_map (EventsMap)
+//   perf_veth_array: contains is associated with the network events stored in the veth_map (veth_identity_map)
+//
+//
 async fn event_listener(
-    bpf_maps: (Map, Map, Map, Map),
+    bpf_maps: Vec<Map>,
     link_ids: Arc<Mutex<HashMap<String, SchedClassifierLinkId>>>,
     bpf: Arc<Mutex<Ebpf>>,
 ) -> Result<(), anyhow::Error> {
-    // this function init the event listener. Listens for veth events (creation/deletion) and network events (pod to pod communications)
-    /* Doc:
-
-       perf_net_events_array: contains is associated with the network events stored in the events_map (EventsMap)
-       perf_veth_array: contains is associated with the network events stored in the veth_map (veth_identity_map)
-
-    */
-
     info!("Preparing perf_buffers and perf_arrays");
 
     //TODO: try to change from PerfEventArray to a RingBuffer data structure
-    //let m0=bpf_maps[0];
-    //let m1 = bpf_maps[1];
-    //let mut ring1=RingBuf::try_from(m0)?;
-    //let mut ring2=RingBuf::try_from(m1)?;
 
-    //TODO:create an helper function that initialize the data structures and the running
-    // init PerfEventArrays
-    let mut perf_veth_array: PerfEventArray<MapData> = PerfEventArray::try_from(bpf_maps.1)?;
-    let mut perf_net_events_array: PerfEventArray<MapData> = PerfEventArray::try_from(bpf_maps.0)?;
-    let mut tcp_registry_array: PerfEventArray<MapData> = PerfEventArray::try_from(bpf_maps.3)?;
+    let mut perf_event_arrays = Vec::new(); // contains a vector of PerfEventArrays
+    let mut event_buffers = Vec::new(); // contains a vector of buffers
 
-    // init PerfEventArrays buffers
-    let mut perf_veth_buffer: Vec<PerfEventArrayBuffer<MapData>> = Vec::new();
-    let mut perf_net_events_buffer: Vec<PerfEventArrayBuffer<MapData>> = Vec::new();
-    let mut tcp_registry_buffer: Vec<PerfEventArrayBuffer<MapData>> = Vec::new();
-
-    // fill the input buffers
-
-    for cpu_id in online_cpus().map_err(|e| anyhow::anyhow!("Error {:?}", e))? {
-        let veth_buf: PerfEventArrayBuffer<MapData> = perf_veth_array.open(cpu_id, None)?;
-        perf_veth_buffer.push(veth_buf);
+    // create the PerfEventArrays and the buffers
+    for map in bpf_maps {
+        debug!("Debugging map type:{:?}", map);
+        let perf_event_array = PerfEventArray::try_from(map).map_err(|e| {
+            error!("Cannot create perf_event_array for map.Reason: {}", e);
+            anyhow::anyhow!("Cannot create perf_event_array for map.Reason: {}", e)
+        })?;
+        perf_event_arrays.push(perf_event_array); // this is step 1
+        let perf_event_array_buffer = Vec::new();
+        event_buffers.push(perf_event_array_buffer); //this is step 2 
     }
-    for cpu_id in online_cpus().map_err(|e| anyhow::anyhow!("Error {:?}", e))? {
-        let events_buf: PerfEventArrayBuffer<MapData> = perf_net_events_array.open(cpu_id, None)?;
-        perf_net_events_buffer.push(events_buf);
-    }
-    for cpu_id in online_cpus().map_err(|e| anyhow::anyhow!("Error {:?}", e))? {
-        let tcp_registry_buf: PerfEventArrayBuffer<MapData> =
-            tcp_registry_array.open(cpu_id, None)?;
-        tcp_registry_buffer.push(tcp_registry_buf);
+
+    // fill the input buffers with data from the PerfEventArrays
+    let cpus = online_cpus().map_err(|e| anyhow::anyhow!("Error {:?}", e))?;
+
+    for (perf_evt_array, perf_evt_array_buffer) in
+        perf_event_arrays.iter_mut().zip(event_buffers.iter_mut())
+    {
+        for cpu_id in &cpus {
+            let single_buffer = perf_evt_array.open(*cpu_id, None)?;
+            perf_evt_array_buffer.push(single_buffer);
+        }
     }
 
     info!("Listening for events...");
 
-    // init runnings
-    let veth_running = Arc::new(AtomicBool::new(true));
-    let net_events_running = Arc::new(AtomicBool::new(true));
-    let tcp_registry_running = Arc::new(AtomicBool::new(true));
+    let mut event_buffers = event_buffers.into_iter();
+    let perf_veth_buffer = event_buffers
+        .next()
+        .expect("Cannot create perf_veth buffer");
+    let perf_net_events_buffer = event_buffers
+        .next()
+        .expect("Cannot create perf_net_events buffer");
+    let tcp_registry_buffer = event_buffers
+        .next()
+        .expect("Cannot create tcp_registry buffer");
 
     // init output buffers
-    let mut veth_buffers = vec![BytesMut::with_capacity(1024); 10];
-    let mut events_buffers = vec![BytesMut::with_capacity(1024); online_cpus().iter().len()];
-    let mut tcp_buffers = vec![BytesMut::with_capacity(1024); online_cpus().iter().len()];
+    let veth_buffers = vec![BytesMut::with_capacity(1024); 10];
+    let events_buffers = vec![BytesMut::with_capacity(1024); online_cpus().iter().len()];
+    let tcp_buffers = vec![BytesMut::with_capacity(1024); online_cpus().iter().len()];
 
-    // init running signals
-    let veth_running_signal = veth_running.clone();
-    let net_events_running_signal = net_events_running.clone();
-    let tcp_registry_running_signal = tcp_registry_running.clone();
+    // init veth link ids
+    let veth_link_ids = link_ids;
 
-    let veth_link_ids = link_ids.clone();
-
+    // spawn async tasks
     let veth_events_displayer = tokio::spawn(async move {
-        display_veth_events(
-            bpf.clone(),
-            perf_veth_buffer,
-            veth_running,
-            veth_buffers,
-            veth_link_ids,
-        )
-        .await;
+        display_veth_events(bpf.clone(), perf_veth_buffer, veth_buffers, veth_link_ids).await;
     });
 
-    // IDEA: Maybe we don't need to display all this events
     let net_events_displayer = tokio::spawn(async move {
-        display_events(perf_net_events_buffer, net_events_running, events_buffers).await;
+        display_events(perf_net_events_buffer, events_buffers).await;
     });
 
     let tcp_registry_events_displayer: tokio::task::JoinHandle<()> = tokio::spawn(async move {
-        display_tcp_registry_events(tcp_registry_buffer, tcp_registry_running, tcp_buffers).await;
+        display_tcp_registry_events(tcp_registry_buffer, tcp_buffers).await;
     });
 
     #[cfg(feature = "experimental")]
@@ -330,12 +325,6 @@ async fn event_listener(
 
     #[cfg(not(feature = "experimental"))]
     tokio::select! {
-        /* result = scan_cgroup_cronjob=>{
-            match result{
-                Err(e)=>error!("scan_cgroup_cronjob panicked {:?}",e),
-                std::result::Result::Ok(_) => info!("cgroup scan cronjob exited"),
-                }
-            } */
         result = veth_events_displayer=>{
             match result{
                 Err(e)=>error!("veth_event_displayer panicked {:?}",e),
@@ -359,9 +348,6 @@ async fn event_listener(
 
         _= signal::ctrl_c()=>{
             info!("Triggered Exiting...");
-            veth_running_signal.store(false, Ordering::SeqCst);
-            net_events_running_signal.store(false, Ordering::SeqCst);
-            tcp_registry_running_signal.store(false, Ordering::SeqCst);
         }
 
     }
@@ -396,9 +382,6 @@ async fn event_listener(
 
         _= signal::ctrl_c()=>{
             info!("Triggered Exiting...");
-            veth_running_signal.store(false, Ordering::SeqCst);
-            net_events_running_signal.store(false, Ordering::SeqCst);
-            tcp_registry_running_signal.store(false, Ordering::SeqCst);
         }
 
     }

@@ -49,10 +49,10 @@ impl TryFrom<u8> for IpProtocols {
 /* helper functions to read and log net events in the container */
 pub async fn display_events<T: BorrowMut<MapData>>(
     mut perf_buffers: Vec<PerfEventArrayBuffer<T>>,
-    running: Arc<AtomicBool>,
+    //running: Arc<AtomicBool>,
     mut buffers: Vec<BytesMut>,
 ) {
-    while running.load(Ordering::SeqCst) {
+    while true {
         for buf in perf_buffers.iter_mut() {
             match buf.read_events(&mut buffers) {
                 std::result::Result::Ok(events) => {
@@ -105,11 +105,11 @@ pub fn reverse_be_addr(addr: u32) -> Ipv4Addr {
 pub async fn display_veth_events<T: BorrowMut<MapData>>(
     bpf: Arc<Mutex<Bpf>>,
     mut perf_buffers: Vec<PerfEventArrayBuffer<T>>,
-    running: Arc<AtomicBool>,
+    //running: Arc<AtomicBool>,
     mut buffers: Vec<BytesMut>,
     mut link_ids: Arc<Mutex<HashMap<String, SchedClassifierLinkId>>>,
 ) {
-    while running.load(Ordering::SeqCst) {
+    while true {
         for buf in perf_buffers.iter_mut() {
             match buf.read_events(&mut buffers) {
                 std::result::Result::Ok(events) => {
@@ -265,10 +265,10 @@ async fn attach_detach_veth(
 /* helper functions to display events from the TcpPacketRegistry structure */
 pub async fn display_tcp_registry_events<T: BorrowMut<MapData>>(
     mut perf_buffers: Vec<PerfEventArrayBuffer<T>>,
-    running: Arc<AtomicBool>,
+    //running: Arc<AtomicBool>,
     mut buffers: Vec<BytesMut>,
 ) {
-    while running.load(Ordering::SeqCst) {
+    while true {
         for buf in perf_buffers.iter_mut() {
             match buf.read_events(&mut buffers) {
                 std::result::Result::Ok(events) => {
