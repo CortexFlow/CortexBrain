@@ -1,24 +1,23 @@
-use aya::{maps::{
-        perf::PerfEventArrayBuffer, Map, MapData, PerfEventArray
-    }, util::online_cpus};
-
-use bytes::BytesMut;
-use tokio::signal;
-use std::{
-    sync::{
-        Arc,
-        atomic::{AtomicBool, Ordering},
-    },
+use aya::{
+    maps::{Map, MapData, PerfEventArray, perf::PerfEventArrayBuffer},
+    util::online_cpus,
 };
 
-use tracing::{error, info};
+use bytes::BytesMut;
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
+};
+use tokio::signal;
+
+use tracing::{debug, error, info};
 
 use crate::structs::NetworkMetrics;
 use crate::structs::TimeStampMetrics;
 
 pub async fn display_metrics_map(
     mut perf_buffers: Vec<PerfEventArrayBuffer<MapData>>,
-    running: Arc<AtomicBool>,  // Changed to Arc<AtomicBool>
+    running: Arc<AtomicBool>, // Changed to Arc<AtomicBool>
     mut buffers: Vec<BytesMut>,
 ) {
     info!("Starting metrics event listener...");
@@ -46,10 +45,23 @@ pub async fn display_metrics_map(
                             let sk_receive_buffer_size = net_metrics.sk_receive_buffer_size;
                             info!(
                                 "tgid: {}, comm: {}, ts_us: {}, sk_drops: {}, sk_err: {}, sk_err_soft: {}, sk_backlog_len: {}, sk_write_memory_queued: {}, sk_ack_backlog: {}, sk_receive_buffer_size: {}",
-                                tgid, comm, ts_us, sk_drop_count, sk_err, sk_err_soft, sk_backlog_len, sk_write_memory_queued, sk_ack_backlog, sk_receive_buffer_size
+                                tgid,
+                                comm,
+                                ts_us,
+                                sk_drop_count,
+                                sk_err,
+                                sk_err_soft,
+                                sk_backlog_len,
+                                sk_write_memory_queued,
+                                sk_ack_backlog,
+                                sk_receive_buffer_size
                             );
                         } else {
-                            info!("Received data too small: {} bytes, expected: {}", data.len(), std::mem::size_of::<NetworkMetrics>());
+                            info!(
+                                "Received data too small: {} bytes, expected: {}",
+                                data.len(),
+                                std::mem::size_of::<NetworkMetrics>()
+                            );
                         }
                     }
                 }
@@ -65,7 +77,7 @@ pub async fn display_metrics_map(
 
 pub async fn display_time_stamp_events_map(
     mut perf_buffers: Vec<PerfEventArrayBuffer<MapData>>,
-    running: Arc<AtomicBool>,  // Changed to Arc<AtomicBool>
+    running: Arc<AtomicBool>, // Changed to Arc<AtomicBool>
     mut buffers: Vec<BytesMut>,
 ) {
     info!("Starting timestamp event listener...");
@@ -107,48 +119,67 @@ pub async fn display_time_stamp_events_map(
     info!("Timestamp event listener stopped");
 }
 
-pub async fn event_listener(bpf_maps: (Map, Map)) -> Result<(), anyhow::Error> {
+pub async fn event_listener(bpf_maps: Vec<Map>) -> Result<(), anyhow::Error> {
     info!("Getting CPU count...");
-    let cpu_count = online_cpus().map_err(|e| anyhow::anyhow!("Error {:?}", e))?.len();
-    info!("CPU count: {}", cpu_count);
-    
-    info!("Creating perf buffers...");
-    let mut net_perf_buffer: Vec<PerfEventArrayBuffer<MapData>> = Vec::new();
-    let mut net_perf_array: PerfEventArray<MapData> = PerfEventArray::try_from(bpf_maps.0)?;
-    let mut time_stamp_events_perf_buffer: Vec<PerfEventArrayBuffer<MapData>> = Vec::new();
-    let mut time_stamp_events_perf_array: PerfEventArray<MapData> =
-        PerfEventArray::try_from(bpf_maps.1)?;
 
-    info!("Opening perf buffers for {} CPUs...", cpu_count);
-    for cpu_id in online_cpus().map_err(|e| anyhow::anyhow!("Error {:?}", e))? {
-        let buf: PerfEventArrayBuffer<MapData> = net_perf_array.open(cpu_id, None)?;
-        net_perf_buffer.push(buf);
+    let mut perf_event_arrays = Vec::new(); // contains a vector of PerfEventArrays
+    let mut event_buffers = Vec::new(); // contains a vector of buffers
+
+    info!("Creating perf buffers...");
+    for map in bpf_maps {
+        debug!("Debugging map type:{:?}", map);
+        let perf_event_array = PerfEventArray::try_from(map).map_err(|e| {
+            error!("Cannot create perf_event_array for map.Reason: {}", e);
+            anyhow::anyhow!("Cannot create perf_event_array for map.Reason: {}", e)
+        })?;
+        perf_event_arrays.push(perf_event_array); // this is step 1
+        let perf_event_array_buffer = Vec::new();
+        event_buffers.push(perf_event_array_buffer); //this is step 2 
     }
-    for cpu_id in online_cpus().map_err(|e| anyhow::anyhow!("Error {:?}", e))? {
-        let buf: PerfEventArrayBuffer<MapData> = time_stamp_events_perf_array.open(cpu_id, None)?;
-        time_stamp_events_perf_buffer.push(buf);
+
+    let cpu_count = online_cpus().map_err(|e| anyhow::anyhow!("Error {:?}", e))?;
+
+    //info!("CPU count: {}", cpu_count);
+    for (perf_evt_array, perf_evt_array_buffer) in
+        perf_event_arrays.iter_mut().zip(event_buffers.iter_mut())
+    {
+        for cpu_id in &cpu_count {
+            let single_buffer = perf_evt_array.open(*cpu_id, None)?;
+            perf_evt_array_buffer.push(single_buffer);
+        }
     }
+
+    //info!("Opening perf buffers for {} CPUs...", cpu_count);
     info!("Perf buffers created successfully");
+    let mut event_buffers = event_buffers.into_iter();
+
+    let time_stamp_events_perf_buffer = event_buffers.next().expect("");
+    let net_perf_buffer = event_buffers.next().expect("");
 
     // Create shared running flags
     let net_metrics_running = Arc::new(AtomicBool::new(true));
     let time_stamp_events_running = Arc::new(AtomicBool::new(true));
-    
+
     // Create proper sized buffers
-    let net_metrics_buffers = vec![BytesMut::with_capacity(1024); cpu_count];
-    let time_stamp_events_buffers = vec![BytesMut::with_capacity(1024); cpu_count];
-    
+    let net_metrics_buffers = vec![BytesMut::with_capacity(1024); cpu_count.len()];
+    let time_stamp_events_buffers = vec![BytesMut::with_capacity(1024); cpu_count.len()];
+
     // Clone for the signal handler
     let net_metrics_running_signal = net_metrics_running.clone();
     let time_stamp_events_running_signal = time_stamp_events_running.clone();
-    
+
     info!("Starting event listener tasks...");
     let metrics_map_displayer = tokio::spawn(async move {
         display_metrics_map(net_perf_buffer, net_metrics_running, net_metrics_buffers).await;
     });
 
     let time_stamp_events_displayer = tokio::spawn(async move {
-        display_time_stamp_events_map(time_stamp_events_perf_buffer, time_stamp_events_running, time_stamp_events_buffers).await
+        display_time_stamp_events_map(
+            time_stamp_events_perf_buffer,
+            time_stamp_events_running,
+            time_stamp_events_buffers,
+        )
+        .await
     });
 
     info!("Event listeners started, entering main loop...");

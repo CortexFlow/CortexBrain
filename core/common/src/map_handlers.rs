@@ -17,10 +17,6 @@ use tracing::{error, info};
 //
 // this function init the bpfs maps used in the main program
 //
-//  index 0: events_map
-//  index 1: veth_map
-//  index 2: blocklist map
-//  index 3: tcp_registry map
 //
 
 #[cfg(feature = "map-handlers")]
