@@ -9,7 +9,9 @@ pub fn load_program(
     program_name: &str,
     actual_program: &str,
 ) -> Result<(), anyhow::Error> {
-    let mut bpf_new = bpf.lock().expect("Cannot get value from lock");
+    let mut bpf_new = bpf
+        .lock()
+        .map_err(|e| anyhow::anyhow!("Cannot get value from lock. Reason: {}", e))?;
 
     // Load and attach the eBPF programs
     let program: &mut KProbe = bpf_new
