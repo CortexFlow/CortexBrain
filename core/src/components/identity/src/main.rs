@@ -18,7 +18,7 @@ use crate::helpers::{
 use aya::{
     Ebpf,
     maps::{Map, perf::PerfEventArray},
-    programs::{KProbe, SchedClassifier, TcAttachType, tc::SchedClassifierLinkId},
+    programs::{SchedClassifier, TcAttachType, tc::SchedClassifierLinkId},
     util::online_cpus,
 };
 
@@ -27,6 +27,7 @@ use crate::helpers::scan_cgroup_cronjob;
 
 use bytes::BytesMut;
 use cortexbrain_common::map_handlers::{init_bpf_maps, map_pinner, populate_blocklist};
+use cortexbrain_common::program_handlers::load_program;
 use std::{
     convert::TryInto,
     path::Path,
@@ -65,7 +66,6 @@ async fn main() -> Result<(), anyhow::Error> {
     let data = vec![
         "EventsMap".to_string(),
         "veth_identity_map".to_string(),
-        //"Blocklist".to_string(),
         "TcpPacketRegistry".to_string(),
     ];
     match init_bpf_maps(bpf.clone(), data) {
@@ -167,76 +167,25 @@ async fn init_tc_classifier(
 
 async fn init_veth_tracer(bpf: Arc<Mutex<Ebpf>>) -> Result<(), anyhow::Error> {
     //this functions init the veth_tracer used to make the InterfacesRegistry
-
-    let mut bpf_new = bpf
-        .lock()
-        .map_err(|e| anyhow::anyhow!("Cannot get value from lock. Reason: {}", e))?;
-
     //creation tracer
-    let veth_creation_tracer: &mut KProbe = bpf_new
-        .program_mut("veth_creation_trace")
-        .ok_or_else(|| anyhow::anyhow!("program 'veth_creation_trace' not found"))?
-        .try_into()?;
-    veth_creation_tracer.load()?;
 
-    match veth_creation_tracer.attach("register_netdevice", 0) {
-        std::result::Result::Ok(_) => info!("veth_creation_tracer program attached successfully"),
-        Err(e) => error!("Error attaching veth_creation_tracer program {:?}", e),
-    }
+    load_program(bpf.clone(), "veth_creation_trace", "register_netdevice")?;
 
     //deletion tracer
-    let veth_deletion_tracer: &mut KProbe = bpf_new
-        .program_mut("veth_deletion_trace")
-        .ok_or_else(|| anyhow::anyhow!("program 'veth_deletion_trace' not found"))?
-        .try_into()?;
-    veth_deletion_tracer
-        .load()
-        .context("Failed to load deletetion_tracer program")?;
-
-    match veth_deletion_tracer.attach("unregister_netdevice_queue", 0) {
-        std::result::Result::Ok(_) => info!("veth_deletion_trace program attached successfully"),
-        Err(e) => error!("Error attaching veth_deletetion_trace program {:?}", e),
-    }
+    load_program(bpf, "veth_deletion_trace", "unregister_netdevice_queue")?;
 
     Ok(())
 }
 
 async fn init_tcp_registry(bpf: Arc<Mutex<Ebpf>>) -> Result<(), anyhow::Error> {
-    let mut bpf_new = bpf
-        .lock()
-        .map_err(|e| anyhow::anyhow!("Cannot get value from lock. Reason: {}", e))?;
-
     // init tcp registry
-    let tcp_analyzer: &mut KProbe = bpf_new
-        .program_mut("tcp_message_tracer")
-        .ok_or_else(|| anyhow::anyhow!("program 'tcp_message_tracer' not found"))?
-        .try_into()?;
 
-    tcp_analyzer
-        .load()
-        .context("Failed to load tcp_message_tracer")?;
+    // .clone() increments the reference count of the shared Ebpf instance.
+    load_program(bpf.clone(), "tcp_message_tracer_rcv", "tcp_v4_rcv")?;
 
     info!("initializing tcp tracing functions");
 
-    match tcp_analyzer.attach("tcp_v4_rcv", 0) {
-        std::result::Result::Ok(_) => {
-            info!("tcp_message_tracer attached successfully to the tcp_v4_rcv function ")
-        }
-        Err(e) => error!(
-            "Error attaching tcp_message_tracer to the tcp_v4_rcv function. Error: {:?}",
-            e
-        ),
-    }
-
-    match tcp_analyzer.attach("tcp_v4_connect", 0) {
-        std::result::Result::Ok(_) => {
-            info!("tcp_message_tracer attached successfully to the tcp_v4_connect function ")
-        }
-        Err(e) => error!(
-            "Error attaching tcp_message_tracer to the tcp_v4_connect function. Error: {:?}",
-            e
-        ),
-    }
+    load_program(bpf, "tcp_message_tracer_connect", "tcp_v4_connect")?;
 
     Ok(())
 }

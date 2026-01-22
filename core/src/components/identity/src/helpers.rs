@@ -52,6 +52,7 @@ pub async fn display_events<T: BorrowMut<MapData>>(
     //running: Arc<AtomicBool>,
     mut buffers: Vec<BytesMut>,
 ) {
+    //  FIXME: here maybe we need to use a loop with tokio::select
     while true {
         for buf in perf_buffers.iter_mut() {
             match buf.read_events(&mut buffers) {
@@ -109,6 +110,7 @@ pub async fn display_veth_events<T: BorrowMut<MapData>>(
     mut buffers: Vec<BytesMut>,
     mut link_ids: Arc<Mutex<HashMap<String, SchedClassifierLinkId>>>,
 ) {
+    //  FIXME: here maybe we need to use a loop with tokio::select
     while true {
         for buf in perf_buffers.iter_mut() {
             match buf.read_events(&mut buffers) {
@@ -268,6 +270,7 @@ pub async fn display_tcp_registry_events<T: BorrowMut<MapData>>(
     //running: Arc<AtomicBool>,
     mut buffers: Vec<BytesMut>,
 ) {
+    //  FIXME: here maybe we need to use a loop with tokio::select
     while true {
         for buf in perf_buffers.iter_mut() {
             match buf.read_events(&mut buffers) {

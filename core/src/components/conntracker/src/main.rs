@@ -29,14 +29,13 @@ use aya_ebpf::{
 };
 
 use crate::tc::try_identity_classifier;
-use crate::veth_tracer::try_veth_tracer;
 use crate::tcp_analyzer::try_tcp_analyzer;
-
+use crate::veth_tracer::try_veth_tracer;
 
 // docs:
 //
 // virtual ethernet (veth) interface tracer:
-// This function is triggered when a virtual ethernet interface is created 
+// This function is triggered when a virtual ethernet interface is created
 //
 
 #[kprobe]
@@ -50,7 +49,7 @@ pub fn veth_creation_trace(ctx: ProbeContext) -> u32 {
 // docs:
 //
 // virtual ethernet (veth) interface tracer:
-// This function is triggered when a virtual ethernet interface is deleted 
+// This function is triggered when a virtual ethernet interface is deleted
 //
 
 #[kprobe]
@@ -94,14 +93,29 @@ pub fn identity_classifier(ctx: TcContext) -> i32 {
 //
 // this kprobe retrieves pid data and task id of an incoming packet
 
+// this kprobe separation is needed because every kprobe program can be attached only one time.
+// if you try to attach the same program the kernel returns this error: "Program is already attached"
+// this is the reason why we have tcp_message_tracer_connect and tcp_message_tracer_rcv that are essentially the same functions
+// but in the kernel space one is attached to the tcp_v4_connect kprobe and one to the tcp_v4_rcv kprobe
+// TODO: a good addition to the library will be a function that check if the program is already attached:
+// if the program is attached it creates a safe copy of the program to attach a second kernel symbol (kprobes)
+// if the program is not attached we have the traditional behaviour (load the program + attach the program to the kernel symbol (kprobes))
+
 #[kprobe]
-pub fn tcp_message_tracer(ctx: ProbeContext) -> u32 {
+pub fn tcp_message_tracer_connect(ctx: ProbeContext) -> u32 {
     match try_tcp_analyzer(ctx) {
         Ok(ret_val) => ret_val,
         Err(ret_val) => ret_val.try_into().unwrap_or(1),
     }
 }
 
+#[kprobe]
+pub fn tcp_message_tracer_rcv(ctx: ProbeContext) -> u32 {
+    match try_tcp_analyzer(ctx) {
+        Ok(ret_val) => ret_val,
+        Err(ret_val) => ret_val.try_into().unwrap_or(1),
+    }
+}
 
 //ref:https://elixir.bootlin.com/linux/v6.15.1/source/include/uapi/linux/ethtool.h#L536
 //https://elixir.bootlin.com/linux/v6.15.1/source/drivers/net/veth.c#L268
