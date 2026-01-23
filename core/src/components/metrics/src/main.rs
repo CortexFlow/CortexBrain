@@ -54,9 +54,9 @@ async fn main() -> Result<(), anyhow::Error> {
                                 "An error occured during the execution of load_program function",
                             )?;
 
-                        load_program(tcp_bpf,"tcp_connect","tcp_v4_connect")
+                        load_program(tcp_bpf,"tcp_v4_connect","tcp_v4_connect")
                         .context("An error occured during the execution of load_and_attach_tcp_programs function")?;
-                        load_program(tcp_v6_bpf,"tcp_connect","tcp_v6_connect")
+                        load_program(tcp_v6_bpf,"tcp_v6_connect","tcp_v6_connect")
                         .context("An error occured during the execution of load_and_attach_tcp_programs function")?;
 
                         load_program(

@@ -78,7 +78,13 @@ fn try_metrics_tracer(ctx: ProbeContext) -> Result<u32, i64> {
 
 // Monitor on tcp_sendmsg, tcp_v4_connect
 #[kprobe]
-fn tcp_connect(ctx: ProbeContext) -> u32 {
+fn tcp_v6_connect(ctx: ProbeContext) -> u32 {
+    match on_connect(ctx) { Ok(_) => 0, Err(e) => e as u32 }
+}
+
+// Monitor on tcp_sendmsg, tcp_v4_connect
+#[kprobe]
+fn tcp_v4_connect(ctx: ProbeContext) -> u32 {
     match on_connect(ctx) { Ok(_) => 0, Err(e) => e as u32 }
 }
 

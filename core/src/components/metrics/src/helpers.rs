@@ -10,7 +10,7 @@ use std::sync::{
 };
 use tokio::signal;
 
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 
 use crate::structs::NetworkMetrics;
 use crate::structs::TimeStampMetrics;
@@ -128,13 +128,13 @@ pub async fn event_listener(bpf_maps: Vec<Map>) -> Result<(), anyhow::Error> {
     info!("Creating perf buffers...");
     for map in bpf_maps {
         debug!("Debugging map type:{:?}", map);
-        let perf_event_array = PerfEventArray::try_from(map).map_err(|e| {
-            error!("Cannot create perf_event_array for map.Reason: {}", e);
-            anyhow::anyhow!("Cannot create perf_event_array for map.Reason: {}", e)
-        })?;
-        perf_event_arrays.push(perf_event_array); // this is step 1
-        let perf_event_array_buffer = Vec::new();
-        event_buffers.push(perf_event_array_buffer); //this is step 2 
+        if let std::result::Result::Ok(perf_event_array) = PerfEventArray::try_from(map) {
+            perf_event_arrays.push(perf_event_array); // this is step 1
+            let perf_event_array_buffer = Vec::new();
+            event_buffers.push(perf_event_array_buffer); //this is step 2 
+        } else {
+            warn!("Map is not a PerfEventArray, skipping load");
+        }
     }
 
     let cpu_count = online_cpus().map_err(|e| anyhow::anyhow!("Error {:?}", e))?;

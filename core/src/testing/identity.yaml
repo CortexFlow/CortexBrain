@@ -53,7 +53,7 @@ spec:
                   - SYS_PTRACE 
       containers:
         - name: identity
-          image: lorenzotettamanti/cortexflow-identity:0.1.5-refcount7
+          image: lorenzotettamanti/cortexflow-identity:0.1.5-refcount9
           command: ["/bin/bash", "-c"]
           args:
             - |

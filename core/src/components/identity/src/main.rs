@@ -37,7 +37,7 @@ use std::{
 use anyhow::{Context, Ok};
 use cortexbrain_common::{constants, logger};
 use tokio::{fs, signal};
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 
 use std::collections::HashMap;
 
@@ -63,12 +63,13 @@ async fn main() -> Result<(), anyhow::Error> {
     let bpf = Arc::new(Mutex::new(Ebpf::load(&data)?));
     let bpf_map_save_path = std::env::var(constants::PIN_MAP_PATH)
         .context("PIN_MAP_PATH environment variable required")?;
-    let data = vec![
+    let map_data = vec![
         "events_map".to_string(),
         "veth_identity_map".to_string(),
         "TcpPacketRegistry".to_string(),
+        "Blocklist".to_string(),
     ];
-    match init_bpf_maps(bpf.clone(), data) {
+    match init_bpf_maps(bpf.clone(), map_data) {
         std::result::Result::Ok(bpf_maps) => {
             info!("Successfully loaded bpf maps");
             let pin_path = std::path::PathBuf::from(&bpf_map_save_path);
@@ -212,13 +213,13 @@ async fn event_listener(
     // create the PerfEventArrays and the buffers
     for map in bpf_maps {
         debug!("Debugging map type:{:?}", map);
-        let perf_event_array = PerfEventArray::try_from(map).map_err(|e| {
-            error!("Cannot create perf_event_array for map.Reason: {}", e);
-            anyhow::anyhow!("Cannot create perf_event_array for map.Reason: {}", e)
-        })?;
-        perf_event_arrays.push(perf_event_array); // this is step 1
-        let perf_event_array_buffer = Vec::new();
-        event_buffers.push(perf_event_array_buffer); //this is step 2 
+        if let std::result::Result::Ok(perf_event_array) = PerfEventArray::try_from(map) {
+            perf_event_arrays.push(perf_event_array); // this is step 1
+            let perf_event_array_buffer = Vec::new();
+            event_buffers.push(perf_event_array_buffer); //this is step 2 
+        } else {
+            warn!("Map is not a PerfEventArray, skipping load");
+        }
     }
 
     // fill the input buffers with data from the PerfEventArrays
