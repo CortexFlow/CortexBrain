@@ -19,7 +19,7 @@ spec:
       hostNetwork: true
       containers:
         - name: metrics
-          image: ghcr.io/cortexflow/metrics:latest
+          image: lorenzotettamanti/cortexflow-metrics:0.1.2-test8
           command: ["/bin/bash", "-c"]
           args:
             - |

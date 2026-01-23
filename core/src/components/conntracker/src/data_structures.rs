@@ -87,7 +87,7 @@ pub struct TcpPacketRegistry{
 //
 
 
-#[map(name = "EventsMap", pinning = "by_name")]
+#[map(name = "events_map", pinning = "by_name")]
 pub static mut EVENTS: PerfEventArray<PacketLog> = PerfEventArray::new(0);
 
 // FIXME: this might be useless 
