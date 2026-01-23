@@ -64,7 +64,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let bpf_map_save_path = std::env::var(constants::PIN_MAP_PATH)
         .context("PIN_MAP_PATH environment variable required")?;
     let data = vec![
-        "EventsMap".to_string(),
+        "events_map".to_string(),
         "veth_identity_map".to_string(),
         "TcpPacketRegistry".to_string(),
     ];
