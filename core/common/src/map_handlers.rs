@@ -30,7 +30,10 @@ pub fn init_bpf_maps(
     bpf: Arc<Mutex<Ebpf>>,
     map_names: Vec<String>,
 ) -> Result<BpfMapsData, anyhow::Error> {
-    let mut bpf_new = bpf.lock().expect("Cannot get value from lock");
+    let mut bpf_new = bpf
+        .lock()
+        .map_err(|e| anyhow::anyhow!("Cannot get value from lock. Reason: {}", e))?;
+
     let mut maps = Vec::new(); // stores bpf_maps_objects
 
     for name in &map_names {
