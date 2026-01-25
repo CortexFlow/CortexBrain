@@ -26,7 +26,7 @@ use std::{
     },
 };
 use tokio::time;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, event, info, span, warn};
 
 /*
  * TryFrom Trait implementation for IpProtocols enum
@@ -106,7 +106,6 @@ pub fn reverse_be_addr(addr: u32) -> Ipv4Addr {
 pub async fn display_veth_events<T: BorrowMut<MapData>>(
     bpf: Arc<Mutex<Bpf>>,
     mut perf_buffers: Vec<PerfEventArrayBuffer<T>>,
-    //running: Arc<AtomicBool>,
     mut buffers: Vec<BytesMut>,
     mut link_ids: Arc<Mutex<HashMap<String, SchedClassifierLinkId>>>,
 ) {
@@ -115,15 +114,36 @@ pub async fn display_veth_events<T: BorrowMut<MapData>>(
         for buf in perf_buffers.iter_mut() {
             match buf.read_events(&mut buffers) {
                 std::result::Result::Ok(events) => {
-                    for i in 0..events.read {
+                    // debug: log the readed events
+                    if events.read > 0 {
+                        info!("Read {} veth events", events.read);
+                    }
+                    // debug: log the lost events
+                    if events.lost > 0 {
+                        warn!("Lost {} veth events", events.lost);
+                    }
+                    let offset = 0 ;
+                    for i in offset..events.read {
                         let data = &buffers[i];
+                        // error: data is smaller that the vethlog structure
+                        if data.len() < std::mem::size_of::<VethLog>() {
+                            warn!(
+                                "Corrupted data. data_len = {} data_ptr = {}. Min size required: {} bytes",
+                                data.len(),
+                                data.as_ptr() as usize,
+                                std::mem::size_of::<VethLog>()
+                            );
+                            continue;
+                        }
+                        // correct size: data is logged correctly
                         if data.len() >= std::mem::size_of::<VethLog>() {
                             let vethlog: VethLog =
-                                unsafe { std::ptr::read(data.as_ptr() as *const _) };
+                                unsafe { std::ptr::read_unaligned(data.as_ptr() as *const _) };
+                            //TODO: can this pattern be safe instead of using unsafe?
 
                             let name_bytes = vethlog.name;
 
-                            let dev_addr_bytes = vethlog.dev_addr.to_vec();
+                            let dev_addr_bytes = vethlog.dev_addr;
                             let name = std::str::from_utf8(&name_bytes);
                             let state = vethlog.state;
 
@@ -141,13 +161,17 @@ pub async fn display_veth_events<T: BorrowMut<MapData>>(
                             }
                             match name {
                                 std::result::Result::Ok(veth_name) => {
-                                    info!(
-                                        "[{}] Triggered action: register_netdevice event_type:{:?} Manipulated veth: {:?} state:{:?} dev_addr:{:?}",
+                                    //TODO: create a span for this events, then enter the span, log the events and close the span
+                                    let veth_span = span!(tracing::Level::INFO, "veth_event", veth_name = %veth_name.trim_end_matches("\0"), event_type = %event_type.as_str());
+                                    let _enter = veth_span.enter();
+                                    event!(
+                                        tracing::Level::INFO,
+                                        "[{}] Veth Event: Type: {} Name: {} Dev_addr: {:x?} State: {}",
                                         netns,
                                         event_type,
-                                        veth_name.trim_end_matches("\0").to_string(),
-                                        state,
-                                        dev_addr
+                                        veth_name.trim_end_matches("\0"),
+                                        dev_addr,
+                                        state
                                     );
                                     match attach_detach_veth(
                                         bpf.clone(),
@@ -158,18 +182,34 @@ pub async fn display_veth_events<T: BorrowMut<MapData>>(
                                     .await
                                     {
                                         std::result::Result::Ok(_) => {
-                                            info!("Attach/Detach veth function attached correctly");
+                                            //info!("Attach/Detach veth function attached correctly");
+                                            event!(
+                                                tracing::Level::INFO,
+                                                "[{}] Successfully attached Attach/Detach function for veth: {}",
+                                                netns,
+                                                veth_name.trim_end_matches("\0")
+                                            );
                                         }
-                                        Err(e) => error!(
-                                            "Error attaching Attach/Detach function. Error : {}",
-                                            e
-                                        ),
+                                        Err(e) =>
+                                        //error!(
+                                        //    "Error attaching Attach/Detach function. Error : {}",
+                                        //    e
+                                        //),
+                                        {
+                                            event!(
+                                                tracing::Level::ERROR,
+                                                "[{}] Error attaching Attach/Detach function. Error : {}",
+                                                netns,
+                                                e
+                                            )
+                                        }
                                     }
                                 }
-                                Err(_) => info!("Unknown name or corrupted field"),
+                                Err(_) => {
+                                    //info!("Unknown name or corrupted field")
+                                    event!(tracing::Level::WARN, "Corrupted veth name field");
+                                }
                             }
-                        } else {
-                            warn!("Corrupted data");
                         }
                     }
                 }
@@ -280,6 +320,7 @@ pub async fn display_tcp_registry_events<T: BorrowMut<MapData>>(
                         if data.len() >= std::mem::size_of::<TcpPacketRegistry>() {
                             let tcp_pl: TcpPacketRegistry =
                                 unsafe { std::ptr::read(data.as_ptr() as *const _) };
+                            //TODO: can this pattern be safe?
                             let src = reverse_be_addr(tcp_pl.src_ip);
                             let dst = reverse_be_addr(tcp_pl.dst_ip);
                             let src_port = u16::from_be(tcp_pl.src_port);
@@ -295,7 +336,10 @@ pub async fn display_tcp_registry_events<T: BorrowMut<MapData>>(
 
                             match IpProtocols::try_from(tcp_pl.proto) {
                                 std::result::Result::Ok(proto) => {
-                                    info!(
+                                    let tcp_events_span = span!(tracing::Level::INFO, "tcp_registry_event", command = %command_str.as_str(), cgroup_id = %cgroup_id);
+                                    let _enter = tcp_events_span.enter();
+                                    event!(
+                                        tracing::Level::INFO,
                                         "Event Id: {} Protocol: {:?} SRC: {}:{} -> DST: {}:{} Command: {} Cgroup_id: {}",
                                         event_id,
                                         proto,
@@ -306,12 +350,31 @@ pub async fn display_tcp_registry_events<T: BorrowMut<MapData>>(
                                         command_str,
                                         cgroup_id //proc_content
                                     );
+                                    //info!(
+                                    //    "Event Id: {} Protocol: {:?} SRC: {}:{} -> DST: {}:{} Command: {} Cgroup_id: {}",
+                                    //    event_id,
+                                    //    proto,
+                                    //    src,
+                                    //    src_port,
+                                    //    dst,
+                                    //    dst_port,
+                                    //    command_str,
+                                    //    cgroup_id //proc_content
+                                    //);
                                 }
                                 Err(_) => {
-                                    info!(
-                                        "Event Id: {} Protocol: Unknown ({})",
-                                        event_id, tcp_pl.proto
+                                    event!(
+                                        tracing::Level::INFO,
+                                        "Event Id: {} Protocol: Unknown ({}) Command: {} Cgroup_id: {}",
+                                        event_id,
+                                        tcp_pl.proto,
+                                        command_str,
+                                        cgroup_id
                                     );
+                                    //info!(
+                                    //    "Event Id: {} Protocol: Unknown ({})",
+                                    //    event_id, tcp_pl.proto
+                                    //);
                                 }
                             };
                         } else {
