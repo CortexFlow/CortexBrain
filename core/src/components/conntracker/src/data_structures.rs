@@ -50,16 +50,17 @@ pub struct ConnArray {
 //
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy)]
 pub struct VethLog {
-    pub name: [u8; 16],
-    pub state: u64, // state var type: long unsigned int
-    pub dev_addr: [u32; 8],
-    pub event_type: u8, // i choose 1 for veth creation or 2 for veth destruction
-    pub netns: u32,
-    pub pid: u32
-
+    pub name: [u8; 16],      // 16 bytes: veth interface name
+    pub state: u64,           // 8 bytes: state variable (unsigned long in kernel)
+    pub dev_addr: [u32; 8],   // 32 bytes: device address
+    pub event_type: u8,       // 1 byte: 1 for veth creation, 2 for veth destruction
+    pub netns: u32,           // 4 bytes: network namespace inode number
+    pub pid: u32,             // 4 bytes: PID that triggered the event
+    // padding automatically added by Rust for alignment
 }
+
 
 // TODO: write documentation about this structure
 #[repr(C)]
