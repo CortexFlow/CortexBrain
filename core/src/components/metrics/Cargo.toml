@@ -6,12 +6,12 @@ edition = "2024"
 [dependencies]
 aya = "0.13.1"
 aya-log = "0.2.1"
-bytes = "1.4"
-tokio = { version = "1.48.0", features = ["rt","macros","time","fs","signal","rt-multi-thread"] }
+bytes = "1.11"
+tokio = { version = "1.49.0", features = ["rt","macros","time","fs","signal","rt-multi-thread"] }
 anyhow = "1.0"
-tracing = "0.1.41"
-tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
-libc = "0.2.172"
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.22", features = ["env-filter"] }
+libc = "0.2.180"
 bytemuck = "1.23.0"
 cortexbrain-common = { path = "../../../common" }
-nix  ={version="0.30.1",features=["net"]}
+nix  ={version="0.31.1",features=["net"]}
