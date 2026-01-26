@@ -86,15 +86,22 @@ pub fn map_pinner(maps: BpfMapsData, path: &PathBuf) -> Result<Vec<Map>, Error> 
     Ok(owned_maps)
 }
 
+use aya::maps::MapData;
 #[cfg(feature = "map-handlers")]
-pub async fn populate_blocklist(map: &mut Map) -> Result<(), Error> {
+pub async fn populate_blocklist() -> Result<(), Error> {
+    // load mapdata from path
+
+    let mapdata = MapData::from_pin("/sys/fs/bpf/maps/Blocklist")
+        .map_err(|e| anyhow::anyhow!("Failed to load blocklist_map: {}", e))?;
+
+    let map = Map::HashMap(mapdata);
+    let mut blocklist_map = HashMap::<_, [u8; 4], [u8; 4]>::try_from(map)?;
+
     let client = Client::try_default()
         .await
         .expect("Cannot connect to Kubernetes Client");
     let namespace = "cortexflow";
     let configmap = "cortexbrain-client-config";
-
-    let mut blocklist_map = HashMap::<_, [u8; 4], [u8; 4]>::try_from(map)?;
 
     let api: Api<ConfigMap> = Api::namespaced(client, namespace);
     match api.get(configmap).await {

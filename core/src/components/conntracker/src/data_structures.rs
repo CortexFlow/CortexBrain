@@ -104,7 +104,7 @@ pub static mut CONNTRACKER: LruPerCpuHashMap<ConnArray, u8> =
 #[map(name = "veth_identity_map")]
 pub static mut VETH_EVENTS: PerfEventArray<VethLog> = PerfEventArray::new(0);
 
-#[map(name = "Blocklist")]
+#[map(name = "Blocklist", pinning = "by_name")]
 pub static mut BLOCKLIST: HashMap<[u8;4], [u8;4]> = HashMap::<[u8;4], [u8;4]>::with_max_entries(1024, 0);
 //here i need to pass an address like this: [135,171,168,192]
 

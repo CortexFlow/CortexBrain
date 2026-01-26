@@ -18,7 +18,7 @@ use crate::helpers::{
 use aya::{
     Ebpf,
     maps::{Map, perf::PerfEventArray},
-    programs::{KProbe, SchedClassifier, TcAttachType, tc::SchedClassifierLinkId},
+    programs::{SchedClassifier, TcAttachType, tc::SchedClassifierLinkId},
     util::online_cpus,
 };
 
@@ -87,9 +87,9 @@ async fn main() -> Result<(), anyhow::Error> {
 
                     info!("Found interfaces: {:?}", interfaces);
 
-                    //{ FIXME: paused for testing the other features
-                    //    populate_blocklist(&mut maps.2).await?;
-                    //}
+                    { 
+                        populate_blocklist().await?;
+                    }
 
                     {
                         init_tc_classifier(bpf.clone(), interfaces, link_ids.clone()).await.context(
