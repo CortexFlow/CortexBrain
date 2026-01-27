@@ -44,7 +44,8 @@ use std::collections::HashMap;
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
     //init tracing subscriber
-    logger::init_default_logger();
+    //logger::init_default_logger();
+    let otlp_provider = logger::otlp_logger_init("identity_service-OTLP".to_string());
 
     info!("Starting identity service...");
     info!("fetching data");
@@ -86,9 +87,9 @@ async fn main() -> Result<(), anyhow::Error> {
 
                     info!("Found interfaces: {:?}", interfaces);
 
-                    //{ FIXME: paused for testing the other features
-                    //    populate_blocklist(&mut maps.2).await?;
-                    //}
+                    { 
+                        populate_blocklist().await?;
+                    }
 
                     {
                         init_tc_classifier(bpf.clone(), interfaces, link_ids.clone()).await.context(
@@ -115,6 +116,7 @@ async fn main() -> Result<(), anyhow::Error> {
         Err(e) => {
             error!("Error while loading bpf maps {}", e);
             let _ = signal::ctrl_c().await;
+            let _ = otlp_provider.shutdown();
         }
     }
 
@@ -248,7 +250,7 @@ async fn event_listener(
         .expect("Cannot create tcp_registry buffer");
 
     // init output buffers
-    let veth_buffers = vec![BytesMut::with_capacity(1024); 10];
+    let veth_buffers = vec![BytesMut::with_capacity(1024); online_cpus().iter().len()];
     let events_buffers = vec![BytesMut::with_capacity(1024); online_cpus().iter().len()];
     let tcp_buffers = vec![BytesMut::with_capacity(1024); online_cpus().iter().len()];
 

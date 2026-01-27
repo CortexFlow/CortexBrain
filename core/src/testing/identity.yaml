@@ -28,7 +28,6 @@ spec:
               
               echo "checking permissions"
               ls -ld /sys/fs/bpf
-
           volumeMounts:
             - name: bpf
               mountPath: /sys/fs/bpf
@@ -53,7 +52,7 @@ spec:
                   - SYS_PTRACE 
       containers:
         - name: identity
-          image: lorenzotettamanti/cortexflow-identity:0.1.5-refcount9
+          image: ghcr.io/cortexflow/identity:latest
           command: ["/bin/bash", "-c"]
           args:
             - |
@@ -70,6 +69,16 @@ spec:
 
               echo "Running application..."
               exec /usr/local/bin/cortexflow-identity-service || echo "Application exited with code $?"
+          env:
+          - name: OTEL_SERVICE_NAME
+            value: cortexflow-identity
+          - name: OTEL_EXPORTER_OTLP_ENDPOINT
+            value: http://localhost:4317
+          - name: OTEL_EXPORTER_OTLP_PROTOCOL
+            value: grpc
+          - name: OTEL_RESOURCE_ATTRIBUTES
+            value: service.namespace=cortexflow,service.version=0.1.5
+          
           resources:
               limits:
                 cpu: "1"

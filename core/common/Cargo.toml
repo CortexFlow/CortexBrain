@@ -10,12 +10,17 @@ homepage = "https://docs.cortexflow.org"
 repository = "https://github.com/CortexFlow/CortexBrain"
 
 [dependencies]
-tracing = "0.1"
+tracing = { version = "0.1", features = ["std"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 anyhow = "1.0"
 kube = { version = "2.0.1", features = ["client"] }
 k8s-openapi = { version = "0.26.0", features = ["v1_34"] }
 aya = "0.13.1"
+opentelemetry = "0.31.0"
+opentelemetry_sdk = { version = "0.31.0", features = ["logs", "rt-tokio"] }
+opentelemetry-stdout = { version = "0.31.0", features = ["logs"] }
+opentelemetry-appender-tracing = "0.31.1"
+opentelemetry-otlp = { version = "0.31.0", features = ["logs", "grpc-tonic"] }
 
 [features]
 map-handlers = []

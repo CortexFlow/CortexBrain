@@ -1,38 +1,25 @@
-#![allow(warnings)]
 use crate::enums::IpProtocols;
 use crate::structs::{PacketLog, TcpPacketRegistry, VethLog};
-use anyhow::Error;
+
+use aya::Ebpf;
 use aya::programs::tc::SchedClassifierLinkId;
 use aya::{
-    Bpf,
     maps::{MapData, perf::PerfEventArrayBuffer},
     programs::{SchedClassifier, TcAttachType},
 };
 use bytes::BytesMut;
-use k8s_openapi::api::core::v1::Pod;
-use kube::api::ObjectList;
-use kube::{Api, Client};
 use nix::net::if_::if_nameindex;
-use std::collections::HashMap;
-use std::fs;
-use std::result::Result::Ok;
-use std::sync::Mutex;
 use std::{
-    borrow::BorrowMut,
-    net::Ipv4Addr,
-    sync::{
-        Arc,
-        atomic::{AtomicBool, Ordering},
-    },
+    borrow::BorrowMut, collections::HashMap, net::Ipv4Addr, result::Result::Ok, sync::Arc,
+    sync::Mutex,
 };
-use tokio::time;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, event, info, span, warn};
 
-/*
- * TryFrom Trait implementation for IpProtocols enum
- * This is used to reconstruct the packet protocol based on the
- * IPV4 Header Protocol code
- */
+//
+// TryFrom Trait implementation for IpProtocols enum
+// This is used to reconstruct the packet protocol based on the
+// IPV4 Header Protocol code
+//
 
 impl TryFrom<u8> for IpProtocols {
     type Error = ();
@@ -49,16 +36,35 @@ impl TryFrom<u8> for IpProtocols {
 /* helper functions to read and log net events in the container */
 pub async fn display_events<T: BorrowMut<MapData>>(
     mut perf_buffers: Vec<PerfEventArrayBuffer<T>>,
-    //running: Arc<AtomicBool>,
     mut buffers: Vec<BytesMut>,
 ) {
     //  FIXME: here maybe we need to use a loop with tokio::select
-    while true {
+    loop {
         for buf in perf_buffers.iter_mut() {
             match buf.read_events(&mut buffers) {
                 std::result::Result::Ok(events) => {
-                    for i in 0..events.read {
+                    let offset = 0 as usize;
+                    if events.read > 0 {
+                        debug!("Read {} events", events.read);
+                    }
+                    if events.lost > 0 {
+                        debug!("Lost events: {}", events.lost);
+                    }
+                    for i in offset..events.read {
                         let data = &buffers[i];
+                        if data.len() < std::mem::size_of::<PacketLog>() {
+                            let failed_events_span =
+                                span!(tracing::Level::INFO, "corrupted_packets_events");
+                            let _enter: span::Entered<'_> = failed_events_span.enter();
+                            event!(
+                                tracing::Level::WARN,
+                                "Corrupted data. data_len = {} data_ptr = {}. Min size required: {} bytes",
+                                data.len(),
+                                data.as_ptr() as usize,
+                                std::mem::size_of::<PacketLog>()
+                            );
+                            continue;
+                        }
                         if data.len() >= std::mem::size_of::<PacketLog>() {
                             let pl: PacketLog =
                                 unsafe { std::ptr::read(data.as_ptr() as *const _) };
@@ -70,16 +76,29 @@ pub async fn display_events<T: BorrowMut<MapData>>(
 
                             match IpProtocols::try_from(pl.proto) {
                                 std::result::Result::Ok(proto) => {
-                                    info!(
+                                    let packets_events_span = span!(tracing::Level::INFO, "packets_event",event_id=%event_id, protocol = %format!("{:?}", proto));
+                                    let _enter = packets_events_span.enter();
+                                    event!(
+                                        tracing::Level::INFO,
                                         "Event Id: {} Protocol: {:?} SRC: {}:{} -> DST: {}:{}",
-                                        event_id, proto, src, src_port, dst, dst_port
+                                        event_id,
+                                        proto,
+                                        src,
+                                        src_port,
+                                        dst,
+                                        dst_port
                                     );
                                 }
-                                Err(_) => {
-                                    info!(
-                                        "Event Id: {} Protocol: Unknown ({})",
-                                        event_id, pl.proto
-                                    );
+                                Err(e) => {
+                                    let failed_packets_events_span = span!(tracing::Level::INFO, "failed_packets_event", event_id=%event_id, protocol = %pl.proto);
+                                    let _enter = failed_packets_events_span.enter();
+                                    event!(
+                                        tracing::Level::INFO,
+                                        "Event Id: {} Protocol: Unknown ({}). Error: {:?}",
+                                        event_id,
+                                        pl.proto,
+                                        e
+                                    )
                                 }
                             };
                         } else {
@@ -96,34 +115,62 @@ pub async fn display_events<T: BorrowMut<MapData>>(
     }
 }
 
+// docs:
+// This function perform a byte swap from little-endian to big-endian
+// It's used to reconstruct the correct IPv4 address from the u32 representation
+//
+// Takes a u32 address in big-endian format and returns a Ipv4Addr with reversed octets
+//
 pub fn reverse_be_addr(addr: u32) -> Ipv4Addr {
-    let mut octects = addr.to_be_bytes();
+    let octects = addr.to_be_bytes();
     let [a, b, c, d] = [octects[3], octects[2], octects[1], octects[0]];
     let reversed_ip = Ipv4Addr::new(a, b, c, d);
     reversed_ip
 }
 
 pub async fn display_veth_events<T: BorrowMut<MapData>>(
-    bpf: Arc<Mutex<Bpf>>,
+    bpf: Arc<Mutex<Ebpf>>,
     mut perf_buffers: Vec<PerfEventArrayBuffer<T>>,
-    //running: Arc<AtomicBool>,
     mut buffers: Vec<BytesMut>,
-    mut link_ids: Arc<Mutex<HashMap<String, SchedClassifierLinkId>>>,
+    link_ids: Arc<Mutex<HashMap<String, SchedClassifierLinkId>>>,
 ) {
     //  FIXME: here maybe we need to use a loop with tokio::select
-    while true {
+    loop {
         for buf in perf_buffers.iter_mut() {
             match buf.read_events(&mut buffers) {
                 std::result::Result::Ok(events) => {
-                    for i in 0..events.read {
+                    // debug: log the readed events
+                    if events.read > 0 {
+                        debug!("Read {} veth events", events.read);
+                    }
+                    // debug: log the lost events
+                    if events.lost > 0 {
+                        debug!("Lost {} veth events", events.lost);
+                    }
+                    let offset = 0 as usize;
+                    for i in offset..events.read {
                         let data = &buffers[i];
+                        let veth_events_span = span!(tracing::Level::INFO, "corrupted_veth_events");
+                        // error: data is smaller that the vethlog structure
+                        let _enter = veth_events_span.enter();
+                        if data.len() < std::mem::size_of::<VethLog>() {
+                            warn!(
+                                "Corrupted data. data_len = {} data_ptr = {}. Min size required: {} bytes",
+                                data.len(),
+                                data.as_ptr() as usize,
+                                std::mem::size_of::<VethLog>()
+                            );
+                            continue;
+                        }
+                        // correct size: data is logged correctly
                         if data.len() >= std::mem::size_of::<VethLog>() {
                             let vethlog: VethLog =
-                                unsafe { std::ptr::read(data.as_ptr() as *const _) };
+                                unsafe { std::ptr::read_unaligned(data.as_ptr() as *const _) };
+                            //TODO: can this pattern be safe instead of using unsafe?
 
                             let name_bytes = vethlog.name;
 
-                            let dev_addr_bytes = vethlog.dev_addr.to_vec();
+                            let dev_addr_bytes = vethlog.dev_addr;
                             let name = std::str::from_utf8(&name_bytes);
                             let state = vethlog.state;
 
@@ -141,13 +188,16 @@ pub async fn display_veth_events<T: BorrowMut<MapData>>(
                             }
                             match name {
                                 std::result::Result::Ok(veth_name) => {
-                                    info!(
-                                        "[{}] Triggered action: register_netdevice event_type:{:?} Manipulated veth: {:?} state:{:?} dev_addr:{:?}",
+                                    let veth_events_span = span!(tracing::Level::INFO, "veth_event", veth_name = %veth_name.trim_end_matches("\0"), event_type = %event_type.as_str());
+                                    let _enter = veth_events_span.enter();
+                                    event!(
+                                        tracing::Level::INFO,
+                                        "[{}] Veth Event: Type: {} Name: {} Dev_addr: {:x?} State: {}",
                                         netns,
                                         event_type,
-                                        veth_name.trim_end_matches("\0").to_string(),
-                                        state,
-                                        dev_addr
+                                        veth_name.trim_end_matches("\0"),
+                                        dev_addr,
+                                        state
                                     );
                                     match attach_detach_veth(
                                         bpf.clone(),
@@ -158,18 +208,33 @@ pub async fn display_veth_events<T: BorrowMut<MapData>>(
                                     .await
                                     {
                                         std::result::Result::Ok(_) => {
-                                            info!("Attach/Detach veth function attached correctly");
+                                            event!(
+                                                tracing::Level::INFO,
+                                                "[{}] Successfully attached Attach/Detach function for veth: {}",
+                                                netns,
+                                                veth_name.trim_end_matches("\0")
+                                            );
                                         }
-                                        Err(e) => error!(
-                                            "Error attaching Attach/Detach function. Error : {}",
-                                            e
-                                        ),
+                                        Err(e) => {
+                                            let failed_veth_events_span = span!(tracing::Level::ERROR, "failed_veth_event_attach_detach", veth_name = %veth_name.trim_end_matches("\0"));
+                                            let _enter = failed_veth_events_span.enter();
+                                            event!(
+                                                tracing::Level::ERROR,
+                                                "[{}] Error attaching Attach/Detach function. Error : {}",
+                                                netns,
+                                                e
+                                            )
+                                        }
                                     }
                                 }
-                                Err(_) => info!("Unknown name or corrupted field"),
+                                Err(e) => {
+                                    event!(
+                                        tracing::Level::WARN,
+                                        "Corrupted veth name field. Error: {:?}",
+                                        e
+                                    );
+                                }
                             }
-                        } else {
-                            warn!("Corrupted data");
                         }
                     }
                 }
@@ -182,12 +247,20 @@ pub async fn display_veth_events<T: BorrowMut<MapData>>(
     }
 }
 
+// docs:
+// This function checks if the given interface name is in the list of ignored interfaces
+// Takes a interface name (iface) as &str and returns true if the interface should be ignored
+// Typically we want to ignore eth0,docker0,tunl0,lo interfaces because they are not relevant for the internal monitoring
+//
 pub fn ignore_iface(iface: &str) -> bool {
     let ignored_interfaces = ["eth0", "docker0", "tunl0", "lo"];
     ignored_interfaces.contains(&iface)
 }
 
-//filter the interfaces,exclude docker0,eth0,lo interfaces
+// docs:
+// This function retrieves the list of veth interfaces on the system, filtering out ignored interfaces with
+// the ignore_iface function.
+//
 pub fn get_veth_channels() -> Vec<String> {
     //filter interfaces and save the output in the
     let mut interfaces: Vec<String> = Vec::new();
@@ -207,7 +280,7 @@ pub fn get_veth_channels() -> Vec<String> {
 }
 
 async fn attach_detach_veth(
-    bpf: Arc<Mutex<Bpf>>,
+    bpf: Arc<Mutex<Ebpf>>,
     event_type: u8,
     iface: &str,
     link_ids: Arc<Mutex<HashMap<String, SchedClassifierLinkId>>>,
@@ -218,7 +291,13 @@ async fn attach_detach_veth(
     );
     match event_type {
         1 => {
-            let mut bpf = bpf.lock().unwrap();
+            //
+            // EVENT_TYPE 1: Attach the program to the veth inferfaces
+            //
+
+            let mut bpf = bpf
+                .lock()
+                .map_err(|e| anyhow::anyhow!("Cannot get value from lock : {}", e))?;
             let program: &mut SchedClassifier = bpf
                 .program_mut("identity_classifier")
                 .ok_or_else(|| anyhow::anyhow!("program 'identity_classifier' not found"))?
@@ -231,7 +310,9 @@ async fn attach_detach_veth(
                 return Ok(());
             }
 
-            let mut link_ids = link_ids.lock().unwrap();
+            let mut link_ids = link_ids
+                .lock()
+                .map_err(|e| anyhow::anyhow!("Cannot get value from lock when attaching: {}", e))?;
             match program.attach(iface, TcAttachType::Ingress) {
                 std::result::Result::Ok(link_id) => {
                     info!(
@@ -244,8 +325,14 @@ async fn attach_detach_veth(
             }
         }
         2 => {
+            //
+            // EVENT_TYPE 2: Detach the program from the veth interfaces
             // INFO: Detaching occurs automatically when veth is deleted by kernel itself
-            let mut link_ids = link_ids.lock().unwrap();
+            //
+
+            let mut link_ids = link_ids
+                .lock()
+                .map_err(|e| anyhow::anyhow!("Cannot get value from lock when detaching: {}", e))?;
             match link_ids.remove(iface) {
                 Some(_) => {
                     info!("Successfully detached program from interface {}", iface);
@@ -263,23 +350,36 @@ async fn attach_detach_veth(
     Ok(())
 }
 
-// CHECK THIS DIR: /sys/fs/cgroup/kubelet.slice/kubelet-kubepods.slice/kubelet-kubepods-besteffort.slice
 /* helper functions to display events from the TcpPacketRegistry structure */
 pub async fn display_tcp_registry_events<T: BorrowMut<MapData>>(
     mut perf_buffers: Vec<PerfEventArrayBuffer<T>>,
-    //running: Arc<AtomicBool>,
     mut buffers: Vec<BytesMut>,
 ) {
     //  FIXME: here maybe we need to use a loop with tokio::select
-    while true {
+    loop {
         for buf in perf_buffers.iter_mut() {
             match buf.read_events(&mut buffers) {
                 std::result::Result::Ok(events) => {
-                    for i in 0..events.read {
+                    let offset = 0;
+                    for i in offset..events.read {
                         let data = &buffers[i];
+                        if data.len() < std::mem::size_of::<TcpPacketRegistry>() {
+                            let failed_tcp_events_span =
+                                span!(tracing::Level::INFO, "failed_tcp_registry_event");
+                            let _enter: span::Entered<'_> = failed_tcp_events_span.enter();
+                            event!(
+                                tracing::Level::WARN,
+                                "Corrupted data. data_len = {} data_ptr = {}. Min size required: {} bytes",
+                                data.len(),
+                                data.as_ptr() as usize,
+                                std::mem::size_of::<TcpPacketRegistry>()
+                            );
+                            continue;
+                        }
                         if data.len() >= std::mem::size_of::<TcpPacketRegistry>() {
                             let tcp_pl: TcpPacketRegistry =
                                 unsafe { std::ptr::read(data.as_ptr() as *const _) };
+                            //TODO: can this pattern be safe?
                             let src = reverse_be_addr(tcp_pl.src_ip);
                             let dst = reverse_be_addr(tcp_pl.dst_ip);
                             let src_port = u16::from_be(tcp_pl.src_port);
@@ -295,7 +395,10 @@ pub async fn display_tcp_registry_events<T: BorrowMut<MapData>>(
 
                             match IpProtocols::try_from(tcp_pl.proto) {
                                 std::result::Result::Ok(proto) => {
-                                    info!(
+                                    let tcp_events_span = span!(tracing::Level::INFO, "tcp_registry_event", command = %command_str.as_str(), cgroup_id = %cgroup_id);
+                                    let _enter = tcp_events_span.enter();
+                                    event!(
+                                        tracing::Level::INFO,
                                         "Event Id: {} Protocol: {:?} SRC: {}:{} -> DST: {}:{} Command: {} Cgroup_id: {}",
                                         event_id,
                                         proto,
@@ -307,10 +410,15 @@ pub async fn display_tcp_registry_events<T: BorrowMut<MapData>>(
                                         cgroup_id //proc_content
                                     );
                                 }
-                                Err(_) => {
-                                    info!(
-                                        "Event Id: {} Protocol: Unknown ({})",
-                                        event_id, tcp_pl.proto
+                                Err(e) => {
+                                    event!(
+                                        tracing::Level::INFO,
+                                        "Event Id: {} Protocol: Unknown ({}) Command: {} Cgroup_id: {} Error: {:?}",
+                                        event_id,
+                                        tcp_pl.proto,
+                                        command_str,
+                                        cgroup_id,
+                                        e
                                     );
                                 }
                             };
@@ -327,6 +435,19 @@ pub async fn display_tcp_registry_events<T: BorrowMut<MapData>>(
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
     }
 }
+
+#[cfg(feature = "experimental")]
+use anyhow::Error;
+#[cfg(feature = "experimental")]
+use k8s_openapi::api::core::v1::Pod;
+#[cfg(feature = "experimental")]
+use kube::api::ObjectList;
+#[cfg(feature = "experimental")]
+use kube::{Api, Client};
+#[cfg(feature = "experimental")]
+use std::fs;
+#[cfg(feature = "experimental")]
+use tokio::time;
 
 #[cfg(feature = "experimental")]
 pub async fn scan_cgroup_paths(path: String) -> Result<Vec<String>, Error> {
