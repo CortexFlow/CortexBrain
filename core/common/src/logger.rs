@@ -69,6 +69,9 @@ pub fn otlp_logger_init(service_name: String) -> SdkLoggerProvider {
     let fmt_filter = EnvFilter::new("info").add_directive("opentelemetry=debug".parse().unwrap());
     let fmt_layer = tracing_subscriber::fmt::layer()
         .with_thread_names(true)
+        .with_line_number(false)
+        .with_target(false)
+        .pretty()
         .with_filter(fmt_filter);
 
     //init tracing subscriber with otel layer
