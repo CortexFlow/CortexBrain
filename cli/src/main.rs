@@ -68,7 +68,8 @@ enum Commands {
 struct SetArgs {
     val: String,
 }
-
+//TODO: add command for monitoring veth interfaces
+//TODO: add command to repair the blocklist map
 async fn args_parser() -> Result<(), CliError> {
     let args = Cli::parse();
     debug!("Arguments {:?}", args.cmd);
@@ -79,6 +80,10 @@ async fn args_parser() -> Result<(), CliError> {
             }
             InstallCommands::TestPods => {
                 install_simple_example().await?;
+            }
+            InstallCommands::Blocklist => {
+                //install or repair blocklist configmap
+                let _ = install::install_blocklist_configmap().await?;
             }
         },
         Some(Commands::Uninstall) => {

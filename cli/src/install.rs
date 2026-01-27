@@ -2,8 +2,10 @@ use crate::errors::CliError;
 use crate::essential::{BASE_COMMAND, connect_to_client, create_config_file, create_configs};
 use clap::{Args, Subcommand};
 use colored::Colorize;
-use kube::Error;
+use k8s_openapi::api::core::v1::ConfigMap;
 use kube::core::ErrorResponse;
+use kube::{Api, Client, Error};
+use std::thread::sleep;
 use std::{process::Command, thread, time::Duration};
 
 // docs:
@@ -38,6 +40,8 @@ pub enum InstallCommands {
         about = "Deploys a simple example contained in deploy-test-pod.yaml"
     )]
     TestPods,
+    #[command(name = "blocklist", about = "Install or Repair blocklist configmap")]
+    Blocklist,
 }
 
 //install args
@@ -202,6 +206,84 @@ async fn install_simple_example_component() -> Result<(), CliError> {
                     code: 404,
                 })))
             };
+        }
+    }
+}
+
+// docs:
+pub async fn install_blocklist_configmap() -> Result<(), CliError> {
+    match connect_to_client().await {
+        Ok(client) => {
+            println!(
+                "{} {}",
+                "=====>".blue().bold(),
+                "Checking if the Blocklist configmap exists"
+            );
+            sleep(Duration::from_secs(1));
+            let blocklist_exists = check_if_blocklist_exists(client).await?;
+            if !blocklist_exists {
+                println!(
+                    "{} {}",
+                    "=====>".blue().bold(),
+                    "Blocklist configmap does not exist".red().bold()
+                );
+                sleep(Duration::from_secs(1));
+                println!("{} {}", "=====>".bold().blue(), "Creating configmap");
+                let metdata_configs = create_configs();
+                sleep(Duration::from_secs(1));
+                match create_config_file(metdata_configs).await {
+                    Ok(_) => {
+                        println!(
+                            "{} {}",
+                            "=====>".bold().blue(),
+                            "Configmap created/repaired successfully".bold().green()
+                        )
+                    }
+                    Err(e) => {
+                        return Err(CliError::InstallerError {
+                            reason: e.to_string(),
+                        });
+                    }
+                }
+                return Ok(());
+            } else {
+                println!()
+            }
+
+            Ok(())
+        }
+        Err(e) => {
+            return Err(CliError::ClientError(Error::Api(ErrorResponse {
+                status: "failed".to_string(),
+                message: "Failed to connect to kubernetes client".to_string(),
+                reason: e.to_string(),
+                code: 404,
+            })));
+        }
+    }
+}
+
+// docs:
+async fn check_if_blocklist_exists(client: Client) -> Result<bool, CliError> {
+    let namespace = "cortexflow";
+    let name = "cortexbrain-client-config";
+    let api: Api<ConfigMap> = Api::namespaced(client, namespace);
+    match api.get(name).await {
+        Ok(_) => {
+            println!(
+                "{} {}",
+                "=====>".bold().blue(),
+                "Blocklist configmap exists".green().bold()
+            );
+            Ok(true)
+        }
+        Err(_) => {
+            println!(
+                "{} {}",
+                "=====>".bold().blue(),
+                "Blocklist configmap doesn not exists".red().bold(),
+            );
+            Ok(false)
         }
     }
 }
