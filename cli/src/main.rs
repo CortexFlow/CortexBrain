@@ -69,7 +69,6 @@ struct SetArgs {
     val: String,
 }
 //TODO: add command for monitoring veth interfaces
-//TODO: add command to repair the blocklist map
 async fn args_parser() -> Result<(), CliError> {
     let args = Cli::parse();
     debug!("Arguments {:?}", args.cmd);

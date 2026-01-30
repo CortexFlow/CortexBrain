@@ -121,6 +121,14 @@ pub struct DroppedPacketsResponse {
     pub total_drops: u32,
 }
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct VethResponse {
+    #[prost(string, tag = "1")]
+    pub status: ::prost::alloc::string::String,
+    /// List of active veth interface names
+    #[prost(string, repeated, tag = "2")]
+    pub veth_names: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct AddIpToBlocklistRequest {
     #[prost(string, optional, tag = "1")]
     pub ip: ::core::option::Option<::prost::alloc::string::String>,
@@ -341,7 +349,7 @@ pub mod agent_client {
                 .insert(GrpcMethod::new("agent.Agent", "RmIpFromBlocklist"));
             self.inner.unary(req, path, codec).await
         }
-        /// metrics data
+        /// metrics data endpoint
         pub async fn get_latency_metrics(
             &mut self,
             request: impl tonic::IntoRequest<()>,
@@ -366,7 +374,7 @@ pub mod agent_client {
                 .insert(GrpcMethod::new("agent.Agent", "GetLatencyMetrics"));
             self.inner.unary(req, path, codec).await
         }
-        /// dropped packets
+        /// dropped packets endpoint
         pub async fn get_dropped_packets_metrics(
             &mut self,
             request: impl tonic::IntoRequest<()>,
@@ -389,6 +397,27 @@ pub mod agent_client {
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("agent.Agent", "GetDroppedPacketsMetrics"));
+            self.inner.unary(req, path, codec).await
+        }
+        /// active veth info endpoint
+        pub async fn get_active_veth(
+            &mut self,
+            request: impl tonic::IntoRequest<()>,
+        ) -> std::result::Result<tonic::Response<super::VethResponse>, tonic::Status> {
+            self.inner
+                .ready()
+                .await
+                .map_err(|e| {
+                    tonic::Status::unknown(
+                        format!("Service was not ready: {}", e.into()),
+                    )
+                })?;
+            let codec = tonic_prost::ProstCodec::default();
+            let path = http::uri::PathAndQuery::from_static(
+                "/agent.Agent/GetActiveVeth",
+            );
+            let mut req = request.into_request();
+            req.extensions_mut().insert(GrpcMethod::new("agent.Agent", "GetActiveVeth"));
             self.inner.unary(req, path, codec).await
         }
     }
@@ -437,7 +466,7 @@ pub mod agent_server {
             tonic::Response<super::RmIpFromBlocklistResponse>,
             tonic::Status,
         >;
-        /// metrics data
+        /// metrics data endpoint
         async fn get_latency_metrics(
             &self,
             request: tonic::Request<()>,
@@ -445,7 +474,7 @@ pub mod agent_server {
             tonic::Response<super::LatencyMetricsResponse>,
             tonic::Status,
         >;
-        /// dropped packets
+        /// dropped packets endpoint
         async fn get_dropped_packets_metrics(
             &self,
             request: tonic::Request<()>,
@@ -453,6 +482,11 @@ pub mod agent_server {
             tonic::Response<super::DroppedPacketsResponse>,
             tonic::Status,
         >;
+        /// active veth info endpoint
+        async fn get_active_veth(
+            &self,
+            request: tonic::Request<()>,
+        ) -> std::result::Result<tonic::Response<super::VethResponse>, tonic::Status>;
     }
     /// declare agent api
     #[derive(Debug)]
@@ -772,6 +806,46 @@ pub mod agent_server {
                     let inner = self.inner.clone();
                     let fut = async move {
                         let method = GetDroppedPacketsMetricsSvc(inner);
+                        let codec = tonic_prost::ProstCodec::default();
+                        let mut grpc = tonic::server::Grpc::new(codec)
+                            .apply_compression_config(
+                                accept_compression_encodings,
+                                send_compression_encodings,
+                            )
+                            .apply_max_message_size_config(
+                                max_decoding_message_size,
+                                max_encoding_message_size,
+                            );
+                        let res = grpc.unary(method, req).await;
+                        Ok(res)
+                    };
+                    Box::pin(fut)
+                }
+                "/agent.Agent/GetActiveVeth" => {
+                    #[allow(non_camel_case_types)]
+                    struct GetActiveVethSvc<T: Agent>(pub Arc<T>);
+                    impl<T: Agent> tonic::server::UnaryService<()>
+                    for GetActiveVethSvc<T> {
+                        type Response = super::VethResponse;
+                        type Future = BoxFuture<
+                            tonic::Response<Self::Response>,
+                            tonic::Status,
+                        >;
+                        fn call(&mut self, request: tonic::Request<()>) -> Self::Future {
+                            let inner = Arc::clone(&self.0);
+                            let fut = async move {
+                                <T as Agent>::get_active_veth(&inner, request).await
+                            };
+                            Box::pin(fut)
+                        }
+                    }
+                    let accept_compression_encodings = self.accept_compression_encodings;
+                    let send_compression_encodings = self.send_compression_encodings;
+                    let max_decoding_message_size = self.max_decoding_message_size;
+                    let max_encoding_message_size = self.max_encoding_message_size;
+                    let inner = self.inner.clone();
+                    let fut = async move {
+                        let method = GetActiveVethSvc(inner);
                         let codec = tonic_prost::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec)
                             .apply_compression_config(

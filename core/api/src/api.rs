@@ -1,12 +1,10 @@
 #![allow(warnings)]
 use anyhow::Context;
 use chrono::Local;
-use cortexbrain_common::{
-    formatters::{format_ipv4, format_ipv6},
-};
+use cortexbrain_common::formatters::{format_ipv4, format_ipv6};
 use prost::bytes::BytesMut;
-use std::{str::FromStr, sync::Arc};
 use std::sync::Mutex;
+use std::{str::FromStr, sync::Arc};
 use tonic::{Request, Response, Status};
 use tracing::info;
 
@@ -22,19 +20,17 @@ use std::collections::HashMap;
 use tokio::sync::mpsc;
 use tokio::task;
 
-use crate::{
-    agent::{
-        ConnectionEvent, DroppedPacketMetric, DroppedPacketsResponse,
-        LatencyMetric, LatencyMetricsResponse,
-    }, 
+use crate::agent::{
+    ConnectionEvent, DroppedPacketMetric, DroppedPacketsResponse, LatencyMetric,
+    LatencyMetricsResponse,
 };
 
 use crate::structs::{NetworkMetrics, PacketLog, TimeStampMetrics};
 
 // *  contains agent api configuration
 use crate::agent::{
-    agent_server::Agent, ActiveConnectionResponse, AddIpToBlocklistRequest, BlocklistResponse,
-    RequestActiveConnections, RmIpFromBlocklistRequest, RmIpFromBlocklistResponse,
+    ActiveConnectionResponse, AddIpToBlocklistRequest, BlocklistResponse, RequestActiveConnections,
+    RmIpFromBlocklistRequest, RmIpFromBlocklistResponse, VethResponse, agent_server::Agent,
 };
 use crate::constants::PIN_BLOCKLIST_MAP_PATH;
 
@@ -54,6 +50,8 @@ pub struct AgentApi {
     latency_metrics_tx: mpsc::Sender<Result<Vec<LatencyMetric>, Status>>,
     dropped_packet_metrics_rx: Mutex<mpsc::Receiver<Result<Vec<DroppedPacketMetric>, Status>>>,
     dropped_packet_metrics_tx: mpsc::Sender<Result<Vec<DroppedPacketMetric>, Status>>,
+    tracked_veth_rx: Mutex<mpsc::Receiver<Result<Vec<String>, Status>>>,
+    tracked_veth_tx: mpsc::Sender<Result<Vec<String>, Status>>,
 }
 
 //* Event sender trait. Takes an event from a map and send that to the mpsc channel
@@ -94,6 +92,7 @@ pub trait EventSender: Send + Sync + 'static {
         let _ = tx.send(event).await;
     }
 
+    // TODO: add the event sender for the tracked veth
 }
 
 // send event function. takes an HashMap and send that using mpsc event_tx
@@ -120,6 +119,10 @@ impl EventSender for AgentApi {
 impl Default for AgentApi {
     //TODO:this part needs a better error handling
     fn default() -> Self {
+        //
+        // init MapData from the kernel space
+        //
+
         // load connections maps mapdata
         let active_connection_mapdata = MapData::from_pin("/sys/fs/bpf/maps/events_map")
             .expect("cannot open events_map Mapdata");
@@ -136,16 +139,29 @@ impl Default for AgentApi {
             .expect("Error while initializing network metrics array");
 
         // load time stamp events maps mapdata
-        let time_stamp_events_mapdata = MapData::from_pin("/sys/fs/bpf/trace_maps/time_stamp_events")
-            .expect("cannot open time_stamp_events Mapdata");
+        let time_stamp_events_mapdata =
+            MapData::from_pin("/sys/fs/bpf/trace_maps/time_stamp_events")
+                .expect("cannot open time_stamp_events Mapdata");
         let time_stamp_events_map = Map::PerfEventArray(time_stamp_events_mapdata); //
         let mut time_stamp_events_array = PerfEventArray::try_from(time_stamp_events_map)
             .expect("Error while initializing time stamp events array");
 
-        //init a mpsc channel
+        // load veth maps
+        let tracked_veth_mapdata = MapData::from_pin("/sys/fs/bpf/maps/tracked_veth_map")
+            .expect("cannot open tracked_veth_map Mapdata");
+        let tracked_veth_map = Map::HashMap(tracked_veth_mapdata); //creates a HashMap from the mapdata
+        let mut tracked_veth_hashmap =
+            ayaHashMap::<MapData, u32, [u8; 16]>::try_from(tracked_veth_map)
+                .expect("Error while initializing tracked veth hashmap");
+
+        //
+        // init a mpsc channels with TX (transmission) and RX(Receiver) components
+        //
+
         let (conn_tx, conn_rx) = mpsc::channel(1024);
         let (lat_tx, lat_rx) = mpsc::channel(2048);
         let (drop_tx, drop_rx) = mpsc::channel(2048);
+        let (tracked_veth_tx, tracked_veth_rx) = mpsc::channel(1024);
 
         let api = AgentApi {
             active_connection_event_rx: conn_rx.into(),
@@ -154,6 +170,8 @@ impl Default for AgentApi {
             latency_metrics_tx: lat_tx.clone(),
             dropped_packet_metrics_rx: Mutex::new(drop_rx),
             dropped_packet_metrics_tx: drop_tx.clone(),
+            tracked_veth_rx: Mutex::new(tracked_veth_rx),
+            tracked_veth_tx: tracked_veth_tx.clone(),
         };
 
         // For network metrics
@@ -198,12 +216,7 @@ impl Default for AgentApi {
                                             Ok(proto) => {
                                                 info!(
                                                     "Event Id: {} Protocol: {:?} SRC: {}:{} -> DST: {}:{}",
-                                                    event_id,
-                                                    proto,
-                                                    src,
-                                                    src_port,
-                                                    dst,
-                                                    dst_port
+                                                    event_id, proto, src, src_port, dst, dst_port
                                                 );
                                                 info!("creating vector for the aggregated data");
                                                 let mut evt = Vec::new();
@@ -296,18 +309,18 @@ impl Default for AgentApi {
                                         if dropped_packet_metrics.sk_drops > 0 {
                                             let mut evt = Vec::new();
                                             info!(
-                                                    "Dropped Packet Metric - tgid: {}, process_name: {}, sk_drops: {}, sk_err: {}, sk_err_soft: {}, sk_backlog_len: {}, sk_wmem_queued: {}, sk_rcvbuf: {}, sk_ack_backlog: {}, timestamp_us: {}",
-                                                    dropped_packet_metrics.tgid,
-                                                    dropped_packet_metrics.process_name,
-                                                    dropped_packet_metrics.sk_drops,
-                                                    dropped_packet_metrics.sk_err,
-                                                    dropped_packet_metrics.sk_err_soft,
-                                                    dropped_packet_metrics.sk_backlog_len,
-                                                    dropped_packet_metrics.sk_wmem_queued,
-                                                    dropped_packet_metrics.sk_rcvbuf,
-                                                    dropped_packet_metrics.sk_ack_backlog,
-                                                    dropped_packet_metrics.timestamp_us
-                                                );
+                                                "Dropped Packet Metric - tgid: {}, process_name: {}, sk_drops: {}, sk_err: {}, sk_err_soft: {}, sk_backlog_len: {}, sk_wmem_queued: {}, sk_rcvbuf: {}, sk_ack_backlog: {}, timestamp_us: {}",
+                                                dropped_packet_metrics.tgid,
+                                                dropped_packet_metrics.process_name,
+                                                dropped_packet_metrics.sk_drops,
+                                                dropped_packet_metrics.sk_err,
+                                                dropped_packet_metrics.sk_err_soft,
+                                                dropped_packet_metrics.sk_backlog_len,
+                                                dropped_packet_metrics.sk_wmem_queued,
+                                                dropped_packet_metrics.sk_rcvbuf,
+                                                dropped_packet_metrics.sk_ack_backlog,
+                                                dropped_packet_metrics.timestamp_us
+                                            );
                                             evt.push(dropped_packet_metrics.clone());
                                             let _ = drop_tx.send(Ok(evt)).await;
                                         }
@@ -407,6 +420,8 @@ impl Default for AgentApi {
                 }
             }
         });
+
+        // TODO: spawn a task to read the events from the maps and send the events using the EventSender trait
 
         api
     }
@@ -655,6 +670,29 @@ impl Agent for AgentApi {
             status: "success".to_string(),
             metrics: aggregated_dropped_packet_metrics,
             total_drops,
+        };
+
+        Ok(Response::new(response))
+    }
+
+    async fn get_active_veth(
+        &self,
+        request: Request<()>,
+    ) -> Result<Response<VethResponse>, Status> {
+        let req = request.into_inner();
+        info!("Getting tracked veth metrics");
+        let mut tracked_veth = Vec::<String>::new();
+
+        while let Ok(evt) = self.tracked_veth_rx.lock().unwrap().try_recv() {
+            if let Ok(vec) = evt {
+                tracked_veth.extend(vec);
+            }
+        }
+        info!("Tracked veth: {:?}", &tracked_veth);
+
+        let response = VethResponse {
+            status: "success".to_string(),
+            veth_names: tracked_veth,
         };
 
         Ok(Response::new(response))
