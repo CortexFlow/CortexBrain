@@ -86,9 +86,9 @@ pub fn map_pinner(maps: BpfMapsData, path: &PathBuf) -> Result<Vec<Map>, Error> 
     Ok(owned_maps)
 }
 
-use aya::maps::MapData;
 #[cfg(feature = "map-handlers")]
 pub async fn populate_blocklist() -> Result<(), Error> {
+    use aya::maps::MapData;
     // load mapdata from path
 
     let mapdata = MapData::from_pin("/sys/fs/bpf/maps/Blocklist")
@@ -130,4 +130,22 @@ pub async fn populate_blocklist() -> Result<(), Error> {
             return Err(e.into());
         }
     }
+}
+
+#[cfg(feature = "map-handlers")]
+pub fn load_perf_event_array_from_mapdata(
+    path: &'static str,
+) -> Result<aya::maps::PerfEventArray<aya::maps::MapData>, Error> {
+    use aya::maps::MapData;
+    use aya::maps::PerfEventArray;
+
+    let map_data = MapData::from_pin(path)
+        .map_err(|e| anyhow::anyhow!("Cannot load mapdata from pin {:?} .Reason: {}", &path, e))?;
+
+    let map = Map::PerfEventArray(map_data);
+
+    let perf_event_array = PerfEventArray::try_from(map).map_err(|e| {
+        anyhow::anyhow!("Cannot initialize perf_event_array from map. Reason: {}", e)
+    })?;
+    Ok(perf_event_array)
 }
