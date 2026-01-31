@@ -87,14 +87,21 @@ pub fn map_pinner(maps: BpfMapsData, path: &PathBuf) -> Result<Vec<Map>, Error> 
 }
 
 #[cfg(feature = "map-handlers")]
-pub async fn populate_blocklist(map: &mut Map) -> Result<(), Error> {
+pub async fn populate_blocklist() -> Result<(), Error> {
+    use aya::maps::MapData;
+    // load mapdata from path
+
+    let mapdata = MapData::from_pin("/sys/fs/bpf/maps/Blocklist")
+        .map_err(|e| anyhow::anyhow!("Failed to load blocklist_map: {}", e))?;
+
+    let map = Map::HashMap(mapdata);
+    let mut blocklist_map = HashMap::<_, [u8; 4], [u8; 4]>::try_from(map)?;
+
     let client = Client::try_default()
         .await
         .expect("Cannot connect to Kubernetes Client");
     let namespace = "cortexflow";
     let configmap = "cortexbrain-client-config";
-
-    let mut blocklist_map = HashMap::<_, [u8; 4], [u8; 4]>::try_from(map)?;
 
     let api: Api<ConfigMap> = Api::namespaced(client, namespace);
     match api.get(configmap).await {
@@ -123,4 +130,22 @@ pub async fn populate_blocklist(map: &mut Map) -> Result<(), Error> {
             return Err(e.into());
         }
     }
+}
+
+#[cfg(feature = "map-handlers")]
+pub fn load_perf_event_array_from_mapdata(
+    path: &'static str,
+) -> Result<aya::maps::PerfEventArray<aya::maps::MapData>, Error> {
+    use aya::maps::MapData;
+    use aya::maps::PerfEventArray;
+
+    let map_data = MapData::from_pin(path)
+        .map_err(|e| anyhow::anyhow!("Cannot load mapdata from pin {:?} .Reason: {}", &path, e))?;
+
+    let map = Map::PerfEventArray(map_data);
+
+    let perf_event_array = PerfEventArray::try_from(map).map_err(|e| {
+        anyhow::anyhow!("Cannot initialize perf_event_array from map. Reason: {}", e)
+    })?;
+    Ok(perf_event_array)
 }

@@ -35,7 +35,7 @@ pub fn try_veth_tracer(ctx: ProbeContext, mode: u8) -> Result<u32, i64> {
 
     // state field
     let state_offset = 168;
-    let state: u8 = read_linux_inner_value::<u8>(net_device_pointer as *const u8, state_offset)?;
+    let state: u64 = read_linux_inner_value::<u64>(net_device_pointer as *const u8, state_offset)?;
 
     // dev_addr
     let dev_addr_offset = 1080;
@@ -52,7 +52,7 @@ pub fn try_veth_tracer(ctx: ProbeContext, mode: u8) -> Result<u32, i64> {
     // compose the structure
     let veth_data = VethLog {
         name: name_buf,
-        state: state.into(),
+        state: state,
         dev_addr: dev_addr_buf,
         event_type: mode,
         netns: inum,
