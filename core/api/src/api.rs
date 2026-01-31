@@ -2,6 +2,7 @@
 use anyhow::Context;
 use chrono::Local;
 use cortexbrain_common::formatters::{format_ipv4, format_ipv6};
+use cortexbrain_common::map_handlers::load_perf_event_array_from_mapdata;
 use prost::bytes::BytesMut;
 use std::sync::Mutex;
 use std::{str::FromStr, sync::Arc};
@@ -92,6 +93,17 @@ pub trait EventSender: Send + Sync + 'static {
         let _ = tx.send(event).await;
     }
 
+    async fn send_tracked_veth_event(&self, event: Vec<String>);
+    async fn send_tracked_veth_event_map(
+        &self,
+        map: Vec<String>,
+        tx: mpsc::Sender<Result<Vec<String>, Status>>,
+    ) {
+        let status = Status::new(tonic::Code::Ok, "success");
+        let event = Ok(map);
+        let _ = tx.send(event).await;
+    }
+
     // TODO: add the event sender for the tracked veth
 }
 
@@ -112,47 +124,29 @@ impl EventSender for AgentApi {
         self.send_dropped_packet_metrics_event_map(event, self.dropped_packet_metrics_tx.clone())
             .await;
     }
+    async fn send_tracked_veth_event(&self, event: Vec<String>) {
+        self.send_tracked_veth_event_map(event, self.tracked_veth_tx.clone())
+            .await;
+    }
 }
 
 //initialize a default trait for AgentApi. Loads a name and a bpf istance.
 //this trait is essential for init the Agent.
 impl Default for AgentApi {
-    //TODO:this part needs a better error handling
     fn default() -> Self {
         //
         // init MapData from the kernel space
         //
 
-        // load connections maps mapdata
-        let active_connection_mapdata = MapData::from_pin("/sys/fs/bpf/maps/events_map")
-            .expect("cannot open events_map Mapdata");
-        let active_connection_map = Map::PerfEventArray(active_connection_mapdata); //creates a PerfEventArray from the mapdata
-
-        let mut active_connection_events_array = PerfEventArray::try_from(active_connection_map)
-            .expect("Error while initializing events array");
-
-        // load network metrics maps mapdata
-        let network_metrics_mapdata = MapData::from_pin("/sys/fs/bpf/trace_maps/net_metrics")
-            .expect("cannot open net_metrics Mapdata");
-        let network_metrics_map = Map::PerfEventArray(network_metrics_mapdata); //creates a PerfEventArray from the mapdata
-        let mut network_metrics_events_array = PerfEventArray::try_from(network_metrics_map)
-            .expect("Error while initializing network metrics array");
-
-        // load time stamp events maps mapdata
-        let time_stamp_events_mapdata =
-            MapData::from_pin("/sys/fs/bpf/trace_maps/time_stamp_events")
-                .expect("cannot open time_stamp_events Mapdata");
-        let time_stamp_events_map = Map::PerfEventArray(time_stamp_events_mapdata); //
-        let mut time_stamp_events_array = PerfEventArray::try_from(time_stamp_events_map)
-            .expect("Error while initializing time stamp events array");
-
-        // load veth maps
-        let tracked_veth_mapdata = MapData::from_pin("/sys/fs/bpf/maps/tracked_veth_map")
-            .expect("cannot open tracked_veth_map Mapdata");
-        let tracked_veth_map = Map::HashMap(tracked_veth_mapdata); //creates a HashMap from the mapdata
-        let mut tracked_veth_hashmap =
-            ayaHashMap::<MapData, u32, [u8; 16]>::try_from(tracked_veth_map)
-                .expect("Error while initializing tracked veth hashmap");
+        // TODO: in the future will be better to not use .unwrap() 
+        let mut active_connection_events_array =
+            load_perf_event_array_from_mapdata("/sys/fs/bpf/maps/events_map").unwrap();
+        let mut network_metrics_events_array =
+            load_perf_event_array_from_mapdata("/sys/fs/bpf/trace_maps/net_metrics").unwrap();
+        let mut time_stamp_events_array =
+            load_perf_event_array_from_mapdata("/sys/fs/bpf/trace_maps/time_stamp_events").unwrap();
+        let mut tracked_veth_events_array =
+            load_perf_event_array_from_mapdata("/sys/fs/bpf/maps/tracked_veth_map").unwrap();
 
         //
         // init a mpsc channels with TX (transmission) and RX(Receiver) components
@@ -675,24 +669,29 @@ impl Agent for AgentApi {
         Ok(Response::new(response))
     }
 
-    async fn get_active_veth(
+    async fn get_tracked_veth(
         &self,
         request: Request<()>,
     ) -> Result<Response<VethResponse>, Status> {
         let req = request.into_inner();
         info!("Getting tracked veth metrics");
         let mut tracked_veth = Vec::<String>::new();
+        let mut tot_veth = 0 as i32;
 
         while let Ok(evt) = self.tracked_veth_rx.lock().unwrap().try_recv() {
             if let Ok(vec) = evt {
                 tracked_veth.extend(vec);
             }
         }
+        tot_veth = tracked_veth.len() as i32;
+
+        info!("Total tracked veth events: {}", tot_veth);
         info!("Tracked veth: {:?}", &tracked_veth);
 
         let response = VethResponse {
             status: "success".to_string(),
             veth_names: tracked_veth,
+            tot_monitored_veth: tot_veth,
         };
 
         Ok(Response::new(response))
