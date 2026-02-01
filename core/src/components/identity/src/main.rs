@@ -11,10 +11,9 @@
 mod enums;
 mod helpers;
 mod structs;
+mod service_discovery;
 
-use crate::helpers::{
-    display_events, display_tcp_registry_events, display_veth_events, get_veth_channels,
-};
+use crate::helpers::{get_veth_channels, read_perf_buffer};
 use aya::{
     Ebpf,
     maps::{Map, perf::PerfEventArray},
@@ -87,7 +86,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
                     info!("Found interfaces: {:?}", interfaces);
 
-                    { 
+                    {
                         populate_blocklist().await?;
                     }
 
@@ -259,15 +258,28 @@ async fn event_listener(
 
     // spawn async tasks
     let veth_events_displayer = tokio::spawn(async move {
-        display_veth_events(bpf.clone(), perf_veth_buffer, veth_buffers, veth_link_ids).await;
+        //display_veth_events(bpf.clone(), perf_veth_buffer, veth_buffers, veth_link_ids).await;
+        read_perf_buffer(perf_veth_buffer, veth_buffers, helpers::BufferType::VethLog).await;
     });
 
     let net_events_displayer = tokio::spawn(async move {
-        display_events(perf_net_events_buffer, events_buffers).await;
+        //display_events(perf_net_events_buffer, events_buffers).await;
+        read_perf_buffer(
+            perf_net_events_buffer,
+            events_buffers,
+            helpers::BufferType::PacketLog,
+        )
+        .await;
     });
 
     let tcp_registry_events_displayer: tokio::task::JoinHandle<()> = tokio::spawn(async move {
-        display_tcp_registry_events(tcp_registry_buffer, tcp_buffers).await;
+        //display_tcp_registry_events(tcp_registry_buffer, tcp_buffers).await;
+        read_perf_buffer(
+            tcp_registry_buffer,
+            tcp_buffers,
+            helpers::BufferType::TcpPacketRegistry,
+        )
+        .await;
     });
 
     #[cfg(feature = "experimental")]
