@@ -447,6 +447,7 @@ dependencies = [
 name = "cortexflow_identity"
 version = "0.1.1"
 dependencies = [
+ "anyhow",
  "aya",
  "bytemuck",
  "bytemuck_derive",

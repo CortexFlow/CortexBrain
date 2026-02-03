@@ -31,7 +31,7 @@ tracing = "0.1.41"
 aya = "0.13.1"
 cortexbrain-common = { path = "../common", features = [
     "map-handlers",
-    "kernel-structs",
+    "network-structs",
     "buffer-reader"
 ] }
 tonic-reflection = "0.14.0"

@@ -50,8 +50,7 @@ pub fn init_bpf_maps(
 
 //TODO: save bpf maps path in the cli metadata
 
-//takes an array of bpf maps and pin them to persiste session data
-// FIXME: is this ok that we are returning a BpfMapsData?
+//takes an array of bpf maps and pin them to persist session data
 
 #[cfg(feature = "map-handlers")]
 pub fn map_pinner(maps: BpfMapsData, path: &PathBuf) -> Result<Vec<Map>, Error> {

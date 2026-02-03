@@ -1,5 +1,5 @@
 #[cfg(feature = "buffer-reader")]
-#[cfg(feature = "kernel-structs")]
+#[cfg(feature = "network-structs")]
 pub mod buffer_type;
 pub mod constants;
 pub mod formatters;

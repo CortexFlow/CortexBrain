@@ -1,5 +1,5 @@
-use crate::structs::{PacketLog, TcpPacketRegistry, VethLog};
 use cortexbrain_common::buffer_type::{reverse_be_addr,IpProtocols};
+use cortexbrain_common::buffer_type::{PacketLog, TcpPacketRegistry, VethLog};
 
 use aya::Ebpf;
 use aya::programs::tc::SchedClassifierLinkId;
