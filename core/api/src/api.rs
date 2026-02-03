@@ -23,10 +23,11 @@ use tokio::task;
 
 use crate::agent::{
     ConnectionEvent, DroppedPacketMetric, DroppedPacketsResponse, LatencyMetric,
-    LatencyMetricsResponse,
+    LatencyMetricsResponse, VethEvent,
 };
 
 use crate::structs::{NetworkMetrics, PacketLog, TimeStampMetrics};
+use cortexbrain_common::buffer_type::VethLog;
 
 // *  contains agent api configuration
 use crate::agent::{
@@ -51,8 +52,8 @@ pub struct AgentApi {
     latency_metrics_tx: mpsc::Sender<Result<Vec<LatencyMetric>, Status>>,
     dropped_packet_metrics_rx: Mutex<mpsc::Receiver<Result<Vec<DroppedPacketMetric>, Status>>>,
     dropped_packet_metrics_tx: mpsc::Sender<Result<Vec<DroppedPacketMetric>, Status>>,
-    tracked_veth_rx: Mutex<mpsc::Receiver<Result<Vec<String>, Status>>>,
-    tracked_veth_tx: mpsc::Sender<Result<Vec<String>, Status>>,
+    tracked_veth_rx: Mutex<mpsc::Receiver<Result<Vec<VethEvent>, Status>>>,
+    tracked_veth_tx: mpsc::Sender<Result<Vec<VethEvent>, Status>>,
 }
 
 //* Event sender trait. Takes an event from a map and send that to the mpsc channel
@@ -93,18 +94,17 @@ pub trait EventSender: Send + Sync + 'static {
         let _ = tx.send(event).await;
     }
 
-    async fn send_tracked_veth_event(&self, event: Vec<String>);
+    async fn send_tracked_veth_event(&self, event: Vec<VethEvent>);
     async fn send_tracked_veth_event_map(
         &self,
-        map: Vec<String>,
-        tx: mpsc::Sender<Result<Vec<String>, Status>>,
+        map: Vec<VethEvent>,
+        tx: mpsc::Sender<Result<Vec<VethEvent>, Status>>,
     ) {
         let status = Status::new(tonic::Code::Ok, "success");
         let event = Ok(map);
         let _ = tx.send(event).await;
     }
 
-    // TODO: add the event sender for the tracked veth
 }
 
 // send event function. takes an HashMap and send that using mpsc event_tx
@@ -124,7 +124,7 @@ impl EventSender for AgentApi {
         self.send_dropped_packet_metrics_event_map(event, self.dropped_packet_metrics_tx.clone())
             .await;
     }
-    async fn send_tracked_veth_event(&self, event: Vec<String>) {
+    async fn send_tracked_veth_event(&self, event: Vec<VethEvent>) {
         self.send_tracked_veth_event_map(event, self.tracked_veth_tx.clone())
             .await;
     }
@@ -146,7 +146,7 @@ impl Default for AgentApi {
         let mut time_stamp_events_array =
             load_perf_event_array_from_mapdata("/sys/fs/bpf/trace_maps/time_stamp_events").unwrap();
         let mut tracked_veth_events_array =
-            load_perf_event_array_from_mapdata("/sys/fs/bpf/maps/tracked_veth_map").unwrap();
+            load_perf_event_array_from_mapdata("/sys/fs/bpf/maps/veth_identity_map").unwrap();
 
         //
         // init a mpsc channels with TX (transmission) and RX(Receiver) components
@@ -241,12 +241,12 @@ impl Default for AgentApi {
                                         );
                                     }
                                 }
-                            } else if events.read == 0 {
-                                info!("[Agent/API] 0 Events found");
+                            } else if events.lost > 0 {
+                                info!("[Agent/API] Lost {} events", events.lost);
                             }
                         }
                         Err(e) => {
-                            eprintln!("Errore nella lettura eventi: {}", e);
+                            eprintln!("Error while reading events: {}", e);
                             tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
                         }
                     }
@@ -415,7 +415,80 @@ impl Default for AgentApi {
             }
         });
 
-        // TODO: spawn a task to read the events from the maps and send the events using the EventSender trait
+        // TODO: this part needs a better implementation
+        task::spawn(async move {
+            let mut veth_events_buffer = Vec::new();
+            //scan the cpus to read the data
+            for cpu_id in online_cpus()
+                .map_err(|e| anyhow::anyhow!("Error {:?}", e))
+                .unwrap()
+            {
+                let buf = tracked_veth_events_array
+                    .open(cpu_id, None)
+                    .expect("Error during the creation of time stamp events buf structure");
+
+                let buffers = vec![BytesMut::with_capacity(4096); 8];
+                veth_events_buffer.push((buf, buffers));
+            }
+
+            info!("Starting time stamp events listener");
+
+            //send the data through a mpsc channel
+            loop {
+                for (buf, buffers) in veth_events_buffer.iter_mut() {
+                    match buf.read_events(buffers) {
+                        Ok(events) => {
+                            //read the events, this function is similar to the one used in identity/helpers.rs/display_events
+                            if events.read > 0 {
+                                for i in 0..events.read {
+                                    let data = &buffers[i];
+                                    if data.len() >= std::mem::size_of::<VethLog>() {
+                                        let veth: VethLog =
+                                            unsafe { std::ptr::read(data.as_ptr() as *const _) };
+                                        let veth_event = VethEvent {
+                                            event_id: todo!(),
+                                            name: String::from_utf8_lossy(unsafe {
+                                                std::slice::from_raw_parts(
+                                                    veth.name.as_ptr() as *const u8,
+                                                    veth.name.len() * std::mem::size_of::<u32>(),
+                                                )
+                                            })
+                                            .trim_end_matches('\0')
+                                            .to_string(),
+                                            state: veth.state,
+                                            dev_addr: String::from_utf8_lossy(unsafe {
+                                                std::slice::from_raw_parts(
+                                                    veth.dev_addr.as_ptr() as *const u8,
+                                                    veth.dev_addr.len()
+                                                        * std::mem::size_of::<u32>(),
+                                                )
+                                            })
+                                            .trim_end_matches('\0')
+                                            .to_string(),
+                                            event_type: veth.event_type.into(),
+                                            netns: veth.netns,
+                                            pid: veth.pid,
+                                        };
+                                        let mut evt = Vec::new();
+                                        evt.push(veth_event.clone());
+                                        let _ = tracked_veth_tx.send(Ok(evt)).await;
+                                    } else {
+                                        warn!(
+                                            "Received time stamp metrics data too small: {} bytes",
+                                            data.len()
+                                        );
+                                    }
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("Errore nella lettura time stamp eventi: {}", e);
+                            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                        }
+                    }
+                }
+            }
+        });
 
         api
     }
@@ -675,7 +748,7 @@ impl Agent for AgentApi {
     ) -> Result<Response<VethResponse>, Status> {
         let req = request.into_inner();
         info!("Getting tracked veth metrics");
-        let mut tracked_veth = Vec::<String>::new();
+        let mut tracked_veth = Vec::<VethEvent>::new();
         let mut tot_veth = 0 as i32;
 
         while let Ok(evt) = self.tracked_veth_rx.lock().unwrap().try_recv() {
@@ -688,9 +761,11 @@ impl Agent for AgentApi {
         info!("Total tracked veth events: {}", tot_veth);
         info!("Tracked veth: {:?}", &tracked_veth);
 
+        let veth_names: Vec<String> = tracked_veth.iter().map(|v| v.name.clone()).collect();
+
         let response = VethResponse {
             status: "success".to_string(),
-            veth_names: tracked_veth,
+            veth_names,
             tot_monitored_veth: tot_veth,
         };
 

@@ -131,6 +131,29 @@ pub struct VethResponse {
     pub tot_monitored_veth: i32,
 }
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct VethEvent {
+    #[prost(string, tag = "1")]
+    pub event_id: ::prost::alloc::string::String,
+    /// Virtual Ethernet Interface Name
+    #[prost(string, tag = "2")]
+    pub name: ::prost::alloc::string::String,
+    /// Veth State
+    #[prost(uint64, tag = "3")]
+    pub state: u64,
+    /// Veth device Address
+    #[prost(string, tag = "4")]
+    pub dev_addr: ::prost::alloc::string::String,
+    /// Event type
+    #[prost(uint32, tag = "5")]
+    pub event_type: u32,
+    /// Network Namespace
+    #[prost(uint32, tag = "6")]
+    pub netns: u32,
+    /// Process ID
+    #[prost(uint32, tag = "7")]
+    pub pid: u32,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct AddIpToBlocklistRequest {
     #[prost(string, optional, tag = "1")]
     pub ip: ::core::option::Option<::prost::alloc::string::String>,
