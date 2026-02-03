@@ -37,8 +37,8 @@ use crate::constants::PIN_BLOCKLIST_MAP_PATH;
 
 use crate::helpers::comm_to_string;
 use aya::maps::Map;
+use cortexbrain_common::buffer_type::IpProtocols;
 use cortexbrain_common::constants::BPF_PATH;
-use cortexflow_identity::enums::IpProtocols;
 use std::net::Ipv4Addr;
 use tracing::warn;
 
@@ -138,7 +138,7 @@ impl Default for AgentApi {
         // init MapData from the kernel space
         //
 
-        // TODO: in the future will be better to not use .unwrap() 
+        // TODO: in the future will be better to not use .unwrap()
         let mut active_connection_events_array =
             load_perf_event_array_from_mapdata("/sys/fs/bpf/maps/events_map").unwrap();
         let mut network_metrics_events_array =
