@@ -1,3 +1,6 @@
+#[cfg(feature = "buffer-reader")]
+#[cfg(feature = "kernel-structs")]
+pub mod buffer_type;
 pub mod constants;
 pub mod formatters;
 pub mod logger;

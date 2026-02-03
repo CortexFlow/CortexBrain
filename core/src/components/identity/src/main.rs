@@ -8,9 +8,7 @@
  *
  */
 
-mod enums;
 mod helpers;
-mod structs;
 mod service_discovery;
 
 use crate::helpers::{get_veth_channels, read_perf_buffer};
@@ -101,11 +99,9 @@ async fn main() -> Result<(), anyhow::Error> {
                         )?;
                     }
 
-                    event_listener(maps, link_ids.clone(), bpf.clone())
-                        .await
-                        .map_err(|e| {
-                            anyhow::anyhow!("Error inizializing event_listener. Reason: {}", e)
-                        })?;
+                    event_listener(maps).await.map_err(|e| {
+                        anyhow::anyhow!("Error inizializing event_listener. Reason: {}", e)
+                    })?;
                 }
                 Err(e) => {
                     error!("Error while pinning bpf_maps: {}", e);
@@ -201,8 +197,8 @@ async fn init_tcp_registry(bpf: Arc<Mutex<Ebpf>>) -> Result<(), anyhow::Error> {
 //
 async fn event_listener(
     bpf_maps: Vec<Map>,
-    link_ids: Arc<Mutex<HashMap<String, SchedClassifierLinkId>>>,
-    bpf: Arc<Mutex<Ebpf>>,
+    //link_ids: Arc<Mutex<HashMap<String, SchedClassifierLinkId>>>,
+    //bpf: Arc<Mutex<Ebpf>>,
 ) -> Result<(), anyhow::Error> {
     info!("Preparing perf_buffers and perf_arrays");
 
@@ -254,7 +250,7 @@ async fn event_listener(
     let tcp_buffers = vec![BytesMut::with_capacity(1024); online_cpus().iter().len()];
 
     // init veth link ids
-    let veth_link_ids = link_ids;
+    //let veth_link_ids = link_ids;
 
     // spawn async tasks
     let veth_events_displayer = tokio::spawn(async move {

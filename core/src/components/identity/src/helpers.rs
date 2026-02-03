@@ -1,5 +1,5 @@
-use crate::enums::IpProtocols;
 use crate::structs::{PacketLog, TcpPacketRegistry, VethLog};
+use cortexbrain_common::buffer_type::{reverse_be_addr,IpProtocols};
 
 use aya::Ebpf;
 use aya::programs::tc::SchedClassifierLinkId;
@@ -15,37 +15,7 @@ use std::{
 };
 use tracing::{debug, error, event, info, span, warn};
 
-//
-// TryFrom Trait implementation for IpProtocols enum
-// This is used to reconstruct the packet protocol based on the
-// IPV4 Header Protocol code
-//
-
-impl TryFrom<u8> for IpProtocols {
-    type Error = ();
-    fn try_from(proto: u8) -> Result<Self, Self::Error> {
-        match proto {
-            1 => Ok(IpProtocols::ICMP),
-            6 => Ok(IpProtocols::TCP),
-            17 => Ok(IpProtocols::UDP),
-            _ => Err(()),
-        }
-    }
-}
-
-// docs:
-// This function perform a byte swap from little-endian to big-endian
-// It's used to reconstruct the correct IPv4 address from the u32 representation
-//
-// Takes a u32 address in big-endian format and returns a Ipv4Addr with reversed octets
-//
-pub fn reverse_be_addr(addr: u32) -> Ipv4Addr {
-    let octects = addr.to_be_bytes();
-    let [a, b, c, d] = [octects[3], octects[2], octects[1], octects[0]];
-    let reversed_ip = Ipv4Addr::new(a, b, c, d);
-    reversed_ip
-}
-
+/*
 pub async fn display_veth_events<T: BorrowMut<MapData>>(
     bpf: Arc<Mutex<Ebpf>>,
     mut perf_buffers: Vec<PerfEventArrayBuffer<T>>,
@@ -165,6 +135,7 @@ pub async fn display_veth_events<T: BorrowMut<MapData>>(
     }
 }
 
+ */
 // docs:
 // This function checks if the given interface name is in the list of ignored interfaces
 // Takes a interface name (iface) as &str and returns true if the interface should be ignored
@@ -196,7 +167,7 @@ pub fn get_veth_channels() -> Vec<String> {
 
     interfaces
 }
-
+/*
 async fn attach_detach_veth(
     bpf: Arc<Mutex<Ebpf>>,
     event_type: u8,
@@ -268,7 +239,7 @@ async fn attach_detach_veth(
     Ok(())
 }
 
-
+ */
 // enum BuffersType
 pub enum BufferType {
     PacketLog,
