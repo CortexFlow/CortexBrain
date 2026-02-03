@@ -5,3 +5,4 @@ pub mod requests;
 pub mod structs;
 pub mod constants;
 pub mod helpers;
+pub mod batcher;
