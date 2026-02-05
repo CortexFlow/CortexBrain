@@ -53,7 +53,7 @@ pub fn init_bpf_maps(
 //takes an array of bpf maps and pin them to persist session data
 
 #[cfg(feature = "map-handlers")]
-pub fn map_pinner(maps: BpfMapsData, path: &PathBuf) -> Result<Vec<Map>, Error> {
+pub fn map_pinner(maps: BpfMapsData, path: &PathBuf) -> Result<BpfMapsData, Error> {
     if !path.exists() {
         info!("Pin path {:?} does not exist. Creating it...", path);
         std::fs::create_dir_all(&path)?;
@@ -64,7 +64,11 @@ pub fn map_pinner(maps: BpfMapsData, path: &PathBuf) -> Result<Vec<Map>, Error> 
         }
     }
 
-    let mut owned_maps = Vec::new(); // aya::Maps does not implement the clone trait i need to create a raw copy of the vec map
+    //let mut owned_maps = Vec::new(); // aya::Maps does not implement the clone trait i need to create a raw copy of the vec map
+    let mut owned_bpf_maps_data = BpfMapsData {
+        bpf_obj_names: Vec::new(),
+        bpf_obj_map: Vec::new(),
+    };
     // an iterator that iterates two iterators simultaneously
     for (map_obj, name) in maps
         .bpf_obj_map
@@ -79,10 +83,12 @@ pub fn map_pinner(maps: BpfMapsData, path: &PathBuf) -> Result<Vec<Map>, Error> 
         }
         info!("Trying to pin map {:?} in map path: {:?}", name, &map_path);
         map_obj.pin(&map_path)?;
-        owned_maps.push(map_obj);
+        //owned_maps.push(map_obj);
+        owned_bpf_maps_data.bpf_obj_names.push(name);
+        owned_bpf_maps_data.bpf_obj_map.push(map_obj);
     }
 
-    Ok(owned_maps)
+    Ok(owned_bpf_maps_data) // return a BpfMapsData type 
 }
 
 #[cfg(feature = "map-handlers")]
