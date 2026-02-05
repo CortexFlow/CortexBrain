@@ -53,15 +53,15 @@ pub struct PacketLog {
 unsafe impl aya::Pod for PacketLog {}
 
 #[cfg(feature = "network-structs")]
-#[repr(C)]
+#[repr(C, packed)]
 #[derive(Clone, Copy)]
 pub struct VethLog {
-    pub name: [u8; 16],     // 16 bytes: veth interface name
-    pub state: u64,         // 8 bytes: state variable (unsigned long in kernel)
-    pub dev_addr: [u32; 8], // 32 bytes: device address
-    pub event_type: u8,     // 1 byte: 1 for veth creation, 2 for veth destruction
-    pub netns: u32,         // 4 bytes: network namespace inode number
-    pub pid: u32,           // 4 bytes: PID that triggered the event
+    pub name: [u8; 16],    // 16 bytes: veth interface name
+    pub state: u64,        // 8 bytes: state variable (unsigned long in kernel)
+    pub dev_addr: [u8; 6], // 32 bytes: device address
+    pub event_type: u8,    // 1 byte: 1 for veth creation, 2 for veth destruction
+    pub netns: u32,        // 4 bytes: network namespace inode number
+    pub pid: u32,          // 4 bytes: PID that triggered the event
 }
 
 #[cfg(feature = "network-structs")]
@@ -92,7 +92,6 @@ pub fn reverse_be_addr(addr: u32) -> Ipv4Addr {
     reversed_ip
 }
 
-
 // enum BuffersType
 #[cfg(feature = "buffer-reader")]
 pub enum BufferType {
@@ -110,10 +109,16 @@ impl BufferType {
             let vec_bytes = &buffers[i as usize];
             if vec_bytes.len() < std::mem::size_of::<PacketLog>() {
                 error!(
-                    "Corrupted data. Readed {:?} bytes expected {} bytes",
-                    vec_bytes,
+                    "Corrupted Packet log data. Raw data: {}. Readed {} bytes expected {} bytes",
+                    vec_bytes
+                        .iter()
+                        .map(|b| format!("{:02x}", b))
+                        .collect::<Vec<_>>()
+                        .join(" "),
+                    vec_bytes.len(),
                     std::mem::size_of::<PacketLog>()
-                )
+                );
+                continue;
             }
             if vec_bytes.len() >= std::mem::size_of::<PacketLog>() {
                 let pl: PacketLog =
@@ -147,10 +152,16 @@ impl BufferType {
             let vec_bytes = &buffers[i as usize];
             if vec_bytes.len() < std::mem::size_of::<TcpPacketRegistry>() {
                 error!(
-                    "Corrupted data. Readed {:?} bytes expected {} bytes",
-                    vec_bytes,
+                    "Corrupted data Tcp Registry data. Raw data: {}. Readed {} bytes expected {} bytes",
+                    vec_bytes
+                        .iter()
+                        .map(|b| format!("{:02x}", b))
+                        .collect::<Vec<_>>()
+                        .join(" "),
+                    vec_bytes.len(),
                     std::mem::size_of::<TcpPacketRegistry>()
-                )
+                );
+                continue;
             }
             if vec_bytes.len() >= std::mem::size_of::<TcpPacketRegistry>() {
                 let pl: TcpPacketRegistry =
@@ -194,8 +205,6 @@ impl BufferType {
         }
     }
     pub async fn read_and_handle_veth_log(
-        //link_ids: Arc<Mutex<HashMap<String, SchedClassifierLinkId>>>,
-        //bpf: Arc<Mutex<Ebpf>>,
         buffers: &mut [BytesMut],
         tot_events: i32,
         offset: i32,
@@ -204,28 +213,33 @@ impl BufferType {
             let vec_bytes = &buffers[i as usize];
             if vec_bytes.len() < std::mem::size_of::<VethLog>() {
                 error!(
-                    "Corrupted data. Readed {:?} bytes expected {} bytes",
-                    vec_bytes,
+                    "Corrupted data VethLog data. Raw data: {}. Readed {} bytes expected {} bytes",
+                    vec_bytes
+                        .iter()
+                        .map(|b| format!("{:02x}", b))
+                        .collect::<Vec<_>>()
+                        .join(" "),
+                    vec_bytes.len(),
                     std::mem::size_of::<VethLog>()
-                )
+                );
+                continue;
             }
             if vec_bytes.len() >= std::mem::size_of::<VethLog>() {
-                let pl: VethLog =
+                let vthl: VethLog =
                     unsafe { std::ptr::read_unaligned(vec_bytes.as_ptr() as *const _) }; // reading raw bytes
 
                 // extracting struct info from bytes
-                let name_bytes = pl.name;
-
-                let dev_addr_bytes = pl.dev_addr;
+                let name_bytes = vthl.name;
+                let dev_addr_bytes = vthl.dev_addr;
                 let name = std::str::from_utf8(&name_bytes);
-                let state = pl.state;
+                let state = vthl.state;
 
                 let dev_addr = dev_addr_bytes;
-                let netns = pl.netns;
+                let netns = vthl.netns;
                 let mut event_type = String::new();
 
                 // event_type extraction
-                match pl.event_type {
+                match vthl.event_type {
                     1 => {
                         event_type = "creation".to_string();
                         match name {
@@ -238,30 +252,6 @@ impl BufferType {
                                     dev_addr,
                                     state
                                 );
-                                // TODO: this logic needs to live in a separate space
-                                // FIXME: consider to update this logic to reduce the overhead.
-                                //match attach_detach_veth(
-                                //    bpf.clone(),
-                                //    1,
-                                //    veth_name,
-                                //    link_ids.clone(),
-                                //)
-                                //.await
-                                //{
-                                //    Ok(_) => {
-                                //        info!(
-                                //            "[{}] Successfully attached Attach/Detach function for veth: {}",
-                                //            netns,
-                                //            veth_name.trim_end_matches("\0")
-                                //        );
-                                //    }
-                                //    Err(e) => {
-                                //        info!(
-                                //            "[{}] Error attaching Attach/Detach function. Error : {}",
-                                //            netns, e
-                                //        );
-                                //    }
-                                //}
                             }
                             Err(e) => {
                                 error!(
@@ -283,29 +273,6 @@ impl BufferType {
                                     dev_addr,
                                     state
                                 );
-                                // TODO: this logic needs to live in a separate space
-                                //match attach_detach_veth(
-                                //    bpf.clone(),
-                                //    2,
-                                //    veth_name,
-                                //    link_ids.clone(),
-                                //)
-                                //.await
-                                //{
-                                //    Ok(_) => {
-                                //        info!(
-                                //            "[{}] Successfully attached Attach/Detach function for veth: {}",
-                                //            netns,
-                                //            veth_name.trim_end_matches("\0")
-                                //        );
-                                //    }
-                                //    Err(e) => {
-                                //        info!(
-                                //            "[{}] Error attaching Attach/Detach function. Error : {}",
-                                //            netns, e
-                                //        );
-                                //    }
-                                // }
                             }
                             Err(e) => {
                                 error!(
