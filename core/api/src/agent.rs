@@ -132,25 +132,23 @@ pub struct VethResponse {
 }
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct VethEvent {
-    #[prost(string, tag = "1")]
-    pub event_id: ::prost::alloc::string::String,
     /// Virtual Ethernet Interface Name
-    #[prost(string, tag = "2")]
+    #[prost(string, tag = "1")]
     pub name: ::prost::alloc::string::String,
     /// Veth State
-    #[prost(uint64, tag = "3")]
+    #[prost(uint64, tag = "2")]
     pub state: u64,
     /// Veth device Address
-    #[prost(string, tag = "4")]
+    #[prost(string, tag = "3")]
     pub dev_addr: ::prost::alloc::string::String,
     /// Event type
-    #[prost(uint32, tag = "5")]
+    #[prost(uint32, tag = "4")]
     pub event_type: u32,
     /// Network Namespace
-    #[prost(uint32, tag = "6")]
+    #[prost(uint32, tag = "5")]
     pub netns: u32,
     /// Process ID
-    #[prost(uint32, tag = "7")]
+    #[prost(uint32, tag = "6")]
     pub pid: u32,
 }
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]

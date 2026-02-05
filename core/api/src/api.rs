@@ -1,18 +1,14 @@
-#![allow(warnings)]
 use anyhow::Context;
 use chrono::Local;
 use cortexbrain_common::formatters::{format_ipv4, format_ipv6};
 use cortexbrain_common::map_handlers::load_perf_event_array_from_mapdata;
 use prost::bytes::BytesMut;
+use std::str::FromStr;
 use std::sync::Mutex;
-use std::{str::FromStr, sync::Arc};
 use tonic::{Request, Response, Status};
 use tracing::info;
 
-use aya::{
-    maps::{MapData, PerfEventArray},
-    util::online_cpus,
-};
+use aya::{maps::MapData, util::online_cpus};
 use std::result::Result::Ok;
 use tonic::async_trait;
 
@@ -39,7 +35,6 @@ use crate::constants::PIN_BLOCKLIST_MAP_PATH;
 use crate::helpers::comm_to_string;
 use aya::maps::Map;
 use cortexbrain_common::buffer_type::IpProtocols;
-use cortexbrain_common::constants::BPF_PATH;
 use std::net::Ipv4Addr;
 use tracing::warn;
 
@@ -104,7 +99,6 @@ pub trait EventSender: Send + Sync + 'static {
         let event = Ok(map);
         let _ = tx.send(event).await;
     }
-
 }
 
 // send event function. takes an HashMap and send that using mpsc event_tx
@@ -155,7 +149,7 @@ impl Default for AgentApi {
         let (conn_tx, conn_rx) = mpsc::channel(1024);
         let (lat_tx, lat_rx) = mpsc::channel(2048);
         let (drop_tx, drop_rx) = mpsc::channel(2048);
-        let (tracked_veth_tx, tracked_veth_rx) = mpsc::channel(1024);
+        let (veth_tx, tracked_veth_rx) = mpsc::channel(1024);
 
         let api = AgentApi {
             active_connection_event_rx: conn_rx.into(),
@@ -165,7 +159,7 @@ impl Default for AgentApi {
             dropped_packet_metrics_rx: Mutex::new(drop_rx),
             dropped_packet_metrics_tx: drop_tx.clone(),
             tracked_veth_rx: Mutex::new(tracked_veth_rx),
-            tracked_veth_tx: tracked_veth_tx.clone(),
+            tracked_veth_tx: veth_tx.clone(),
         };
 
         // For network metrics
@@ -441,12 +435,12 @@ impl Default for AgentApi {
                             //read the events, this function is similar to the one used in identity/helpers.rs/display_events
                             if events.read > 0 {
                                 for i in 0..events.read {
+                                    info!("Found veth events {}", events.read);
                                     let data = &buffers[i];
                                     if data.len() >= std::mem::size_of::<VethLog>() {
                                         let veth: VethLog =
                                             unsafe { std::ptr::read(data.as_ptr() as *const _) };
                                         let veth_event = VethEvent {
-                                            event_id: todo!(),
                                             name: String::from_utf8_lossy(unsafe {
                                                 std::slice::from_raw_parts(
                                                     veth.name.as_ptr() as *const u8,
@@ -469,9 +463,18 @@ impl Default for AgentApi {
                                             netns: veth.netns,
                                             pid: veth.pid,
                                         };
+                                        info!(
+                                            "Veth Event - name: {}, state: {}, dev_addr: {}, event_type: {}, netns: {}, pid: {}",
+                                            veth_event.name,
+                                            veth_event.state,
+                                            veth_event.dev_addr,
+                                            veth_event.event_type,
+                                            veth_event.netns,
+                                            veth_event.pid
+                                        );
                                         let mut evt = Vec::new();
                                         evt.push(veth_event.clone());
-                                        let _ = tracked_veth_tx.send(Ok(evt)).await;
+                                        let _ = veth_tx.send(Ok(evt)).await;
                                     } else {
                                         warn!(
                                             "Received time stamp metrics data too small: {} bytes",

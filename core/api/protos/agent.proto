@@ -76,13 +76,12 @@ message VethResponse{
     int32 tot_monitored_veth = 3;
 }
 message VethEvent{
-    string event_id = 1; 
-    string name = 2;                  // Virtual Ethernet Interface Name 
-    uint64 state = 3;                 // Veth State  
-    string dev_addr = 4;              // Veth device Address
-    uint32 event_type = 5;            // Event type
-    uint32 netns = 6;                 // Network Namespace
-    uint32 pid = 7;                   // Process ID
+    string name = 1;                  // Virtual Ethernet Interface Name 
+    uint64 state = 2;                 // Veth State  
+    string dev_addr = 3;              // Veth device Address
+    uint32 event_type = 4;            // Event type
+    uint32 netns = 5;                 // Network Namespace
+    uint32 pid = 6;                   // Process ID
 }
 
 //declare agent api 
