@@ -1,5 +1,5 @@
 use aya::{
-    maps::{Map, MapData, PerfEventArray, perf::PerfEventArrayBuffer},
+    maps::{MapData, perf::PerfEventArrayBuffer},
     util::online_cpus,
 };
 
@@ -10,10 +10,14 @@ use std::sync::{
 };
 use tokio::signal;
 
-use tracing::{debug, error, info, warn};
+use tracing::{error, info};
 
-use crate::structs::NetworkMetrics;
-use crate::structs::TimeStampMetrics;
+use cortexbrain_common::map_handlers::map_manager;
+use cortexbrain_common::{
+    buffer_type::{BufferSize, BufferType},
+    buffer_type::{NetworkMetrics, TimeStampMetrics},
+    map_handlers::BpfMapsData,
+};
 
 pub async fn display_metrics_map(
     mut perf_buffers: Vec<PerfEventArrayBuffer<MapData>>,
@@ -119,50 +123,36 @@ pub async fn display_time_stamp_events_map(
     info!("Timestamp event listener stopped");
 }
 
-pub async fn event_listener(bpf_maps: Vec<Map>) -> Result<(), anyhow::Error> {
+pub async fn event_listener(bpf_maps: BpfMapsData) -> Result<(), anyhow::Error> {
     info!("Getting CPU count...");
 
-    let mut perf_event_arrays = Vec::new(); // contains a vector of PerfEventArrays
-    let mut event_buffers = Vec::new(); // contains a vector of buffers
-
-    info!("Creating perf buffers...");
-    for map in bpf_maps {
-        debug!("Debugging map type:{:?}", map);
-        if let std::result::Result::Ok(perf_event_array) = PerfEventArray::try_from(map) {
-            perf_event_arrays.push(perf_event_array); // this is step 1
-            let perf_event_array_buffer = Vec::new();
-            event_buffers.push(perf_event_array_buffer); //this is step 2 
-        } else {
-            warn!("Map is not a PerfEventArray, skipping load");
-        }
-    }
+    let mut maps = map_manager(bpf_maps)?;
 
     let cpu_count = online_cpus().map_err(|e| anyhow::anyhow!("Error {:?}", e))?;
 
-    //info!("CPU count: {}", cpu_count);
-    for (perf_evt_array, perf_evt_array_buffer) in
-        perf_event_arrays.iter_mut().zip(event_buffers.iter_mut())
-    {
-        for cpu_id in &cpu_count {
-            let single_buffer = perf_evt_array.open(*cpu_id, None)?;
-            perf_evt_array_buffer.push(single_buffer);
+    for cpu_id in cpu_count {
+        for (name, (perf_event_array, perf_event_buffer)) in maps.iter_mut() {
+            let buf = perf_event_array.open(cpu_id, None)?;
+            perf_event_buffer.push(buf);
         }
     }
 
-    //info!("Opening perf buffers for {} CPUs...", cpu_count);
     info!("Perf buffers created successfully");
-    let mut event_buffers = event_buffers.into_iter();
 
-    let time_stamp_events_perf_buffer = event_buffers.next().expect("");
-    let net_perf_buffer = event_buffers.next().expect("");
+    let (time_stamp_events_array, time_stamp_events_perf_buffer) = maps
+        .remove("time_stamp_events")
+        .expect("Cannot create time_stamp_events_buffer");
+    let (net_perf_array, net_perf_buffer) = maps
+        .remove("net_metrics")
+        .expect("Cannot create net_perf_buffer");
 
     // Create shared running flags
     let net_metrics_running = Arc::new(AtomicBool::new(true));
     let time_stamp_events_running = Arc::new(AtomicBool::new(true));
 
     // Create proper sized buffers
-    let net_metrics_buffers = vec![BytesMut::with_capacity(1024); cpu_count.len()];
-    let time_stamp_events_buffers = vec![BytesMut::with_capacity(1024); cpu_count.len()];
+    let net_metrics_buffers = BufferSize::NetworkMetricsEvents.set_buffer();
+    let time_stamp_events_buffers = BufferSize::TimeMetricsEvents.set_buffer();
 
     // Clone for the signal handler
     let net_metrics_running_signal = net_metrics_running.clone();

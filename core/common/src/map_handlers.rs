@@ -154,3 +154,57 @@ pub fn load_perf_event_array_from_mapdata(
     })?;
     Ok(perf_event_array)
 }
+
+#[cfg(feature = "map-handlers")]
+pub fn map_manager(
+    maps: BpfMapsData,
+) -> Result<
+    std::collections::HashMap<
+        String,
+        (
+            aya::maps::PerfEventArray<aya::maps::MapData>,
+            Vec<aya::maps::perf::PerfEventArrayBuffer<aya::maps::MapData>>,
+        ),
+    >,
+    Error,
+> {
+    use aya::maps::PerfEventArray;
+    use aya::maps::{MapData, perf::PerfEventArrayBuffer};
+    use tracing::debug;
+
+    let mut map_manager = std::collections::HashMap::<
+        String, // this will store the bpf map name
+        (PerfEventArray<MapData>, Vec<PerfEventArrayBuffer<MapData>>), // this will manage the BPF_MAP_TYPE_PERF_EVENT_ARRAY and its buffer
+    >::new();
+
+    // map_manager creates an hashmap that contains:
+    // MAP NAME as String (KEY)
+    //
+    // VALUES (tuple)
+    // a PERF_EVENT_ARRAY
+    // a vector of PERF_EVENT_ARRAY_BUFFER
+    //
+    // the map manager helps the event listener to specifically call a map by its pinned name
+    // e.g. veth_identity_map and returns the associated PERF_EVENT_ARRAY and PERF_EVENT_ARRAY_BUFFERS (1 per CPU)
+    // also the map manager helps to write a more complete debug context by linking map names with arrays and buffers.
+    // actually i cannot return the extact information using only the Aya library
+
+    // create the PerfEventArrays and the buffers from the BpfMapsData Objects
+    for (map, name) in maps
+        .bpf_obj_map
+        .into_iter()
+        .zip(maps.bpf_obj_names.into_iter())
+    // zip two iterators at the same time for map object and map names
+    {
+        debug!("Debugging map type:{:?} for map name {:?}", map, &name);
+        info!("Creating PerfEventArray for map name {:?}", &name);
+
+        // save the map in a registry if is a PerfEventArray to access them by name
+        if let std::result::Result::Ok(perf_event_array) = PerfEventArray::try_from(map) {
+            map_manager.insert(name.clone(), (perf_event_array, Vec::new()));
+        } else {
+            warn!("Map {:?} is not a PerfEventArray, skipping load", &name);
+        }
+    }
+    Ok(map_manager)
+}

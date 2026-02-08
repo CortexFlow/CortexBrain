@@ -29,5 +29,6 @@ bytemuck_derive = "1.10.2"
 map-handlers = []
 program-handlers = []
 network-structs = []
+monitoring-structs = []
 buffer-reader = []
 experimental = []
