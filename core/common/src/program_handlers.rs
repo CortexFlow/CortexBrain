@@ -7,7 +7,7 @@ use tracing::{error, info};
 pub fn load_program(
     bpf: Arc<Mutex<Ebpf>>,
     program_name: &str,
-    actual_program: &str,
+    kernel_symbol: &str,
 ) -> Result<(), anyhow::Error> {
     let mut bpf_new = bpf
         .lock()
@@ -24,13 +24,13 @@ pub fn load_program(
         .load()
         .map_err(|e| anyhow::anyhow!("Cannot load program: {}. Error: {}", &program_name, e))?;
 
-    match program.attach(actual_program, 0) {
-        Ok(_) => info!("{} program attached successfully", actual_program),
+    match program.attach(kernel_symbol, 0) {
+        Ok(_) => info!("{} program attached successfully", kernel_symbol),
         Err(e) => {
-            error!("Error attaching {} program {:?}", actual_program, e);
+            error!("Error attaching {} program {:?}", kernel_symbol, e);
             return Err(anyhow::anyhow!(
                 "Failed to attach {}: {:?}",
-                actual_program,
+                kernel_symbol,
                 e
             ));
         }

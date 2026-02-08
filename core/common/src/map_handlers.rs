@@ -50,11 +50,10 @@ pub fn init_bpf_maps(
 
 //TODO: save bpf maps path in the cli metadata
 
-//takes an array of bpf maps and pin them to persiste session data
-// FIXME: is this ok that we are returning a BpfMapsData?
+//takes an array of bpf maps and pin them to persist session data
 
 #[cfg(feature = "map-handlers")]
-pub fn map_pinner(maps: BpfMapsData, path: &PathBuf) -> Result<Vec<Map>, Error> {
+pub fn map_pinner(maps: BpfMapsData, path: &PathBuf) -> Result<BpfMapsData, Error> {
     if !path.exists() {
         info!("Pin path {:?} does not exist. Creating it...", path);
         std::fs::create_dir_all(&path)?;
@@ -65,7 +64,11 @@ pub fn map_pinner(maps: BpfMapsData, path: &PathBuf) -> Result<Vec<Map>, Error> 
         }
     }
 
-    let mut owned_maps = Vec::new(); // aya::Maps does not implement the clone trait i need to create a raw copy of the vec map
+    //let mut owned_maps = Vec::new(); // aya::Maps does not implement the clone trait i need to create a raw copy of the vec map
+    let mut owned_bpf_maps_data = BpfMapsData {
+        bpf_obj_names: Vec::new(),
+        bpf_obj_map: Vec::new(),
+    };
     // an iterator that iterates two iterators simultaneously
     for (map_obj, name) in maps
         .bpf_obj_map
@@ -80,21 +83,30 @@ pub fn map_pinner(maps: BpfMapsData, path: &PathBuf) -> Result<Vec<Map>, Error> 
         }
         info!("Trying to pin map {:?} in map path: {:?}", name, &map_path);
         map_obj.pin(&map_path)?;
-        owned_maps.push(map_obj);
+        //owned_maps.push(map_obj);
+        owned_bpf_maps_data.bpf_obj_names.push(name);
+        owned_bpf_maps_data.bpf_obj_map.push(map_obj);
     }
 
-    Ok(owned_maps)
+    Ok(owned_bpf_maps_data) // return a BpfMapsData type 
 }
 
 #[cfg(feature = "map-handlers")]
-pub async fn populate_blocklist(map: &mut Map) -> Result<(), Error> {
+pub async fn populate_blocklist() -> Result<(), Error> {
+    use aya::maps::MapData;
+    // load mapdata from path
+
+    let mapdata = MapData::from_pin("/sys/fs/bpf/maps/Blocklist")
+        .map_err(|e| anyhow::anyhow!("Failed to load blocklist_map: {}", e))?;
+
+    let map = Map::HashMap(mapdata);
+    let mut blocklist_map = HashMap::<_, [u8; 4], [u8; 4]>::try_from(map)?;
+
     let client = Client::try_default()
         .await
         .expect("Cannot connect to Kubernetes Client");
     let namespace = "cortexflow";
     let configmap = "cortexbrain-client-config";
-
-    let mut blocklist_map = HashMap::<_, [u8; 4], [u8; 4]>::try_from(map)?;
 
     let api: Api<ConfigMap> = Api::namespaced(client, namespace);
     match api.get(configmap).await {
@@ -123,4 +135,22 @@ pub async fn populate_blocklist(map: &mut Map) -> Result<(), Error> {
             return Err(e.into());
         }
     }
+}
+
+#[cfg(feature = "map-handlers")]
+pub fn load_perf_event_array_from_mapdata(
+    path: &'static str,
+) -> Result<aya::maps::PerfEventArray<aya::maps::MapData>, Error> {
+    use aya::maps::MapData;
+    use aya::maps::PerfEventArray;
+
+    let map_data = MapData::from_pin(path)
+        .map_err(|e| anyhow::anyhow!("Cannot load mapdata from pin {:?} .Reason: {}", &path, e))?;
+
+    let map = Map::PerfEventArray(map_data);
+
+    let perf_event_array = PerfEventArray::try_from(map).map_err(|e| {
+        anyhow::anyhow!("Cannot initialize perf_event_array from map. Reason: {}", e)
+    })?;
+    Ok(perf_event_array)
 }

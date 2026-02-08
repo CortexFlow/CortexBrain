@@ -1,4 +1,4 @@
-use bytemuck::Zeroable;
+use bytemuck_derive::Zeroable;
 use crate::constants::TASK_COMM_LEN;
 
 

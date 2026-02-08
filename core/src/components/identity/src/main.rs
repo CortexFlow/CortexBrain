@@ -8,16 +8,16 @@
  *
  */
 
-mod enums;
 mod helpers;
-mod structs;
+mod service_discovery;
 
-use crate::helpers::{
-    display_events, display_tcp_registry_events, display_veth_events, get_veth_channels,
-};
+use crate::helpers::{get_veth_channels, read_perf_buffer};
 use aya::{
     Ebpf,
-    maps::{Map, perf::PerfEventArray},
+    maps::{
+        MapData,
+        perf::{PerfEventArray, PerfEventArrayBuffer},
+    },
     programs::{SchedClassifier, TcAttachType, tc::SchedClassifierLinkId},
     util::online_cpus,
 };
@@ -28,6 +28,7 @@ use crate::helpers::scan_cgroup_cronjob;
 use bytes::BytesMut;
 use cortexbrain_common::map_handlers::{init_bpf_maps, map_pinner, populate_blocklist};
 use cortexbrain_common::program_handlers::load_program;
+use cortexbrain_common::{buffer_type::BufferType, map_handlers::BpfMapsData};
 use std::{
     convert::TryInto,
     path::Path,
@@ -43,8 +44,8 @@ use std::collections::HashMap;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
-    //init tracing subscriber
-    logger::init_default_logger();
+    //init otlè tracing subscriber
+    let otlp_provider = logger::otlp_logger_init("identity_service-OTLP".to_string());
 
     info!("Starting identity service...");
     info!("fetching data");
@@ -86,9 +87,9 @@ async fn main() -> Result<(), anyhow::Error> {
 
                     info!("Found interfaces: {:?}", interfaces);
 
-                    //{ FIXME: paused for testing the other features
-                    //    populate_blocklist(&mut maps.2).await?;
-                    //}
+                    {
+                        populate_blocklist().await?;
+                    }
 
                     {
                         init_tc_classifier(bpf.clone(), interfaces, link_ids.clone()).await.context(
@@ -101,11 +102,9 @@ async fn main() -> Result<(), anyhow::Error> {
                         )?;
                     }
 
-                    event_listener(maps, link_ids.clone(), bpf.clone())
-                        .await
-                        .map_err(|e| {
-                            anyhow::anyhow!("Error inizializing event_listener. Reason: {}", e)
-                        })?;
+                    event_listener(maps).await.map_err(|e| {
+                        anyhow::anyhow!("Error inizializing event_listener. Reason: {}", e)
+                    })?;
                 }
                 Err(e) => {
                     error!("Error while pinning bpf_maps: {}", e);
@@ -115,6 +114,7 @@ async fn main() -> Result<(), anyhow::Error> {
         Err(e) => {
             error!("Error while loading bpf maps {}", e);
             let _ = signal::ctrl_c().await;
+            let _ = otlp_provider.shutdown();
         }
     }
 
@@ -198,74 +198,92 @@ async fn init_tcp_registry(bpf: Arc<Mutex<Ebpf>>) -> Result<(), anyhow::Error> {
 //   perf_veth_array: contains is associated with the network events stored in the veth_map (veth_identity_map)
 //
 //
-async fn event_listener(
-    bpf_maps: Vec<Map>,
-    link_ids: Arc<Mutex<HashMap<String, SchedClassifierLinkId>>>,
-    bpf: Arc<Mutex<Ebpf>>,
-) -> Result<(), anyhow::Error> {
+async fn event_listener(bpf_maps: BpfMapsData) -> Result<(), anyhow::Error> {
     info!("Preparing perf_buffers and perf_arrays");
 
     //TODO: try to change from PerfEventArray to a RingBuffer data structure
 
-    let mut perf_event_arrays = Vec::new(); // contains a vector of PerfEventArrays
-    let mut event_buffers = Vec::new(); // contains a vector of buffers
+    let mut map_manager =
+        HashMap::<String, (PerfEventArray<MapData>, Vec<PerfEventArrayBuffer<MapData>>)>::new();
 
-    // create the PerfEventArrays and the buffers
-    for map in bpf_maps {
-        debug!("Debugging map type:{:?}", map);
+    // create the PerfEventArrays and the buffers from the BpfMapsData Objects
+    for (map, name) in bpf_maps
+        .bpf_obj_map
+        .into_iter()
+        .zip(bpf_maps.bpf_obj_names.into_iter())
+    // zip two iterators at the same time for map and mapnames
+    {
+        debug!("Debugging map type:{:?} for map name {:?}", map, &name);
+        info!("Creating PerfEventArray for map name {:?}", &name);
+
+        // save the map in a registry if is a PerfEventArray to access them by name
         if let std::result::Result::Ok(perf_event_array) = PerfEventArray::try_from(map) {
-            perf_event_arrays.push(perf_event_array); // this is step 1
-            let perf_event_array_buffer = Vec::new();
-            event_buffers.push(perf_event_array_buffer); //this is step 2 
+            map_manager.insert(name.clone(), (perf_event_array, Vec::new()));
+
+        //    perf_event_arrays.push(perf_event_array); // this is step 1
+        //    let perf_event_array_buffer = Vec::new();
+        //    event_buffers.push(perf_event_array_buffer); //this is step 2
         } else {
-            warn!("Map is not a PerfEventArray, skipping load");
+            warn!("Map {:?} is not a PerfEventArray, skipping load", &name);
         }
     }
 
     // fill the input buffers with data from the PerfEventArrays
-    let cpus = online_cpus().map_err(|e| anyhow::anyhow!("Error {:?}", e))?;
-
-    for (perf_evt_array, perf_evt_array_buffer) in
-        perf_event_arrays.iter_mut().zip(event_buffers.iter_mut())
-    {
-        for cpu_id in &cpus {
-            let single_buffer = perf_evt_array.open(*cpu_id, None)?;
-            perf_evt_array_buffer.push(single_buffer);
+    for cpu_id in online_cpus().map_err(|e| anyhow::anyhow!("Error {:?}", e))? {
+        for (name, (perf_evt_array, perf_evt_array_buffer)) in map_manager.iter_mut() {
+            let buf = perf_evt_array.open(cpu_id, None)?;
+            info!(
+                "Buffer created for map {:?} on cpu_id {:?}. Buffer size: {}",
+                name,
+                cpu_id,
+                std::mem::size_of_val(&buf)
+            );
+            perf_evt_array_buffer.push(buf);
         }
     }
 
     info!("Listening for events...");
 
-    let mut event_buffers = event_buffers.into_iter();
-    let perf_veth_buffer = event_buffers
-        .next()
+    // i need to use remove to move the values from the Map Manager to the the async tasks
+    let (perf_veth_array, perf_veth_buffers) = map_manager
+        .remove("veth_identity_map")
         .expect("Cannot create perf_veth buffer");
-    let perf_net_events_buffer = event_buffers
-        .next()
+    let (perf_net_events_array, perf_net_events_buffers) = map_manager
+        .remove("events_map")
         .expect("Cannot create perf_net_events buffer");
-    let tcp_registry_buffer = event_buffers
-        .next()
+    let (tcp_registry_array, tcp_registry_buffers) = map_manager
+        .remove("TcpPacketRegistry")
         .expect("Cannot create tcp_registry buffer");
 
     // init output buffers
-    let veth_buffers = vec![BytesMut::with_capacity(1024); 10];
+    let veth_buffers = vec![BytesMut::with_capacity(10 * 1024); online_cpus().iter().len()];
     let events_buffers = vec![BytesMut::with_capacity(1024); online_cpus().iter().len()];
     let tcp_buffers = vec![BytesMut::with_capacity(1024); online_cpus().iter().len()];
 
     // init veth link ids
-    let veth_link_ids = link_ids;
+    //let veth_link_ids = link_ids;
 
     // spawn async tasks
     let veth_events_displayer = tokio::spawn(async move {
-        display_veth_events(bpf.clone(), perf_veth_buffer, veth_buffers, veth_link_ids).await;
+        read_perf_buffer(perf_veth_buffers, veth_buffers, BufferType::VethLog).await;
     });
 
     let net_events_displayer = tokio::spawn(async move {
-        display_events(perf_net_events_buffer, events_buffers).await;
+        read_perf_buffer(
+            perf_net_events_buffers,
+            events_buffers,
+            BufferType::PacketLog,
+        )
+        .await;
     });
 
     let tcp_registry_events_displayer: tokio::task::JoinHandle<()> = tokio::spawn(async move {
-        display_tcp_registry_events(tcp_registry_buffer, tcp_buffers).await;
+        read_perf_buffer(
+            tcp_registry_buffers,
+            tcp_buffers,
+            BufferType::TcpPacketRegistry,
+        )
+        .await;
     });
 
     #[cfg(feature = "experimental")]

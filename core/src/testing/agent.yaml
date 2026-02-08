@@ -19,7 +19,7 @@ spec:
       hostNetwork: true
       containers:
         - name: agent
-          image: ghcr.io/cortexflow/agent:latest
+          image: lorenzotettamanti/cortexflow-agent:veth-command-test4
           command: ["/bin/bash", "-c"]
           args:
             - |

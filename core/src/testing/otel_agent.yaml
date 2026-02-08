@@ -1,0 +1,210 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-agent-conf
+  namespace: cortexflow
+  labels:
+    app: opentelemetry
+    component: otel-agent-conf
+data:
+  otel-agent-config: |
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+
+    exporters:
+      otlp:
+        endpoint: otel-collector.cortexflow.svc.cluster.local:4317
+        tls:
+          insecure: true
+      logging:
+        loglevel: info   
+
+    service:
+      pipelines:
+        traces:
+          receivers: [otlp]
+          exporters: [otlp, logging]
+        logs:
+          receivers: [otlp]
+          exporters: [otlp, logging]
+
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: otel-agent
+  namespace: cortexflow
+  labels:
+    app: opentelemetry
+    component: otel-agent
+spec:
+  selector:
+    matchLabels:
+      app: opentelemetry
+      component: otel-agent
+  template:
+    metadata:
+      labels:
+        app: opentelemetry
+        component: otel-agent
+    spec:
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      containers:
+      - name: otel-agent
+        image: otel/opentelemetry-collector:0.95.0
+        command:
+          - "/otelcol"
+          - "--config=/conf/otel-agent-config.yaml"
+        resources:
+          limits:
+            cpu: 500m
+            memory: 500Mi
+          requests:
+            cpu: 100m
+            memory: 100Mi
+        ports:
+        - containerPort: 4317
+          hostPort: 4317
+          protocol: TCP
+        - containerPort: 4318
+          hostPort: 4318
+          protocol: TCP
+        env:
+        - name: GOMEMLIMIT
+          value: 400MiB
+        volumeMounts:
+        - name: otel-agent-config-vol
+          mountPath: /conf
+      volumes:
+      - name: otel-agent-config-vol
+        configMap:
+          name: otel-agent-conf
+          items:
+          - key: otel-agent-config
+            path: otel-agent-config.yaml
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-collector-conf
+  namespace: cortexflow
+  labels:
+    app: opentelemetry
+    component: otel-collector-conf
+data:
+  otel-collector-config: |
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+
+    processors:
+      memory_limiter:
+        limit_mib: 1500
+        spike_limit_mib: 512
+        check_interval: 5s
+
+    exporters:
+    #  otlp:
+    #    endpoint: otel-collector.cortexflow.svc.cluster.local:4317
+    #    tls:
+    #      insecure: true
+      logging: {}  
+
+    service:
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [memory_limiter]
+          exporters: [logging]
+        logs:
+          receivers: [otlp]
+          processors: [memory_limiter]
+          exporters: [logging]
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: otel-collector
+  namespace: cortexflow
+  labels:
+    app: opentelemetry
+    component: otel-collector
+spec:
+  selector:
+    app: opentelemetry
+    component: otel-collector
+  ports:
+  - name: otlp-grpc
+    port: 4317
+    targetPort: 4317
+  - name: otlp-http
+    port: 4318
+    targetPort: 4318
+  - name: metrics
+    port: 8888
+    targetPort: 8888
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: otel-collector
+  namespace: cortexflow
+  labels:
+    app: opentelemetry
+    component: otel-collector
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: opentelemetry
+      component: otel-collector
+  template:
+    metadata:
+      labels:
+        app: opentelemetry
+        component: otel-collector
+    spec:
+      containers:
+      - name: otel-collector
+        image: otel/opentelemetry-collector:0.95.0
+        command:
+          - "/otelcol"
+          - "--config=/conf/otel-collector-config.yaml"
+        resources:
+          limits:
+            cpu: "1"
+            memory: 2Gi
+          requests:
+            cpu: 200m
+            memory: 400Mi
+        ports:
+        - containerPort: 4317
+        - containerPort: 4318
+        - containerPort: 8888
+        env:
+        - name: GOMEMLIMIT
+          value: 1600MiB
+        volumeMounts:
+        - name: otel-collector-config-vol
+          mountPath: /conf
+      volumes:
+      - name: otel-collector-config-vol
+        configMap:
+          name: otel-collector-conf
+          items:
+          - key: otel-collector-config
+            path: otel-collector-config.yaml

@@ -18,7 +18,7 @@ use crate::install::{InstallArgs, InstallCommands, install_cortexflow, install_s
 use crate::logs::{LogsArgs, logs_command};
 use crate::monitoring::{
     MonitorArgs, MonitorCommands, list_features, monitor_dropped_packets, monitor_identity_events,
-    monitor_latency_metrics,
+    monitor_latency_metrics, monitor_tracked_veth,
 };
 use crate::policies::{
     PoliciesArgs, PoliciesCommands, check_blocklist, create_blocklist, remove_ip,
@@ -68,7 +68,7 @@ enum Commands {
 struct SetArgs {
     val: String,
 }
-
+//TODO: add command for monitoring veth interfaces
 async fn args_parser() -> Result<(), CliError> {
     let args = Cli::parse();
     debug!("Arguments {:?}", args.cmd);
@@ -79,6 +79,10 @@ async fn args_parser() -> Result<(), CliError> {
             }
             InstallCommands::TestPods => {
                 install_simple_example().await?;
+            }
+            InstallCommands::Blocklist => {
+                //install or repair blocklist configmap
+                let _ = install::install_blocklist_configmap().await?;
             }
         },
         Some(Commands::Uninstall) => {
@@ -119,6 +123,9 @@ async fn args_parser() -> Result<(), CliError> {
             }
             MonitorCommands::Droppedpackets => {
                 let _ = monitor_dropped_packets().await?;
+            }
+            MonitorCommands::Veth => {
+                let _ = monitor_tracked_veth().await?;
             }
         },
         Some(Commands::Policies(policies_args)) => {

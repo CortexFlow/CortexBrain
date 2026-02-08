@@ -25,7 +25,7 @@ pub fn try_veth_tracer(ctx: ProbeContext, mode: u8) -> Result<u32, i64> {
     }
 
     let mut name_buf = [0u8; 16];
-    let mut dev_addr_buf = [0u32; 8];
+    let mut dev_addr_buf = [0u8; 6];
 
     // name field
     let name_field_offset = 304; // reading the name field offset
@@ -35,12 +35,12 @@ pub fn try_veth_tracer(ctx: ProbeContext, mode: u8) -> Result<u32, i64> {
 
     // state field
     let state_offset = 168;
-    let state: u8 = read_linux_inner_value::<u8>(net_device_pointer as *const u8, state_offset)?;
+    let state: u64 = read_linux_inner_value::<u64>(net_device_pointer as *const u8, state_offset)?;
 
     // dev_addr
     let dev_addr_offset = 1080;
-    let dev_addr_array: [u32; 8] =
-        read_linux_inner_value::<[u32; 8]>(net_device_pointer as *const u8, dev_addr_offset)?;
+    let dev_addr_array: [u8; 6] =
+        read_linux_inner_value::<[u8; 6]>(net_device_pointer as *const u8, dev_addr_offset)?;
 
     let inum: u32 = extract_netns_inum(net_device_pointer as *const u8)?;
     let pid: u32 = bpf_get_current_pid_tgid() as u32; // extracting lower 32 bit corresponding to the PID
@@ -52,7 +52,7 @@ pub fn try_veth_tracer(ctx: ProbeContext, mode: u8) -> Result<u32, i64> {
     // compose the structure
     let veth_data = VethLog {
         name: name_buf,
-        state: state.into(),
+        state: state,
         dev_addr: dev_addr_buf,
         event_type: mode,
         netns: inum,

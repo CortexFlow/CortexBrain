@@ -8,7 +8,10 @@ use std::result::Result::Ok;
 use tonic_reflection::pb::v1::server_reflection_response::MessageResponse;
 
 use agent_api::client::{connect_to_client, connect_to_server_reflection};
-use agent_api::requests::{get_all_features, send_active_connection_request};
+use agent_api::requests::{
+    get_all_features, send_active_connection_request, send_dropped_packets_request,
+    send_latency_metrics_request, send_tracked_veth_request,
+};
 
 use crate::errors::CliError;
 use clap::{Args, Subcommand};
@@ -33,6 +36,11 @@ pub enum MonitorCommands {
         about = "Monitor the dropped packets metrics detected by the metrics service"
     )]
     Droppedpackets,
+    #[command(
+        name = "veth",
+        about = "Monitor tracked veth interfaces from the identity service"
+    )]
+    Veth,
 }
 
 // cfcli monitor <args>
@@ -40,8 +48,6 @@ pub enum MonitorCommands {
 pub struct MonitorArgs {
     #[command(subcommand)]
     pub monitor_cmd: MonitorCommands,
-    //#[arg(long, short)]
-    //pub flags: Option<String>,
 }
 
 pub async fn list_features() -> Result<(), CliError> {
@@ -168,7 +174,7 @@ pub async fn monitor_latency_metrics() -> Result<(), CliError> {
                 "Connected to CortexFlow Client".green()
             );
             //send request to get latency metrics
-            match agent_api::requests::send_latency_metrics_request(client).await {
+            match send_latency_metrics_request(client).await {
                 Ok(response) => {
                     let resp = response.into_inner();
                     if resp.metrics.is_empty() {
@@ -237,7 +243,7 @@ pub async fn monitor_dropped_packets() -> Result<(), CliError> {
                 "Connected to CortexFlow Client".green()
             );
             //send request to get dropped packets metrics
-            match agent_api::requests::send_dropped_packets_request(client).await {
+            match send_dropped_packets_request(client).await {
                 Ok(response) => {
                     let resp = response.into_inner();
                     if resp.metrics.is_empty() {
@@ -289,6 +295,50 @@ pub async fn monitor_dropped_packets() -> Result<(), CliError> {
         }
     }
     Ok(())
+}
+
+pub async fn monitor_tracked_veth() -> Result<(), CliError> {
+    println!(
+        "{} {}",
+        "=====>".blue().bold(),
+        "Connecting to cortexflow Client".white()
+    );
+    match connect_to_client().await {
+        Ok(client) => match send_tracked_veth_request(client).await {
+            Ok(response) => {
+                let veth_response = response.into_inner();
+                if veth_response.tot_monitored_veth == 0 {
+                    println!("{} {} ", "=====>".blue().bold(), "No tracked veth found");
+                    Ok(())
+                } else {
+                    println!(
+                        "{} {} {} {} ",
+                        "=====>".blue().bold(),
+                        "Found:",
+                        &veth_response.tot_monitored_veth,
+                        "tracked veth"
+                    );
+                    for veth in veth_response.veth_names.iter() {
+                        println!("{} {}", "=====>".blue().bold(), &veth);
+                    }
+                    Ok(())
+                }
+            }
+            Err(e) => {
+                return Err(CliError::AgentError(
+                    tonic_reflection::server::Error::InvalidFileDescriptorSet(e.to_string()),
+                ));
+            }
+        },
+        Err(e) => {
+            return Err(CliError::ClientError(kube::Error::Api(ErrorResponse {
+                status: "failed".to_string(),
+                message: "Failed to connect to kubernetes client".to_string(),
+                reason: e.to_string(),
+                code: 404,
+            })));
+        }
+    }
 }
 
 fn convert_timestamp_to_date(timestamp: u64) -> String {

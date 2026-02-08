@@ -68,6 +68,21 @@ message DroppedPacketsResponse {
     uint32 total_drops = 3;           // Total drops across all connections
 }
 
+// Veth Info
+
+message VethResponse{
+    string status = 1;
+    repeated string veth_names = 2;   // List of active veth interface names
+    int32 tot_monitored_veth = 3;
+}
+message VethEvent{
+    string name = 1;                  // Virtual Ethernet Interface Name 
+    uint64 state = 2;                 // Veth State  
+    string dev_addr = 3;              // Veth device Address
+    uint32 event_type = 4;            // Event type
+    uint32 netns = 5;                 // Network Namespace
+    uint32 pid = 6;                   // Process ID
+}
 
 //declare agent api 
 service Agent{
@@ -81,11 +96,14 @@ service Agent{
     // remove ip from blocklist endpoint
     rpc RmIpFromBlocklist(RmIpFromBlocklistRequest) returns (RmIpFromBlocklistResponse);
 
-    // metrics data
+    // metrics data endpoint
     rpc GetLatencyMetrics(google.protobuf.Empty) returns (LatencyMetricsResponse);
 
-    // dropped packets
+    // dropped packets endpoint
     rpc GetDroppedPacketsMetrics(google.protobuf.Empty) returns (DroppedPacketsResponse);
+
+    // active veth info endpoint 
+    rpc GetTrackedVeth(google.protobuf.Empty) returns (VethResponse);
 }
 
 message AddIpToBlocklistRequest{
