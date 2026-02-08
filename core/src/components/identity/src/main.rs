@@ -14,10 +14,6 @@ mod service_discovery;
 use crate::helpers::{get_veth_channels, read_perf_buffer};
 use aya::{
     Ebpf,
-    maps::{
-        MapData,
-        perf::{PerfEventArray, PerfEventArrayBuffer},
-    },
     programs::{SchedClassifier, TcAttachType, tc::SchedClassifierLinkId},
     util::online_cpus,
 };
@@ -25,8 +21,9 @@ use aya::{
 #[cfg(feature = "experimental")]
 use crate::helpers::scan_cgroup_cronjob;
 
-use bytes::BytesMut;
-use cortexbrain_common::map_handlers::{init_bpf_maps, map_pinner, populate_blocklist};
+use cortexbrain_common::map_handlers::{
+    init_bpf_maps, map_manager, map_pinner, populate_blocklist,
+};
 use cortexbrain_common::program_handlers::load_program;
 use cortexbrain_common::{buffer_type::BufferType, map_handlers::BpfMapsData};
 use std::{
@@ -36,11 +33,11 @@ use std::{
 };
 
 use anyhow::{Context, Ok};
+use cortexbrain_common::buffer_type::BufferSize;
 use cortexbrain_common::{constants, logger};
-use tokio::{fs, signal};
-use tracing::{debug, error, info, warn};
-
 use std::collections::HashMap;
+use tokio::{fs, signal};
+use tracing::{error, info};
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
@@ -203,34 +200,11 @@ async fn event_listener(bpf_maps: BpfMapsData) -> Result<(), anyhow::Error> {
 
     //TODO: try to change from PerfEventArray to a RingBuffer data structure
 
-    let mut map_manager =
-        HashMap::<String, (PerfEventArray<MapData>, Vec<PerfEventArrayBuffer<MapData>>)>::new();
-
-    // create the PerfEventArrays and the buffers from the BpfMapsData Objects
-    for (map, name) in bpf_maps
-        .bpf_obj_map
-        .into_iter()
-        .zip(bpf_maps.bpf_obj_names.into_iter())
-    // zip two iterators at the same time for map and mapnames
-    {
-        debug!("Debugging map type:{:?} for map name {:?}", map, &name);
-        info!("Creating PerfEventArray for map name {:?}", &name);
-
-        // save the map in a registry if is a PerfEventArray to access them by name
-        if let std::result::Result::Ok(perf_event_array) = PerfEventArray::try_from(map) {
-            map_manager.insert(name.clone(), (perf_event_array, Vec::new()));
-
-        //    perf_event_arrays.push(perf_event_array); // this is step 1
-        //    let perf_event_array_buffer = Vec::new();
-        //    event_buffers.push(perf_event_array_buffer); //this is step 2
-        } else {
-            warn!("Map {:?} is not a PerfEventArray, skipping load", &name);
-        }
-    }
+    let mut maps = map_manager(bpf_maps)?;
 
     // fill the input buffers with data from the PerfEventArrays
     for cpu_id in online_cpus().map_err(|e| anyhow::anyhow!("Error {:?}", e))? {
-        for (name, (perf_evt_array, perf_evt_array_buffer)) in map_manager.iter_mut() {
+        for (name, (perf_evt_array, perf_evt_array_buffer)) in maps.iter_mut() {
             let buf = perf_evt_array.open(cpu_id, None)?;
             info!(
                 "Buffer created for map {:?} on cpu_id {:?}. Buffer size: {}",
@@ -245,23 +219,20 @@ async fn event_listener(bpf_maps: BpfMapsData) -> Result<(), anyhow::Error> {
     info!("Listening for events...");
 
     // i need to use remove to move the values from the Map Manager to the the async tasks
-    let (perf_veth_array, perf_veth_buffers) = map_manager
+    let (perf_veth_array, perf_veth_buffers) = maps
         .remove("veth_identity_map")
         .expect("Cannot create perf_veth buffer");
-    let (perf_net_events_array, perf_net_events_buffers) = map_manager
+    let (perf_net_events_array, perf_net_events_buffers) = maps
         .remove("events_map")
         .expect("Cannot create perf_net_events buffer");
-    let (tcp_registry_array, tcp_registry_buffers) = map_manager
+    let (tcp_registry_array, tcp_registry_buffers) = maps
         .remove("TcpPacketRegistry")
         .expect("Cannot create tcp_registry buffer");
 
     // init output buffers
-    let veth_buffers = vec![BytesMut::with_capacity(10 * 1024); online_cpus().iter().len()];
-    let events_buffers = vec![BytesMut::with_capacity(1024); online_cpus().iter().len()];
-    let tcp_buffers = vec![BytesMut::with_capacity(1024); online_cpus().iter().len()];
-
-    // init veth link ids
-    //let veth_link_ids = link_ids;
+    let veth_buffers = BufferSize::VethEvents.set_buffer();
+    let events_buffers = BufferSize::ClassifierNetEvents.set_buffer();
+    let tcp_buffers = BufferSize::TcpEvents.set_buffer();
 
     // spawn async tasks
     let veth_events_displayer = tokio::spawn(async move {
