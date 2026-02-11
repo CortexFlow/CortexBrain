@@ -2,7 +2,7 @@ use aya_ebpf::{macros::map, maps::{LruPerCpuHashMap, HashMap, PerfEventArray}};
 
 pub const TASK_COMM_LEN: usize = 16;
 
-
+#[repr(C,packed)]
 pub struct NetworkMetrics {
     pub tgid: u32,
     pub comm: [u8; TASK_COMM_LEN],
@@ -16,7 +16,7 @@ pub struct NetworkMetrics {
     pub sk_drops: i32,              // Offset 136
 }
 
-#[repr(C)]
+#[repr(C,packed)]
 #[derive(Copy, Clone)]
 pub struct TimeStampStartInfo {
     pub comm: [u8; TASK_COMM_LEN],
@@ -25,7 +25,7 @@ pub struct TimeStampStartInfo {
 }
 
 // Event we send to userspace when latency is computed
-#[repr(C)]
+#[repr(C,packed)]
 #[derive(Copy, Clone)]
 pub struct TimeStampEvent {
     pub delta_us: u64,

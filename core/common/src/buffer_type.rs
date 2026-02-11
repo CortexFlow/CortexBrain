@@ -86,7 +86,7 @@ unsafe impl aya::Pod for TcpPacketRegistry {}
 #[cfg(feature = "monitoring-structs")]
 pub const TASK_COMM_LEN: usize = 16; // linux/sched.h
 #[cfg(feature = "monitoring-structs")]
-#[repr(C)]
+#[repr(C, packed)]
 #[derive(Clone, Copy, Zeroable)]
 pub struct NetworkMetrics {
     pub tgid: u32,
@@ -104,7 +104,7 @@ pub struct NetworkMetrics {
 unsafe impl aya::Pod for NetworkMetrics {}
 
 #[cfg(feature = "monitoring-structs")]
-#[repr(C)]
+#[repr(C, packed)]
 #[derive(Clone, Copy, Zeroable)]
 pub struct TimeStampMetrics {
     pub delta_us: u64,
