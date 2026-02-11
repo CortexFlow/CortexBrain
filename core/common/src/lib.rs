@@ -1,5 +1,8 @@
-#[cfg(feature = "buffer-reader")]
-#[cfg(feature = "network-structs")]
+#[cfg(any(
+    feature = "buffer-reader",
+    feature = "network-structs",
+    feature = "monitoring-structs"
+))]
 pub mod buffer_type;
 pub mod constants;
 pub mod formatters;
