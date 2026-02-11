@@ -11,7 +11,7 @@
 mod helpers;
 mod service_discovery;
 
-use crate::helpers::{get_veth_channels, read_perf_buffer};
+use crate::helpers::get_veth_channels;
 use aya::{
     Ebpf,
     programs::{SchedClassifier, TcAttachType, tc::SchedClassifierLinkId},
@@ -21,6 +21,7 @@ use aya::{
 #[cfg(feature = "experimental")]
 use crate::helpers::scan_cgroup_cronjob;
 
+use cortexbrain_common::buffer_type::read_perf_buffer;
 use cortexbrain_common::map_handlers::{
     init_bpf_maps, map_manager, map_pinner, populate_blocklist,
 };
