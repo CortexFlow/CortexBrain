@@ -32,6 +32,10 @@ use crate::tc::try_identity_classifier;
 use crate::tcp_analyzer::try_tcp_analyzer;
 use crate::veth_tracer::try_veth_tracer;
 
+// TODO: add function to track
+// 1. kprobe:tcp_enter_memory_pressure
+// 2. kprobe:tcp_create_openreq_child (https://elixir.bootlin.com/linux/v6.18.6/source/net/ipv4/tcp_ipv4.c#L1776) [function: *tcp_v4_syn_recv_sock]
+
 // docs:
 //
 // virtual ethernet (veth) interface tracer:
