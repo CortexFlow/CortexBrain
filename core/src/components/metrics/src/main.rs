@@ -1,6 +1,5 @@
 use anyhow::{Context, Ok};
 use aya::Ebpf;
-use cortexbrain_common::constants;
 use std::{
     env, fs,
     path::Path,
@@ -11,9 +10,12 @@ use tracing::{error, info};
 mod helpers;
 use crate::helpers::event_listener;
 
-use cortexbrain_common::logger::otlp_logger_init;
-use cortexbrain_common::map_handlers::{init_bpf_maps, map_pinner};
-use cortexbrain_common::program_handlers::load_program;
+use cortexbrain_common::{
+    constants,
+    logger::otlp_logger_init,
+    map_handlers::{init_bpf_maps, map_pinner},
+    program_handlers::load_program,
+};
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {

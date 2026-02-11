@@ -1,3 +1,4 @@
+use anyhow::anyhow;
 use aya::util::online_cpus;
 use cortexbrain_common::map_handlers::map_manager;
 use cortexbrain_common::{
@@ -16,7 +17,18 @@ pub async fn event_listener(bpf_maps: BpfMapsData) -> Result<(), anyhow::Error> 
 
     for cpu_id in cpu_count {
         for (name, (perf_event_array, perf_event_buffer)) in maps.iter_mut() {
-            let buf = perf_event_array.open(cpu_id, None)?;
+            let buf = perf_event_array.open(cpu_id, None).map_err(|e| {
+                anyhow!(
+                    "Cannot create perf_event_array buffer from perf_event_array. Reason: {}",
+                    e
+                )
+            })?;
+            info!(
+                "Buffer created for map {:?} on cpu_id {:?}. Buffer size: {}",
+                name,
+                cpu_id,
+                std::mem::size_of_val(&buf)
+            );
             perf_event_buffer.push(buf);
         }
     }

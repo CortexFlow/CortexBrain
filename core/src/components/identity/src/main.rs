@@ -21,21 +21,21 @@ use aya::{
 #[cfg(feature = "experimental")]
 use crate::helpers::scan_cgroup_cronjob;
 
-use cortexbrain_common::buffer_type::read_perf_buffer;
-use cortexbrain_common::map_handlers::{
-    init_bpf_maps, map_manager, map_pinner, populate_blocklist,
+use cortexbrain_common::{
+    buffer_type::{BufferSize, BufferType, read_perf_buffer},
+    constants, logger,
+    map_handlers::BpfMapsData,
+    map_handlers::{init_bpf_maps, map_manager, map_pinner, populate_blocklist},
+    program_handlers::load_program,
 };
-use cortexbrain_common::program_handlers::load_program;
-use cortexbrain_common::{buffer_type::BufferType, map_handlers::BpfMapsData};
 use std::{
     convert::TryInto,
     path::Path,
     sync::{Arc, Mutex},
 };
 
-use anyhow::{Context, Ok};
-use cortexbrain_common::buffer_type::BufferSize;
-use cortexbrain_common::{constants, logger};
+use anyhow::{Context, Ok, anyhow};
+
 use std::collections::HashMap;
 use tokio::{fs, signal};
 use tracing::{error, info};
@@ -206,7 +206,12 @@ async fn event_listener(bpf_maps: BpfMapsData) -> Result<(), anyhow::Error> {
     // fill the input buffers with data from the PerfEventArrays
     for cpu_id in online_cpus().map_err(|e| anyhow::anyhow!("Error {:?}", e))? {
         for (name, (perf_evt_array, perf_evt_array_buffer)) in maps.iter_mut() {
-            let buf = perf_evt_array.open(cpu_id, None)?;
+            let buf = perf_evt_array.open(cpu_id, None).map_err(|e| {
+                anyhow!(
+                    "Cannot create perf_event_array buffer from perf_event_array. Reason: {}",
+                    e
+                )
+            })?;
             info!(
                 "Buffer created for map {:?} on cpu_id {:?}. Buffer size: {}",
                 name,
