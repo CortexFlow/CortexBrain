@@ -1,6 +1,6 @@
 use anyhow::{Context, Ok};
 use aya::Ebpf;
-use cortexbrain_common::{constants, logger};
+use cortexbrain_common::constants;
 use std::{
     env, fs,
     path::Path,
@@ -11,15 +11,14 @@ use tracing::{error, info};
 mod helpers;
 use crate::helpers::event_listener;
 
+use cortexbrain_common::logger::otlp_logger_init;
 use cortexbrain_common::map_handlers::{init_bpf_maps, map_pinner};
 use cortexbrain_common::program_handlers::load_program;
-
-mod structs;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
     //init tracing subscriber
-    logger::init_default_logger();
+    let otlp_provider = otlp_logger_init("metrics-service".to_string());
 
     info!("Starting metrics service...");
     info!("fetching data");
@@ -78,6 +77,7 @@ async fn main() -> Result<(), anyhow::Error> {
         }
         Err(e) => {
             error!("Error initializing BPF maps: {:?}", e);
+            let _ = otlp_provider.shutdown();
             return Err(e);
         }
     }
