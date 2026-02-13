@@ -121,8 +121,11 @@ pub async fn populate_blocklist() -> Result<(), Error> {
                         .filter(|s| !s.is_empty())
                         .collect();
                     //String parsing from "x y" to ["x","y"]
-                    info!("Inserting addresses: {:?}", addresses);
-                    for item in addresses {
+                    if addresses.is_empty() {
+                        warn!("No addresses found in the blocklist. Skipping load");
+                    }
+                    for item in &addresses {
+                        info!("Inserting addresses: {:?}", &item);
                         let addr = Ipv4Addr::from_str(&item)?.octets();
                         let _ = blocklist_map.insert(addr, addr, 0);
                     }
@@ -138,6 +141,7 @@ pub async fn populate_blocklist() -> Result<(), Error> {
 }
 
 #[cfg(feature = "map-handlers")]
+// TODO: modify this to accept also HashMap types
 pub fn load_perf_event_array_from_mapdata(
     path: &'static str,
 ) -> Result<aya::maps::PerfEventArray<aya::maps::MapData>, Error> {
