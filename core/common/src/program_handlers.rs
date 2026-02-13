@@ -13,32 +13,38 @@ pub fn load_program(
         .lock()
         .map_err(|e| anyhow::anyhow!("Cannot get value from lock. Reason: {}", e))?;
 
-    // Load and attach the eBPF programs
+    // Load and attach the eBPF program
     let program: &mut KProbe = bpf_new
         .program_mut(program_name)
         .ok_or_else(|| anyhow::anyhow!("Program {} not found", program_name))?
         .try_into()
         .map_err(|e| anyhow::anyhow!("Failed to convert program: {:?}", e))?;
 
+    // STEP 1: load program
+
     program
         .load()
         .map_err(|e| anyhow::anyhow!("Cannot load program: {}. Error: {}", &program_name, e))?;
 
+    // STEP 2: Attach the loaded program to kernel symbol
     match program.attach(kernel_symbol, 0) {
-        Ok(_) => info!("{} program attached successfully", kernel_symbol),
+        Ok(_) => info!(
+            "{} program attached successfully to kernel symbol {}",
+            &program_name, &kernel_symbol
+        ),
         Err(e) => {
-            error!("Error attaching {} program {:?}", kernel_symbol, e);
+            error!(
+                "Error attaching {} program to kernel symbol {}. Reason: {:?}",
+                &program_name, &kernel_symbol, e
+            );
             return Err(anyhow::anyhow!(
-                "Failed to attach {}: {:?}",
-                kernel_symbol,
+                "Failed to attach program {} to kernel symbol {}. Reason {:?}",
+                &program_name,
+                &kernel_symbol,
                 e
             ));
         }
     };
 
-    info!(
-        "eBPF program {} loaded and attached successfully",
-        program_name
-    );
     Ok(())
 }
