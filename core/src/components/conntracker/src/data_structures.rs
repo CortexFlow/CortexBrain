@@ -47,7 +47,7 @@ pub struct ConnArray {
 // pid: kernel process ID
 //
 
-#[repr(C,packed)]
+#[repr(C, packed)]
 #[derive(Clone, Copy)]
 pub struct VethLog {
     pub name: [u8; 16],    // 16 bytes: veth interface name
@@ -94,9 +94,13 @@ pub static mut CONNTRACKER: LruPerCpuHashMap<ConnArray, u8> =
 pub static mut VETH_EVENTS: PerfEventArray<VethLog> = PerfEventArray::new(0);
 
 #[map(name = "Blocklist", pinning = "by_name")]
-pub static mut BLOCKLIST: HashMap<[u8; 4], [u8; 4]> =
-    HashMap::<[u8; 4], [u8; 4]>::with_max_entries(1024, 0);
+pub static mut BLOCKLIST: HashMap<[u8; 4], [u8; 4]> = HashMap::with_max_entries(1024, 0);
 //here i need to pass an address like this: [135,171,168,192]
 
 #[map(name = "TcpPacketRegistry", pinning = "by_name")]
 pub static mut PACKET_REGISTRY: PerfEventArray<TcpPacketRegistry> = PerfEventArray::new(0);
+
+#[map(name = "tracked_veth", pinning = "by_name")]
+// This map takes a registry of tracked veth interfaces
+// The maximum number of characters is 16 of type u8
+pub static mut TRACKED_VETH: HashMap<[u8; 16], [u8; 8]> = HashMap::with_max_entries(1024, 0);
