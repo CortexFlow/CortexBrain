@@ -14,7 +14,8 @@ mod service_discovery;
 use crate::helpers::get_veth_channels;
 use aya::{
     Ebpf,
-    programs::{SchedClassifier, TcAttachType, tc::SchedClassifierLinkId},
+    maps::{Map, MapData},
+    programs::{SchedClassifier, TcAttachType},
     util::online_cpus,
 };
 
@@ -36,7 +37,7 @@ use std::{
 
 use anyhow::{Context, Ok, anyhow};
 
-use std::collections::HashMap;
+//use std::collections::HashMap;
 use tokio::{fs, signal};
 use tracing::{error, info};
 
@@ -49,7 +50,7 @@ async fn main() -> Result<(), anyhow::Error> {
     info!("fetching data");
 
     // To Store link_ids they can be used to detach tc
-    let link_ids = Arc::new(Mutex::new(HashMap::<String, SchedClassifierLinkId>::new()));
+    //let mut link_ids = HashMap::<String, SchedClassifierLinkId>::new();
 
     //init conntracker data path
     let bpf_path =
@@ -67,6 +68,7 @@ async fn main() -> Result<(), anyhow::Error> {
         "veth_identity_map".to_string(),
         "TcpPacketRegistry".to_string(),
         "Blocklist".to_string(),
+        "tracked_veth".to_string(),
     ];
     match init_bpf_maps(bpf.clone(), map_data) {
         std::result::Result::Ok(bpf_maps) => {
@@ -90,8 +92,8 @@ async fn main() -> Result<(), anyhow::Error> {
                     }
 
                     {
-                        init_tc_classifier(bpf.clone(), interfaces, link_ids.clone()).await.context(
-                            "An error occured during the execution of attach_bpf_program function"
+                        init_tc_classifier(bpf.clone(), interfaces).await.context(
+                            "An error occured during the execution of attach_bpf_program function",
                         )?;
                     }
                     {
@@ -120,10 +122,10 @@ async fn main() -> Result<(), anyhow::Error> {
 }
 
 //attach the tc classifier program to a vector of interfaces
+// TODO: consider to create a load schedule classifier in the common functions
 async fn init_tc_classifier(
     bpf: Arc<Mutex<Ebpf>>,
     ifaces: Vec<String>,
-    link_ids: Arc<Mutex<HashMap<String, SchedClassifierLinkId>>>,
 ) -> Result<(), anyhow::Error> {
     //this funtion initialize the tc classifier program
     info!("Loading programs");
@@ -138,9 +140,32 @@ async fn init_tc_classifier(
         .try_into()
         .context("Failed to init SchedClassifier program")?;
 
+    // load classifier program
+
     program
         .load()
         .context("Failed to load identity_classifier program")?;
+
+    // attach program only to desired interfaces. We can skip the dock0,tunl0,lo and eth0 interface
+    // we also save the interfaces to a BPF_HASH_MAP to easily monitor the interfaces using the agent
+
+    // decleare link_ids HashMap which is a shared hashmap between kernel and userspace
+    // Link_ids hashmap has type of HashMap<[u8; 16], [u8; 8]>. The key is the program name and the value is the state
+
+    // at this point the pinning is already successfull so we can invoque the maps from the pin
+
+    let link_ids_mapdata = MapData::from_pin("/sys/fs/bpf/maps/tracked_veth")
+        .map_err(|e| anyhow!("Cannot return link_ids_mapdata. Reason: {}", e))?;
+
+    let link_ids_map = Map::HashMap(link_ids_mapdata);
+
+    let mut link_ids: aya::maps::HashMap<MapData, [u8; 16], [u8; 8]> =
+        aya::maps::HashMap::try_from(link_ids_map).map_err(|e| {
+            anyhow!(
+                "Cannot create link_ids HashMap from link_ids_map. Reason:{}",
+                e
+            )
+        })?;
 
     for interface in ifaces {
         match program.attach(&interface, TcAttachType::Ingress) {
@@ -149,10 +174,34 @@ async fn init_tc_classifier(
                     "Program 'identity_classifier' attached to interface {}",
                     interface
                 );
-                let mut map = link_ids
-                    .lock()
-                    .map_err(|e| anyhow::anyhow!("Cannot get value from lock. Reason: {}", e))?;
-                map.insert(interface.clone(), link_id);
+                let interface_bytes = interface.as_bytes();
+
+                let mut if_bytes = [0u8; 16];
+
+                // to set the len compare the interface_bytes.len() with the if_bytes.len() [16] and take the minimum
+                // if we have interface_bytes.len() < than 16 we set the len
+                let len = interface_bytes.len().min(if_bytes.len());
+
+                // now we can copy the bytes from the slice into the if_bytes variable
+                if_bytes[..len].copy_from_slice(&interface_bytes[..len]);
+
+                // we compute the same process for the state_bytes
+                let mut state_bytes = [0u8; 8];
+                let state = b"attached"; // prints "attached" as [u8;8] sequence of bytes
+                let state_len = state.len().min(state_bytes.len());
+                state_bytes[..state_len].copy_from_slice(&state[..state_len]);
+
+                match link_ids.insert(if_bytes, state_bytes, 0) {
+                    std::result::Result::Ok(_) => {
+                        info!("Veth interface {} added into map", &interface);
+                    }
+                    Err(e) => {
+                        error!(
+                            "Cannot add Veth interface {} into map. Reason: {}",
+                            &interface, e
+                        );
+                    }
+                }
             }
             Err(e) => error!(
                 "Error attaching program to interface {}: {:?}",
