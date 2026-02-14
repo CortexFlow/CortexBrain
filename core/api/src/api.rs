@@ -1,8 +1,8 @@
 use anyhow::Context;
+use anyhow::anyhow;
 use chrono::Local;
 use cortexbrain_common::formatters::{format_ipv4, format_ipv6};
 use cortexbrain_common::map_handlers::load_perf_event_array_from_mapdata;
-use prost::bytes::BytesMut;
 use std::str::FromStr;
 use std::sync::Mutex;
 use tonic::{Request, Response, Status};
@@ -28,7 +28,8 @@ use cortexbrain_common::buffer_type::VethLog;
 // *  contains agent api configuration
 use crate::agent::{
     ActiveConnectionResponse, AddIpToBlocklistRequest, BlocklistResponse, RequestActiveConnections,
-    RmIpFromBlocklistRequest, RmIpFromBlocklistResponse, VethResponse, agent_server::Agent,
+    RmIpFromBlocklistRequest, RmIpFromBlocklistResponse, VethHashMapResponse, VethResponse,
+    agent_server::Agent,
 };
 use crate::constants::PIN_BLOCKLIST_MAP_PATH;
 
@@ -37,6 +38,9 @@ use aya::maps::Map;
 use cortexbrain_common::buffer_type::IpProtocols;
 use std::net::Ipv4Addr;
 use tracing::warn;
+
+use cortexbrain_common::buffer_type::BufferSize;
+use cortexbrain_common::map_handlers::map_manager;
 
 pub struct AgentApi {
     //* event_rx is an istance of a mpsc receiver.
@@ -162,6 +166,9 @@ impl Default for AgentApi {
             tracked_veth_tx: veth_tx.clone(),
         };
 
+        // init map manager
+        //let map_manager = map_manager(maps)?
+
         // For network metrics
 
         //spawn an event readers
@@ -177,7 +184,7 @@ impl Default for AgentApi {
                     .open(cpu_id, None)
                     .expect("Error during the creation of net_events_buf structure");
 
-                let buffers = vec![BytesMut::with_capacity(4096); 8];
+                let buffers = BufferSize::ClassifierNetEvents.set_buffer();
                 net_events_buffer.push((buf, buffers));
             }
 
@@ -262,7 +269,7 @@ impl Default for AgentApi {
                     .open(cpu_id, None)
                     .expect("Error during the creation of net_metrics_buf structure");
 
-                let buffers = vec![BytesMut::with_capacity(4096); 8];
+                let buffers = BufferSize::NetworkMetricsEvents.set_buffer();
                 net_metrics_buffer.push((buf, buffers));
             }
 
@@ -343,7 +350,7 @@ impl Default for AgentApi {
                     .open(cpu_id, None)
                     .expect("Error during the creation of time stamp events buf structure");
 
-                let buffers = vec![BytesMut::with_capacity(4096); 8];
+                let buffers = BufferSize::TimeMetricsEvents.set_buffer();
                 ts_events_buffer.push((buf, buffers));
             }
 
@@ -421,7 +428,7 @@ impl Default for AgentApi {
                     .open(cpu_id, None)
                     .expect("Error during the creation of time stamp events buf structure");
 
-                let buffers = vec![BytesMut::with_capacity(4096); 8];
+                let buffers = BufferSize::VethEvents.set_buffer();
                 veth_events_buffer.push((buf, buffers));
             }
 
@@ -560,7 +567,10 @@ impl Agent for AgentApi {
             //convert ip from string to [u8;4] type and insert into the bpf map
             let u8_4_ip = Ipv4Addr::from_str(&ip).unwrap().octets();
             //TODO: convert datetime in a kernel compatible format
-            blocklist_map.insert(u8_4_ip, u8_4_ip, 0);
+            blocklist_map
+                .insert(u8_4_ip, u8_4_ip, 0)
+                .map_err(|e| anyhow!("Cannot insert address in the blocklist. Reason: {}", e))
+                .unwrap();
             info!("CURRENT BLOCKLIST: {:?}", blocklist_map);
         }
         let path = std::env::var(PIN_BLOCKLIST_MAP_PATH)
@@ -773,5 +783,34 @@ impl Agent for AgentApi {
         };
 
         Ok(Response::new(response))
+    }
+
+    async fn get_tracked_veth_from_hash_map(
+        &self,
+        request: Request<()>,
+    ) -> Result<Response<VethHashMapResponse>, Status> {
+        info!("Returning veth hashmap");
+        //open blocklist map
+        let mapdata = MapData::from_pin("/sys/fs/bpf/maps/tracked_veth")
+            .expect("cannot open tracked_veth Mapdata");
+        let tracked_veth_mapdata = Map::HashMap(mapdata); //load mapdata
+
+        let tracked_veth_map: ayaHashMap<MapData, [u8; 16], [u8; 8]> =
+            ayaHashMap::try_from(tracked_veth_mapdata).unwrap();
+
+        //convert the maps with a buffer to match the protobuffer types
+
+        let mut converted_tracked_veth_map: HashMap<String, String> = HashMap::new();
+        for item in tracked_veth_map.iter() {
+            let (k, v) = item.unwrap();
+            // convert keys and values from [u8;4] to String
+            let key = String::from_utf8(k.to_vec()).unwrap();
+            let value = String::from_utf8(v.to_vec()).unwrap();
+            converted_tracked_veth_map.insert(key, value);
+        }
+        Ok(Response::new(VethHashMapResponse {
+            status: "success".to_string(),
+            veths: converted_tracked_veth_map,
+        }))
     }
 }

@@ -10,7 +10,7 @@ use tonic_reflection::pb::v1::server_reflection_response::MessageResponse;
 use agent_api::client::{connect_to_client, connect_to_server_reflection};
 use agent_api::requests::{
     get_all_features, send_active_connection_request, send_dropped_packets_request,
-    send_latency_metrics_request, send_tracked_veth_request,
+    send_latency_metrics_request, send_tracked_veth_request, send_veth_tracked_hashmap_req,
 };
 
 use crate::errors::CliError;
@@ -304,25 +304,24 @@ pub async fn monitor_tracked_veth() -> Result<(), CliError> {
         "Connecting to cortexflow Client".white()
     );
     match connect_to_client().await {
-        Ok(client) => match send_tracked_veth_request(client).await {
+        Ok(client) => match send_veth_tracked_hashmap_req(client).await {
             Ok(response) => {
                 let veth_response = response.into_inner();
-                if veth_response.tot_monitored_veth == 0 {
-                    println!("{} {} ", "=====>".blue().bold(), "No tracked veth found");
-                    Ok(())
-                } else {
-                    println!(
-                        "{} {} {} {} ",
-                        "=====>".blue().bold(),
-                        "Found:",
-                        &veth_response.tot_monitored_veth,
-                        "tracked veth"
-                    );
-                    for veth in veth_response.veth_names.iter() {
-                        println!("{} {}", "=====>".blue().bold(), &veth);
-                    }
-                    Ok(())
+                //  if veth_response.tot_monitored_veth == 0 {
+                //      println!("{} {} ", "=====>".blue().bold(), "No tracked veth found");
+                //      Ok(())
+                //  } else {
+                //      println!(
+                //          "{} {} {} {} ",
+                //          "=====>".blue().bold(),
+                //          "Found:",
+                //          &veth_response.tot_monitored_veth,
+                //          "tracked veth"
+                //      );
+                for veth in veth_response.veths.iter() {
+                    println!("{} {:?}", "=====>".blue().bold(), &veth);
                 }
+                Ok(())
             }
             Err(e) => {
                 return Err(CliError::AgentError(

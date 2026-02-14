@@ -14,6 +14,7 @@ use crate::agent::LatencyMetricsResponse;
 use crate::agent::RequestActiveConnections;
 use crate::agent::RmIpFromBlocklistRequest;
 use crate::agent::RmIpFromBlocklistResponse;
+use crate::agent::VethHashMapResponse;
 use crate::agent::VethResponse;
 use crate::agent::agent_client::AgentClient;
 
@@ -98,5 +99,14 @@ pub async fn send_tracked_veth_request(
 ) -> Result<Response<VethResponse>, Error> {
     let request = Request::new(());
     let response = client.get_tracked_veth(request).await?;
+    Ok(response)
+}
+
+#[cfg(feature = "client")]
+pub async fn send_veth_tracked_hashmap_req(
+    mut client: AgentClient<Channel>,
+) -> Result<Response<VethHashMapResponse>, Error> {
+    let request = Request::new(());
+    let response = client.get_tracked_veth_from_hash_map(request).await?;
     Ok(response)
 }

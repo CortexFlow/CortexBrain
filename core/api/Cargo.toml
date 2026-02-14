@@ -32,7 +32,8 @@ aya = "0.13.1"
 cortexbrain-common = { path = "../common", features = [
     "map-handlers",
     "network-structs",
-    "buffer-reader"
+    "buffer-reader",
+    "monitoring-structs"
 ] }
 tonic-reflection = "0.14.0"
 tonic-build = "0.14.0"
