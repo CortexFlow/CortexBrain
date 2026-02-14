@@ -84,7 +84,13 @@ message VethEvent{
     uint32 pid = 6;                   // Process ID
 }
 
-//declare agent api 
+message VethHashMapResponse{ // returns tracked veth from the tracked_veth hashmap
+    string status = 1;
+    map<string,string> veths = 2;
+}
+
+// Agent Service 
+
 service Agent{
     // active connections endpoint 
     rpc ActiveConnections(RequestActiveConnections) returns (ActiveConnectionResponse);
@@ -102,9 +108,14 @@ service Agent{
     // dropped packets endpoint
     rpc GetDroppedPacketsMetrics(google.protobuf.Empty) returns (DroppedPacketsResponse);
 
+    // TODO: can i combine this 2 endpoints?
     // active veth info endpoint 
     rpc GetTrackedVeth(google.protobuf.Empty) returns (VethResponse);
+    // get tracked veth from blocklist
+    rpc GetTrackedVethFromHashMap(google.protobuf.Empty) returns (VethHashMapResponse);
 }
+
+// Blocklist 
 
 message AddIpToBlocklistRequest{
     optional string ip = 1 ;
