@@ -6,7 +6,6 @@ mod agent;
 mod api;
 mod constants;
 mod helpers;
-mod structs;
 
 mod agent_proto {
     use tonic::include_file_descriptor_set;
