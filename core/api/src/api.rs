@@ -1,6 +1,11 @@
 use anyhow::Context;
 use anyhow::anyhow;
+use aya::maps::perf::PerfEventArrayBuffer;
 use chrono::Local;
+use cortexbrain_common::buffer_type::IpProtocols;
+use cortexbrain_common::buffer_type::NetworkMetrics;
+use cortexbrain_common::buffer_type::PacketLog;
+use cortexbrain_common::buffer_type::TimeStampMetrics;
 use cortexbrain_common::formatters::{format_ipv4, format_ipv6};
 use cortexbrain_common::map_handlers::load_perf_event_array_from_mapdata;
 use std::str::FromStr;
@@ -8,7 +13,7 @@ use std::sync::Mutex;
 use tonic::{Request, Response, Status};
 use tracing::info;
 
-use aya::{maps::MapData, util::online_cpus};
+use aya::maps::MapData;
 use std::result::Result::Ok;
 use tonic::async_trait;
 
@@ -22,7 +27,6 @@ use crate::agent::{
     LatencyMetricsResponse, VethEvent,
 };
 
-use crate::structs::{NetworkMetrics, PacketLog, TimeStampMetrics};
 use cortexbrain_common::buffer_type::VethLog;
 
 // *  contains agent api configuration
@@ -35,97 +39,23 @@ use crate::constants::PIN_BLOCKLIST_MAP_PATH;
 
 use crate::helpers::comm_to_string;
 use aya::maps::Map;
-use cortexbrain_common::buffer_type::IpProtocols;
 use std::net::Ipv4Addr;
 use tracing::warn;
 
 use cortexbrain_common::buffer_type::BufferSize;
-use cortexbrain_common::map_handlers::map_manager;
+use cortexbrain_common::buffer_type::fill_buffers;
 
 pub struct AgentApi {
     //* event_rx is an istance of a mpsc receiver.
     //* is used to receive the data from the transmitter (tx)
     active_connection_event_rx: Mutex<mpsc::Receiver<Result<Vec<ConnectionEvent>, Status>>>,
-    active_connection_event_tx: mpsc::Sender<Result<Vec<ConnectionEvent>, Status>>,
+    pub(crate) active_connection_event_tx: mpsc::Sender<Result<Vec<ConnectionEvent>, Status>>,
     latency_metrics_rx: Mutex<mpsc::Receiver<Result<Vec<LatencyMetric>, Status>>>,
-    latency_metrics_tx: mpsc::Sender<Result<Vec<LatencyMetric>, Status>>,
+    pub(crate) latency_metrics_tx: mpsc::Sender<Result<Vec<LatencyMetric>, Status>>,
     dropped_packet_metrics_rx: Mutex<mpsc::Receiver<Result<Vec<DroppedPacketMetric>, Status>>>,
-    dropped_packet_metrics_tx: mpsc::Sender<Result<Vec<DroppedPacketMetric>, Status>>,
+    pub(crate) dropped_packet_metrics_tx: mpsc::Sender<Result<Vec<DroppedPacketMetric>, Status>>,
     tracked_veth_rx: Mutex<mpsc::Receiver<Result<Vec<VethEvent>, Status>>>,
-    tracked_veth_tx: mpsc::Sender<Result<Vec<VethEvent>, Status>>,
-}
-
-//* Event sender trait. Takes an event from a map and send that to the mpsc channel
-//* using the send_map function
-#[async_trait]
-pub trait EventSender: Send + Sync + 'static {
-    async fn send_active_connection_event(&self, event: Vec<ConnectionEvent>);
-    async fn send_active_connection_event_map(
-        &self,
-        map: Vec<ConnectionEvent>,
-        tx: mpsc::Sender<Result<Vec<ConnectionEvent>, Status>>,
-    ) {
-        let status = Status::new(tonic::Code::Ok, "success");
-        let event = Ok(map);
-
-        let _ = tx.send(event).await;
-    }
-
-    async fn send_latency_metrics_event(&self, event: Vec<LatencyMetric>);
-    async fn send_latency_metrics_event_map(
-        &self,
-        map: Vec<LatencyMetric>,
-        tx: mpsc::Sender<Result<Vec<LatencyMetric>, Status>>,
-    ) {
-        let status = Status::new(tonic::Code::Ok, "success");
-        let event = Ok(map);
-        let _ = tx.send(event).await;
-    }
-
-    async fn send_dropped_packet_metrics_event(&self, event: Vec<DroppedPacketMetric>);
-    async fn send_dropped_packet_metrics_event_map(
-        &self,
-        map: Vec<DroppedPacketMetric>,
-        tx: mpsc::Sender<Result<Vec<DroppedPacketMetric>, Status>>,
-    ) {
-        let status = Status::new(tonic::Code::Ok, "success");
-        let event = Ok(map);
-        let _ = tx.send(event).await;
-    }
-
-    async fn send_tracked_veth_event(&self, event: Vec<VethEvent>);
-    async fn send_tracked_veth_event_map(
-        &self,
-        map: Vec<VethEvent>,
-        tx: mpsc::Sender<Result<Vec<VethEvent>, Status>>,
-    ) {
-        let status = Status::new(tonic::Code::Ok, "success");
-        let event = Ok(map);
-        let _ = tx.send(event).await;
-    }
-}
-
-// send event function. takes an HashMap and send that using mpsc event_tx
-#[async_trait]
-impl EventSender for AgentApi {
-    async fn send_active_connection_event(&self, event: Vec<ConnectionEvent>) {
-        self.send_active_connection_event_map(event, self.active_connection_event_tx.clone())
-            .await;
-    }
-
-    async fn send_latency_metrics_event(&self, event: Vec<LatencyMetric>) {
-        self.send_latency_metrics_event_map(event, self.latency_metrics_tx.clone())
-            .await;
-    }
-
-    async fn send_dropped_packet_metrics_event(&self, event: Vec<DroppedPacketMetric>) {
-        self.send_dropped_packet_metrics_event_map(event, self.dropped_packet_metrics_tx.clone())
-            .await;
-    }
-    async fn send_tracked_veth_event(&self, event: Vec<VethEvent>) {
-        self.send_tracked_veth_event_map(event, self.tracked_veth_tx.clone())
-            .await;
-    }
+    pub(crate) tracked_veth_tx: mpsc::Sender<Result<Vec<VethEvent>, Status>>,
 }
 
 //initialize a default trait for AgentApi. Loads a name and a bpf istance.
@@ -137,13 +67,13 @@ impl Default for AgentApi {
         //
 
         // TODO: in the future will be better to not use .unwrap()
-        let mut active_connection_events_array =
+        let active_connection_events_array =
             load_perf_event_array_from_mapdata("/sys/fs/bpf/maps/events_map").unwrap();
-        let mut network_metrics_events_array =
+        let network_metrics_events_array =
             load_perf_event_array_from_mapdata("/sys/fs/bpf/trace_maps/net_metrics").unwrap();
-        let mut time_stamp_events_array =
+        let time_stamp_events_array =
             load_perf_event_array_from_mapdata("/sys/fs/bpf/trace_maps/time_stamp_events").unwrap();
-        let mut tracked_veth_events_array =
+        let tracked_veth_events_array =
             load_perf_event_array_from_mapdata("/sys/fs/bpf/maps/veth_identity_map").unwrap();
 
         //
@@ -155,6 +85,7 @@ impl Default for AgentApi {
         let (drop_tx, drop_rx) = mpsc::channel(2048);
         let (veth_tx, tracked_veth_rx) = mpsc::channel(1024);
 
+        // init the API to send the events from the agent to the CLI
         let api = AgentApi {
             active_connection_event_rx: conn_rx.into(),
             active_connection_event_tx: conn_tx.clone(),
@@ -169,35 +100,42 @@ impl Default for AgentApi {
         // init map manager
         //let map_manager = map_manager(maps)?
 
+        // init the buffers
+        let mut net_events_buffers = BufferSize::TcpEvents.set_buffer();
+        let mut net_metrics_buffers = BufferSize::NetworkMetricsEvents.set_buffer();
+        let mut ts_metrics_buffers = BufferSize::TimeMetricsEvents.set_buffer();
+        let mut veth_metrics_buffers = BufferSize::VethEvents.set_buffer();
+
+        // init the Vec of Buffers
+
+        let mut net_events_vec_buffer = Vec::<PerfEventArrayBuffer<MapData>>::new();
+        let mut net_metrics_vec_buffer = Vec::<PerfEventArrayBuffer<MapData>>::new();
+        let mut ts_events_vec_buffer = Vec::<PerfEventArrayBuffer<MapData>>::new();
+        let mut veth_events_vec_buffer = Vec::<PerfEventArrayBuffer<MapData>>::new();
+
+        // fill the Vec of Buffers
+
+        net_events_vec_buffer = fill_buffers(net_events_vec_buffer, active_connection_events_array);
+        net_metrics_vec_buffer = fill_buffers(net_metrics_vec_buffer, network_metrics_events_array);
+
+        ts_events_vec_buffer = fill_buffers(ts_events_vec_buffer, time_stamp_events_array);
+
+        veth_events_vec_buffer = fill_buffers(veth_events_vec_buffer, tracked_veth_events_array);
+
         // For network metrics
 
         //spawn an event readers
         task::spawn(async move {
-            let mut net_events_buffer = Vec::new();
-            //scan the cpus to read the data
-
-            for cpu_id in online_cpus()
-                .map_err(|e| anyhow::anyhow!("Error {:?}", e))
-                .unwrap()
-            {
-                let buf = active_connection_events_array
-                    .open(cpu_id, None)
-                    .expect("Error during the creation of net_events_buf structure");
-
-                let buffers = BufferSize::ClassifierNetEvents.set_buffer();
-                net_events_buffer.push((buf, buffers));
-            }
-
             info!("Starting event listener");
             //send the data through a mpsc channel
             loop {
-                for (buf, buffers) in net_events_buffer.iter_mut() {
-                    match buf.read_events(buffers) {
+                for buf in net_events_vec_buffer.iter_mut() {
+                    match buf.read_events(&mut net_events_buffers) {
                         Ok(events) => {
                             //read the events, this function is similar to the one used in identity/helpers.rs/display_events
                             if events.read > 0 {
                                 for i in 0..events.read {
-                                    let data = &buffers[i];
+                                    let data = &net_events_buffers[i];
                                     if data.len() >= std::mem::size_of::<PacketLog>() {
                                         let pl: PacketLog =
                                             unsafe { std::ptr::read(data.as_ptr() as *const _) };
@@ -258,32 +196,17 @@ impl Default for AgentApi {
         });
 
         task::spawn(async move {
-            let mut net_metrics_buffer = Vec::new();
-
-            //scan the cpus to read the data
-            for cpu_id in online_cpus()
-                .map_err(|e| anyhow::anyhow!("Error {:?}", e))
-                .unwrap()
-            {
-                let buf = network_metrics_events_array
-                    .open(cpu_id, None)
-                    .expect("Error during the creation of net_metrics_buf structure");
-
-                let buffers = BufferSize::NetworkMetricsEvents.set_buffer();
-                net_metrics_buffer.push((buf, buffers));
-            }
-
             info!("Starting network metrics listener");
 
             //send the data through a mpsc channel
             loop {
-                for (buf, buffers) in net_metrics_buffer.iter_mut() {
-                    match buf.read_events(buffers) {
+                for buf in net_metrics_vec_buffer.iter_mut() {
+                    match buf.read_events(&mut net_metrics_buffers) {
                         Ok(events) => {
                             //read the events, this function is similar to the one used in identity/helpers.rs/display_events
                             if events.read > 0 {
                                 for i in 0..events.read {
-                                    let data = &buffers[i];
+                                    let data = &net_metrics_buffers[i];
                                     if data.len() >= std::mem::size_of::<NetworkMetrics>() {
                                         let nm: NetworkMetrics =
                                             unsafe { std::ptr::read(data.as_ptr() as *const _) };
@@ -340,34 +263,22 @@ impl Default for AgentApi {
         });
 
         task::spawn(async move {
-            let mut ts_events_buffer = Vec::new();
-            //scan the cpus to read the data
-            for cpu_id in online_cpus()
-                .map_err(|e| anyhow::anyhow!("Error {:?}", e))
-                .unwrap()
-            {
-                let buf = time_stamp_events_array
-                    .open(cpu_id, None)
-                    .expect("Error during the creation of time stamp events buf structure");
-
-                let buffers = BufferSize::TimeMetricsEvents.set_buffer();
-                ts_events_buffer.push((buf, buffers));
-            }
-
             info!("Starting time stamp events listener");
 
             //send the data through a mpsc channel
             loop {
-                for (buf, buffers) in ts_events_buffer.iter_mut() {
-                    match buf.read_events(buffers) {
+                for buf in ts_events_vec_buffer.iter_mut() {
+                    match buf.read_events(&mut ts_metrics_buffers) {
                         Ok(events) => {
                             //read the events, this function is similar to the one used in identity/helpers.rs/display_events
                             if events.read > 0 {
                                 for i in 0..events.read {
-                                    let data = &buffers[i];
+                                    let data = &ts_metrics_buffers[i];
                                     if data.len() >= std::mem::size_of::<TimeStampMetrics>() {
                                         let tsm: TimeStampMetrics =
                                             unsafe { std::ptr::read(data.as_ptr() as *const _) };
+                                        let saddr_v6 = tsm.saddr_v6;
+                                        let daddr_v6 = tsm.daddr_v6;
                                         let latency_metric = LatencyMetric {
                                             delta_us: tsm.delta_us,
                                             timestamp_us: tsm.ts_us,
@@ -378,8 +289,8 @@ impl Default for AgentApi {
                                             address_family: tsm.af as u32,
                                             src_address_v4: format_ipv4(tsm.saddr_v4),
                                             dst_address_v4: format_ipv4(tsm.daddr_v4),
-                                            src_address_v6: format_ipv6(&tsm.saddr_v6),
-                                            dst_address_v6: format_ipv6(&tsm.daddr_v6),
+                                            src_address_v6: format_ipv6(&saddr_v6),
+                                            dst_address_v6: format_ipv6(&daddr_v6),
                                         };
                                         info!(
                                             "Latency Metric - tgid: {}, process_name: {}, delta_us: {}, timestamp_us: {}, local_port: {}, remote_port: {}, address_family: {}, src_address_v4: {}, dst_address_v4: {}, src_address_v6: {}, dst_address_v6: {}",
@@ -416,34 +327,19 @@ impl Default for AgentApi {
             }
         });
 
-        // TODO: this part needs a better implementation
         task::spawn(async move {
-            let mut veth_events_buffer = Vec::new();
-            //scan the cpus to read the data
-            for cpu_id in online_cpus()
-                .map_err(|e| anyhow::anyhow!("Error {:?}", e))
-                .unwrap()
-            {
-                let buf = tracked_veth_events_array
-                    .open(cpu_id, None)
-                    .expect("Error during the creation of time stamp events buf structure");
-
-                let buffers = BufferSize::VethEvents.set_buffer();
-                veth_events_buffer.push((buf, buffers));
-            }
-
             info!("Starting time stamp events listener");
 
             //send the data through a mpsc channel
             loop {
-                for (buf, buffers) in veth_events_buffer.iter_mut() {
-                    match buf.read_events(buffers) {
+                for buf in veth_events_vec_buffer.iter_mut() {
+                    match buf.read_events(&mut veth_metrics_buffers) {
                         Ok(events) => {
                             //read the events, this function is similar to the one used in identity/helpers.rs/display_events
                             if events.read > 0 {
                                 for i in 0..events.read {
                                     info!("Found veth events {}", events.read);
-                                    let data = &buffers[i];
+                                    let data = &veth_metrics_buffers[i];
                                     if data.len() >= std::mem::size_of::<VethLog>() {
                                         let veth: VethLog =
                                             unsafe { std::ptr::read(data.as_ptr() as *const _) };
@@ -515,7 +411,7 @@ impl Agent for AgentApi {
         request: Request<RequestActiveConnections>,
     ) -> Result<Response<ActiveConnectionResponse>, Status> {
         //read request
-        let req = request.into_inner();
+        let _req = request.into_inner();
 
         //create the hashmap to process events from the mpsc channel queue
         let mut aggregated_events: Vec<ConnectionEvent> = Vec::new();
@@ -562,7 +458,7 @@ impl Agent for AgentApi {
         } else {
             // add ip to the blocklist
             // log blocklist event
-            let datetime = Local::now().to_string();
+            let _datetime = Local::now().to_string();
             let ip = req.ip.unwrap();
             //convert ip from string to [u8;4] type and insert into the bpf map
             let u8_4_ip = Ipv4Addr::from_str(&ip).unwrap().octets();
@@ -573,14 +469,14 @@ impl Agent for AgentApi {
                 .unwrap();
             info!("CURRENT BLOCKLIST: {:?}", blocklist_map);
         }
-        let path = std::env::var(PIN_BLOCKLIST_MAP_PATH)
+        let _path = std::env::var(PIN_BLOCKLIST_MAP_PATH)
             .context("Blocklist map path not found!")
             .unwrap();
 
         //convert the maps with a buffer to match the protobuffer types
         let mut converted_blocklist_map: HashMap<String, String> = HashMap::new();
         for item in blocklist_map.iter() {
-            let (k, v) = item.unwrap();
+            let (k, _v) = item.unwrap();
             // convert keys and values from [u8;4] to String
             let key = Ipv4Addr::from(k).to_string();
             let value = Ipv4Addr::from(k).to_string();
@@ -596,7 +492,7 @@ impl Agent for AgentApi {
 
     async fn check_blocklist(
         &self,
-        request: Request<()>,
+        _request: Request<()>,
     ) -> Result<Response<BlocklistResponse>, Status> {
         info!("Returning blocklist hashmap");
         //open blocklist map
@@ -611,7 +507,7 @@ impl Agent for AgentApi {
 
         let mut converted_blocklist_map: HashMap<String, String> = HashMap::new();
         for item in blocklist_map.iter() {
-            let (k, v) = item.unwrap();
+            let (k, _v) = item.unwrap();
             // convert keys and values from [u8;4] to String
             let key = Ipv4Addr::from(k).to_string();
             let value = Ipv4Addr::from(k).to_string();
@@ -638,7 +534,7 @@ impl Agent for AgentApi {
         //remove the address
         let ip_to_remove = req.ip;
         let u8_4_ip_to_remove = Ipv4Addr::from_str(&ip_to_remove).unwrap().octets();
-        blocklist_map.remove(&u8_4_ip_to_remove);
+        let _ = blocklist_map.remove(&u8_4_ip_to_remove);
 
         //convert the maps with a buffer to match the protobuffer types
         let mut converted_blocklist_map: HashMap<String, String> = HashMap::new();
@@ -661,7 +557,7 @@ impl Agent for AgentApi {
         request: Request<()>,
     ) -> Result<Response<LatencyMetricsResponse>, Status> {
         // Extract the request parameters
-        let req = request.into_inner();
+        let _req = request.into_inner();
         info!("Getting latency metrics");
 
         // Here you would typically query your data source for the latency metrics
@@ -724,7 +620,7 @@ impl Agent for AgentApi {
         request: Request<()>,
     ) -> Result<Response<DroppedPacketsResponse>, Status> {
         // Extract the request parameters
-        let req = request.into_inner();
+        let _req = request.into_inner();
         info!("Getting dropped packets metrics");
 
         let mut aggregated_dropped_packet_metrics: Vec<DroppedPacketMetric> = Vec::new();
@@ -759,7 +655,7 @@ impl Agent for AgentApi {
         &self,
         request: Request<()>,
     ) -> Result<Response<VethResponse>, Status> {
-        let req = request.into_inner();
+        let _req = request.into_inner();
         info!("Getting tracked veth metrics");
         let mut tracked_veth = Vec::<VethEvent>::new();
         let mut tot_veth = 0 as i32;
@@ -787,7 +683,7 @@ impl Agent for AgentApi {
 
     async fn get_tracked_veth_from_hash_map(
         &self,
-        request: Request<()>,
+        _request: Request<()>,
     ) -> Result<Response<VethHashMapResponse>, Status> {
         info!("Returning veth hashmap");
         //open blocklist map

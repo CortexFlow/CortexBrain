@@ -1,3 +1,5 @@
+#[cfg(feature = "buffer-reader")]
+use aya::maps::{MapData, PerfEventArray};
 use aya::{maps::perf::PerfEventArrayBuffer, util::online_cpus};
 use bytemuck_derive::Zeroable;
 use bytes::BytesMut;
@@ -559,4 +561,24 @@ impl BufferSize {
             }
         }
     }
+}
+
+#[cfg(feature = "buffer-reader")]
+pub fn fill_buffers(
+    //buf: PerfEventArrayBuffer<MapData>,
+    mut vec_of_buffers: Vec<PerfEventArrayBuffer<MapData>>,
+    //buffers: Vec<BytesMut>,
+    mut events_array: PerfEventArray<MapData>,
+) -> Vec<PerfEventArrayBuffer<MapData>> {
+    for cpu_id in online_cpus()
+        .map_err(|e| anyhow::anyhow!("Error {:?}", e))
+        .unwrap()
+    {
+        let buf = events_array
+            .open(cpu_id, None)
+            .expect("Error during the creation of net_events_buf structure");
+
+        vec_of_buffers.push(buf);
+    }
+    vec_of_buffers
 }

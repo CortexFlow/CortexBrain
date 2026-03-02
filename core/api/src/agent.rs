@@ -432,6 +432,7 @@ pub mod agent_client {
                 .insert(GrpcMethod::new("agent.Agent", "GetDroppedPacketsMetrics"));
             self.inner.unary(req, path, codec).await
         }
+        /// TODO: can i combine this 2 endpoints?
         /// active veth info endpoint
         pub async fn get_tracked_veth(
             &mut self,
@@ -541,6 +542,7 @@ pub mod agent_server {
             tonic::Response<super::DroppedPacketsResponse>,
             tonic::Status,
         >;
+        /// TODO: can i combine this 2 endpoints?
         /// active veth info endpoint
         async fn get_tracked_veth(
             &self,
