@@ -19,7 +19,7 @@ spec:
       hostNetwork: true
       containers:
         - name: metrics
-          image: lorenzotettamanti/cortexflow-metrics:otel-test-1
+          image: lorenzotettamanti/cortexflow-metrics:otel-test-2
           command: ["/bin/bash", "-c"]
           args:
             - |
