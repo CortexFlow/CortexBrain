@@ -1,9 +1,14 @@
+#[cfg(feature = "monitoring-structs")]
+use crate::otel_metrics::Metrics;
 #[cfg(feature = "buffer-reader")]
 use aya::maps::{MapData, PerfEventArray};
 use aya::{maps::perf::PerfEventArrayBuffer, util::online_cpus};
 use bytemuck_derive::Zeroable;
 use bytes::BytesMut;
 use std::net::Ipv4Addr;
+#[cfg(feature = "buffer-reader")]
+#[cfg(feature = "monitoring-structs")]
+use std::sync::Arc;
 use tracing::{error, info, warn};
 
 //
@@ -342,7 +347,39 @@ impl BufferType {
         }
     }
     #[cfg(feature = "monitoring-structs")]
-    pub async fn read_network_metrics(buffers: &mut [BytesMut], tot_events: i32, offset: i32) {
+    /// Continuously read [`NetworkMetrics`] events and record OpenTelemetry
+    /// observations.
+    ///
+    /// This helper mirrors the core behaviour of
+    /// [`cortexbrain_common::buffer_type::read_perf_buffer`] but adds the OTel
+    /// instrumentation layer.
+    ///
+    /// # Loop
+    ///
+    /// 1. For every CPU buffer call `read_events`.
+    /// 2. Parse each raw [`BytesMut`] into [`NetworkMetrics`] using an
+    ///    unaligned read (the struct is `#[repr(C, packed)]` and `Pod`).
+    /// 3. Call [`Metrics::record_network_metrics`].
+    /// 4. Retain the legacy `tracing::info!` log for human-readable local output.
+    /// 5. Sleep 100 ms between polls.
+    ///
+    /// # Safety
+    ///
+    /// `std::ptr::read_unaligned` is safe here because the eBPF program writes
+    /// exactly the `NetworkMetrics` layout into the ring buffer and the struct
+    /// implements [`aya::Pod`].
+    /// Continuously read [`TimeStampMetrics`] events and record OpenTelemetry
+    /// observations.
+    ///
+    /// Counterpart to [`read_network_buffer`] for the `time_stamp_events` map.
+
+    pub async fn read_network_metrics(
+        buffers: &mut [BytesMut],
+        tot_events: i32,
+        offset: i32,
+        exporter: &str,
+        metrics: Arc<Metrics>,
+    ) {
         for i in offset..tot_events {
             let vec_bytes = &buffers[i as usize];
             if vec_bytes.len() < std::mem::size_of::<NetworkMetrics>() {
@@ -361,6 +398,11 @@ impl BufferType {
             if vec_bytes.len() >= std::mem::size_of::<NetworkMetrics>() {
                 let net_metrics: NetworkMetrics =
                     unsafe { std::ptr::read_unaligned(vec_bytes.as_ptr() as *const _) };
+
+                match exporter {
+                    "otlp" => metrics.record_network_metrics(&net_metrics),
+                    _ => continue, // skip
+                }
                 let tgid = net_metrics.tgid;
                 let comm = String::from_utf8_lossy(&net_metrics.comm);
                 let ts_us = net_metrics.ts_us;
@@ -389,7 +431,13 @@ impl BufferType {
         }
     }
     #[cfg(feature = "monitoring-structs")]
-    pub async fn read_timestamp_metrics(buffers: &mut [BytesMut], tot_events: i32, offset: i32) {
+    pub async fn read_timestamp_metrics(
+        buffers: &mut [BytesMut],
+        tot_events: i32,
+        offset: i32,
+        exporter: &str,
+        metrics: Arc<Metrics>,
+    ) {
         for i in offset..tot_events {
             let vec_bytes = &buffers[i as usize];
             if vec_bytes.len() < std::mem::size_of::<TimeStampMetrics>() {
@@ -408,6 +456,12 @@ impl BufferType {
             if vec_bytes.len() >= std::mem::size_of::<TimeStampMetrics>() {
                 let time_stamp_event: TimeStampMetrics =
                     unsafe { std::ptr::read_unaligned(vec_bytes.as_ptr() as *const _) };
+
+                match exporter {
+                    "otlp" => metrics.record_timestamp_metrics(&time_stamp_event),
+                    _ => continue,
+                }
+
                 let delta_us = time_stamp_event.delta_us;
                 let ts_us = time_stamp_event.ts_us;
                 let tgid = time_stamp_event.tgid;
@@ -431,6 +485,7 @@ pub async fn read_perf_buffer<T: std::borrow::BorrowMut<aya::maps::MapData>>(
     mut array_buffers: Vec<PerfEventArrayBuffer<T>>,
     mut buffers: Vec<bytes::BytesMut>,
     buffer_type: BufferType,
+    #[cfg(feature = "monitoring-structs")] metrics: Option<Arc<Metrics>>,
 ) {
     // loop over the buffers
     loop {
@@ -469,13 +524,29 @@ pub async fn read_perf_buffer<T: std::borrow::BorrowMut<aya::maps::MapData>>(
                             }
                             #[cfg(feature = "monitoring-structs")]
                             BufferType::NetworkMetrics => {
-                                BufferType::read_network_metrics(&mut buffers, tot_events, offset)
-                                    .await
+                                BufferType::read_network_metrics(
+                                    &mut buffers,
+                                    tot_events,
+                                    offset,
+                                    "otlp",
+                                    metrics
+                                        .clone()
+                                        .expect("Metrics required for NetworkMetrics"),
+                                )
+                                .await
                             }
                             #[cfg(feature = "monitoring-structs")]
                             BufferType::TimeStampMetrics => {
-                                BufferType::read_timestamp_metrics(&mut buffers, tot_events, offset)
-                                    .await
+                                BufferType::read_timestamp_metrics(
+                                    &mut buffers,
+                                    tot_events,
+                                    offset,
+                                    "otlp",
+                                    metrics
+                                        .clone()
+                                        .expect("Metric required for TimeStampMetrics"),
+                                )
+                                .await
                             }
                         }
                     }

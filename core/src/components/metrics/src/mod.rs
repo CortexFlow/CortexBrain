@@ -1,3 +1,2 @@
-mod structs;
-mod enums;
 mod helpers;
+mod otel_init;

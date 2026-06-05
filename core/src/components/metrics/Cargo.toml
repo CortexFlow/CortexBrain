@@ -28,3 +28,6 @@ cortexbrain-common = { path = "../../../common/", features = [
     "network-structs"
 ] }
 nix = { version = "0.30.1", features = ["net"] }
+opentelemetry = "0.32.0"
+opentelemetry_sdk = "0.32.0"
+opentelemetry-otlp = { version = "0.32.0", features = ["grpc-tonic"] }

@@ -1,14 +1,34 @@
 use anyhow::anyhow;
 use aya::util::online_cpus;
 use cortexbrain_common::map_handlers::map_manager;
-use cortexbrain_common::{
-    buffer_type::{BufferSize, BufferType, read_perf_buffer},
-    map_handlers::BpfMapsData,
-};
+use cortexbrain_common::{buffer_type::BufferSize, map_handlers::BpfMapsData};
+use opentelemetry::metrics::Meter;
+use std::sync::Arc;
 use tokio::signal;
 use tracing::{error, info};
 
-pub async fn event_listener(bpf_maps: BpfMapsData) -> Result<(), anyhow::Error> {
+use cortexbrain_common::buffer_type::{BufferType, read_perf_buffer};
+use cortexbrain_common::otel_metrics::Metrics;
+
+/// Listen for eBPF perf-buffer events and record OpenTelemetry metrics.
+///
+/// This function bridges the eBPF perf-buffer layer with the OpenTelemetry
+/// metrics pipeline.  It opens per-CPU buffers for the two maps of interest
+/// (`net_metrics` and `time_stamp_events`), spawns asynchronous consumers,
+/// and parks until a `Ctrl-C` signal is received or one of the consumers
+/// terminates.
+///
+/// # Arguments
+///
+/// -`bpf_maps` – handles for the pinned BPF maps produced by
+///   [`cortexbrain_common::map_handlers::map_pinner`].
+/// - `meter`    – an initialised OpenTelemetry [`Meter`].
+///
+/// # Errors
+///
+/// Returns `Err` if the map manager or CPU enumeration fails.
+///
+pub async fn event_listener(bpf_maps: BpfMapsData, meter: Meter) -> Result<(), anyhow::Error> {
     info!("Getting CPU count...");
 
     let mut maps = map_manager(bpf_maps)?;
@@ -35,48 +55,63 @@ pub async fn event_listener(bpf_maps: BpfMapsData) -> Result<(), anyhow::Error> 
 
     info!("Perf buffers created successfully");
 
-    let (time_stamp_events_array, time_stamp_events_perf_buffer) = maps
+    let (_time_stamp_events_array, time_stamp_events_perf_buffer) = maps
         .remove("time_stamp_events")
         .expect("Cannot create time_stamp_events_buffer");
-    let (net_perf_array, net_perf_buffer) = maps
+    let (_net_perf_array, net_perf_buffer) = maps
         .remove("net_metrics")
         .expect("Cannot create net_perf_buffer");
 
-    // Create proper sized buffers
+    // Allocate byte-buffers sized for each structure type
     let net_metrics_buffers = BufferSize::NetworkMetricsEvents.set_buffer();
     let time_stamp_events_buffers = BufferSize::TimeMetricsEvents.set_buffer();
 
-    info!("Starting event listener tasks...");
-    let metrics_map_displayer = tokio::spawn(async move {
-        read_perf_buffer(
-            net_perf_buffer,
-            net_metrics_buffers,
-            BufferType::NetworkMetrics,
-        )
-        .await;
-    });
+    let metrics = Arc::new(Metrics::new(&meter));
 
-    let time_stamp_events_displayer = tokio::spawn(async move {
-        read_perf_buffer(
-            time_stamp_events_perf_buffer,
-            time_stamp_events_buffers,
-            BufferType::TimeStampMetrics,
-        )
-        .await;
-    });
+    info!("Starting event listener tasks...");
+
+    let net_metrics_handle = {
+        let metrics = Arc::clone(&metrics);
+        let mut array_buffers = net_perf_buffer;
+        let mut buffers = net_metrics_buffers;
+        tokio::spawn(async move {
+            read_perf_buffer(
+                array_buffers,
+                buffers,
+                BufferType::NetworkMetrics,
+                Some(metrics),
+            )
+            .await;
+        })
+    };
+
+    let time_stamp_handle = {
+        let metrics = Arc::clone(&metrics);
+        let mut array_buffers = time_stamp_events_perf_buffer;
+        let mut buffers = time_stamp_events_buffers;
+        tokio::spawn(async move {
+            read_perf_buffer(
+                array_buffers,
+                buffers,
+                BufferType::TimeStampMetrics,
+                Some(metrics),
+            )
+            .await;
+        })
+    };
 
     info!("Event listeners started, entering main loop...");
 
     tokio::select! {
-        result = metrics_map_displayer => {
+        result = net_metrics_handle => {
             if let Err(e) = result {
-                error!("Metrics map displayer task failed: {:?}", e);
+                error!("Network metrics task failed: {:?}", e);
             }
         }
 
-        result = time_stamp_events_displayer => {
+        result = time_stamp_handle => {
             if let Err(e) = result {
-                error!("Time stamp events displayer task failed: {:?}", e);
+                error!("Timestamp events task failed: {:?}", e);
             }
         }
 
@@ -85,6 +120,5 @@ pub async fn event_listener(bpf_maps: BpfMapsData) -> Result<(), anyhow::Error> 
         }
     }
 
-    // return success
     Ok(())
 }
