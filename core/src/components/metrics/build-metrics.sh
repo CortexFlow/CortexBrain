@@ -11,7 +11,7 @@ cp -r ../../../target/bpfel-unknown-none/release/metrics_tracer metrics_tracer
 cp -r ../../../common common 
 
 # Run docker build
-docker build -t metrics:0.0.1 .
+docker build -t metrics:0.0.1 --provenance=false --sbom=false .
 
 # Cleanup
 echo "Cleaning building files"
