@@ -9,7 +9,7 @@ echo "Copying connection tracker binaries"
 cp -r target/bpfel-unknown-none/release/conntracker conntracker
 
 # Run docker build
-docker build -f api/Dockerfile -t cortexflow-agent:0.0.1 .
+docker build -f api/Dockerfile -t cortexflow-agent:0.0.1 --provenance=false --sbom=false .
 
 # Cleanup
 echo "Cleaning building files"

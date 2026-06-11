@@ -11,7 +11,7 @@ cp -r ../../../target/bpfel-unknown-none/release/conntracker conntracker
 cp -r ../../../common common 
 
 # Run docker build
-docker build -t identity:0.0.1 .
+docker build -t identity:0.0.1 --provenance=false --sbom=false .
 
 # Cleanup
 echo "Cleaning building files"

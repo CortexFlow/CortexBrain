@@ -19,11 +19,14 @@ data:
 
     exporters:
       otlp:
-        endpoint: otel-collector.cortexflow.svc.cluster.local:4317
+        endpoint: ${OTEL_COLLECTOR_SERVICE_HOST}:4317
         tls:
           insecure: true
       logging:
         loglevel: info   
+      prometheus:
+          endpoint: 0.0.0.0:8889
+          namespace: cortexbrain
 
     service:
       pipelines:
@@ -35,7 +38,7 @@ data:
           exporters: [otlp, logging]
         metrics:
           receivers: [otlp]
-          exporters: [otlp, logging]
+          exporters: [otlp, prometheus]
 
 ---
 apiVersion: apps/v1
@@ -78,6 +81,9 @@ spec:
           protocol: TCP
         - containerPort: 4318
           hostPort: 4318
+          protocol: TCP
+        - containerPort: 8889
+          hostPort: 8889
           protocol: TCP
         env:
         - name: GOMEMLIMIT
@@ -124,6 +130,10 @@ data:
     #    tls:
     #      insecure: true
       logging: {}  
+      prometheus:
+          endpoint: 0.0.0.0:8889
+          namespace: cortexbrain
+
 
     service:
       pipelines:
@@ -138,7 +148,7 @@ data:
         metrics: 
           receivers: [otlp]
           processors: [memory_limiter]
-          exporters: [logging]
+          exporters: [logging,prometheus]
 
 ---
 apiVersion: v1
@@ -161,8 +171,8 @@ spec:
     port: 4318
     targetPort: 4318
   - name: metrics
-    port: 8888
-    targetPort: 8888
+    port: 8889
+    targetPort: 8889
 
 ---
 apiVersion: apps/v1
@@ -201,7 +211,7 @@ spec:
         ports:
         - containerPort: 4317
         - containerPort: 4318
-        - containerPort: 8888
+        - containerPort: 8889
         env:
         - name: GOMEMLIMIT
           value: 1600MiB
