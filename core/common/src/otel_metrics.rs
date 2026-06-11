@@ -42,25 +42,25 @@ impl Metrics {
     pub fn new(meter: &Meter) -> Self {
         // total events
         let events_total = meter
-            .u64_counter("cortexbrain_events_total")
+            .u64_counter("events_total")
             .with_description("Total number of eBPF events processed")
             .build();
 
         // total packets
         let packets_total = meter
-            .u64_counter("cortexbrain_packets_total")
+            .u64_counter("packets_total")
             .with_description("Total number of network events processed")
             .build();
 
         // socket drops
         let sk_drops = meter
-            .i64_gauge("cortexbrain_sk_drops")
+            .i64_gauge("sk_drops")
             .with_description("Socket drop count per event")
             .build();
 
         // socket errors
         let sk_err = meter
-            .i64_gauge("cortexbrain_sk_err")
+            .i64_gauge("sk_err")
             .with_description("Socket error count per event")
             .build();
 
@@ -72,7 +72,7 @@ impl Metrics {
 
         // timestamp microseconds grouped
         let ts_us = meter
-            .u64_histogram("cortexbrain_ts_us")
+            .u64_histogram("ts_us")
             .with_description("Distribution of timestamp values from eBPF events")
             .build();
 
