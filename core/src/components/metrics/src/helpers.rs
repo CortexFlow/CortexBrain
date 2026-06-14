@@ -62,9 +62,14 @@ pub async fn event_listener(bpf_maps: BpfMapsData, meter: Meter) -> Result<(), a
         .remove("net_metrics")
         .expect("Cannot create net_perf_buffer");
 
+    let (_cpu_frequency_events_array, cpu_frequency_perf_buffer) = maps
+        .remove("cpu_frequency")
+        .expect("Cannot create cpu_frequency_perf_buffer");
+
     // Allocate byte-buffers sized for each structure type
     let net_metrics_buffers = BufferSize::NetworkMetricsEvents.set_buffer();
     let time_stamp_events_buffers = BufferSize::TimeMetricsEvents.set_buffer();
+    let cpu_frequency_events_buffers = BufferSize::CpuFrequency.set_buffer();
 
     let metrics = Arc::new(Metrics::new(&meter));
 
@@ -100,6 +105,21 @@ pub async fn event_listener(bpf_maps: BpfMapsData, meter: Meter) -> Result<(), a
         })
     };
 
+    let cpu_frequency_metrics = {
+        let metrics = Arc::clone(&metrics);
+        let mut array_buffers = cpu_frequency_perf_buffer;
+        let mut buffers = cpu_frequency_events_buffers;
+        tokio::spawn(async move {
+            read_perf_buffer(
+                array_buffers,
+                buffers,
+                BufferType::CpuFrequency,
+                Some(metrics),
+            )
+            .await;
+        })
+    };
+
     info!("Event listeners started, entering main loop...");
 
     tokio::select! {
@@ -112,6 +132,12 @@ pub async fn event_listener(bpf_maps: BpfMapsData, meter: Meter) -> Result<(), a
         result = time_stamp_handle => {
             if let Err(e) = result {
                 error!("Timestamp events task failed: {:?}", e);
+            }
+        }
+
+        result = cpu_frequency_metrics => {
+            if let Err(e) = result {
+                error!("Cpu frequency events task failed: {:?}", e);
             }
         }
 

@@ -128,6 +128,14 @@ pub struct TimeStampMetrics {
 }
 #[cfg(feature = "monitoring-structs")]
 unsafe impl aya::Pod for TimeStampMetrics {}
+#[cfg(feature = "monitoring-structs")]
+#[repr(C, packed)]
+#[derive(Clone, Copy, Zeroable)]
+pub struct CpuFrequency {
+    pub cpu_id: u32,
+    pub cpu_freq: u32,
+}
+unsafe impl aya::Pod for CpuFrequency {}
 
 // docs:
 // This function perform a byte swap from little-endian to big-endian
@@ -156,6 +164,8 @@ pub enum BufferType {
     NetworkMetrics,
     #[cfg(feature = "monitoring-structs")]
     TimeStampMetrics,
+    #[cfg(feature = "monitoring-structs")]
+    CpuFrequency,
 }
 
 // IDEA: this is an experimental implementation to centralize buffer reading logic
@@ -476,6 +486,45 @@ impl BufferType {
             }
         }
     }
+
+    #[cfg(feature = "monitoring-structs")]
+    pub async fn read_cpu_frequency(
+        buffers: &mut [BytesMut],
+        tot_events: i32,
+        offset: i32,
+        //exporter: &str,
+        //metrics: Arc<Metrics>,
+    ) {
+        for i in offset..tot_events {
+            let vec_bytes = &buffers[i as usize];
+            if vec_bytes.len() < std::mem::size_of::<CpuFrequency>() {
+                error!(
+                    "Corrupted Cpu Frequency Metrics data. Raw data: {}. Readed {} bytes expected {} bytes",
+                    vec_bytes
+                        .iter()
+                        .map(|b| format!("{:02x}", b))
+                        .collect::<Vec<_>>()
+                        .join(" "),
+                    vec_bytes.len(),
+                    std::mem::size_of::<CpuFrequency>()
+                );
+                continue;
+            }
+            if vec_bytes.len() >= std::mem::size_of::<CpuFrequency>() {
+                let cpu_freq_metrics: CpuFrequency =
+                    unsafe { std::ptr::read_unaligned(vec_bytes.as_ptr() as *const _) };
+
+                //match exporter {
+                //    "otlp" => metrics.record_timestamp_metrics(&time_stamp_event),
+                //    _ => continue,
+                //}
+
+                let cpu_id = cpu_freq_metrics.cpu_id;
+                let cpu_freq = cpu_freq_metrics.cpu_freq;
+                info!("Cpu id: {} Cpu frequency: {}", cpu_id, cpu_freq);
+            }
+        }
+    }
 }
 
 // docs: read buffer function:
@@ -548,6 +597,11 @@ pub async fn read_perf_buffer<T: std::borrow::BorrowMut<aya::maps::MapData>>(
                                 )
                                 .await
                             }
+                            #[cfg(feature = "monitoring-structs")]
+                            BufferType::CpuFrequency => {
+                                BufferType::read_cpu_frequency(&mut buffers, tot_events, offset)
+                                    .await
+                            }
                         }
                     }
                 }
@@ -572,6 +626,8 @@ pub enum BufferSize {
     NetworkMetricsEvents,
     #[cfg(feature = "monitoring-structs")]
     TimeMetricsEvents,
+    #[cfg(feature = "monitoring-structs")]
+    CpuFrequency,
 }
 #[cfg(feature = "buffer-reader")]
 impl BufferSize {
@@ -587,6 +643,8 @@ impl BufferSize {
             BufferSize::NetworkMetricsEvents => std::mem::size_of::<NetworkMetrics>(),
             #[cfg(feature = "monitoring-structs")]
             BufferSize::TimeMetricsEvents => std::mem::size_of::<TimeStampMetrics>(),
+            #[cfg(feature = "monitoring-structs")]
+            BufferSize::CpuFrequency => std::mem::size_of::<CpuFrequency>(),
         }
     }
     pub fn set_buffer(&self) -> Vec<BytesMut> {
@@ -627,6 +685,11 @@ impl BufferSize {
             }
             #[cfg(feature = "monitoring-structs")]
             BufferSize::TimeMetricsEvents => {
+                let capacity = self.get_size() * 1024;
+                return vec![BytesMut::with_capacity(capacity); tot_cpu];
+            }
+            #[cfg(feature = "monitoring-structs")]
+            BufferSize::CpuFrequency => {
                 let capacity = self.get_size() * 1024;
                 return vec![BytesMut::with_capacity(capacity); tot_cpu];
             }
