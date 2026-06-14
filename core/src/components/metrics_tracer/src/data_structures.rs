@@ -1,22 +1,25 @@
-use aya_ebpf::{macros::map, maps::{LruPerCpuHashMap, HashMap, PerfEventArray}};
+use aya_ebpf::{
+    macros::map,
+    maps::{HashMap, LruPerCpuHashMap, PerfEventArray},
+};
 
 pub const TASK_COMM_LEN: usize = 16;
 
-#[repr(C,packed)]
+#[repr(C, packed)]
 pub struct NetworkMetrics {
     pub tgid: u32,
     pub comm: [u8; TASK_COMM_LEN],
     pub ts_us: u64,
-    pub sk_err: i32,                // Offset 284
-    pub sk_err_soft: i32,           // Offset 600
-    pub sk_backlog_len: i32,        // Offset 196
-    pub sk_write_memory_queued: i32,// Offset 376
-    pub sk_receive_buffer_size: i32,// Offset 244
-    pub sk_ack_backlog: u32,        // Offset 604
-    pub sk_drops: i32,              // Offset 136
+    pub sk_err: i32,                 // Offset 284
+    pub sk_err_soft: i32,            // Offset 600
+    pub sk_backlog_len: i32,         // Offset 196
+    pub sk_write_memory_queued: i32, // Offset 376
+    pub sk_receive_buffer_size: i32, // Offset 244
+    pub sk_ack_backlog: u32,         // Offset 604
+    pub sk_drops: i32,               // Offset 136
 }
 
-#[repr(C,packed)]
+#[repr(C, packed)]
 #[derive(Copy, Clone)]
 pub struct TimeStampStartInfo {
     pub comm: [u8; TASK_COMM_LEN],
@@ -25,7 +28,7 @@ pub struct TimeStampStartInfo {
 }
 
 // Event we send to userspace when latency is computed
-#[repr(C,packed)]
+#[repr(C, packed)]
 #[derive(Copy, Clone)]
 pub struct TimeStampEvent {
     pub delta_us: u64,
@@ -41,6 +44,11 @@ pub struct TimeStampEvent {
     pub daddr_v6: [u32; 4],
 }
 
+pub struct CpuFrequency {
+    pub(crate) cpu_id: u32,
+    pub(crate) cpu_freq: u32,
+}
+
 // Map: connect-start timestamp by socket pointer
 #[map(name = "time_stamp_start")]
 pub static mut TIME_STAMP_START: HashMap<*mut core::ffi::c_void, TimeStampStartInfo> =
@@ -48,7 +56,11 @@ pub static mut TIME_STAMP_START: HashMap<*mut core::ffi::c_void, TimeStampStartI
 
 // Perf event channel for emitting Event to userspace
 #[map(name = "time_stamp_events")]
-pub static mut TIME_STAMP_EVENTS: PerfEventArray<TimeStampEvent> = PerfEventArray::<TimeStampEvent>::new(0);
+pub static mut TIME_STAMP_EVENTS: PerfEventArray<TimeStampEvent> =
+    PerfEventArray::<TimeStampEvent>::new(0);
 
 #[map(name = "net_metrics")]
 pub static NET_METRICS: PerfEventArray<NetworkMetrics> = PerfEventArray::new(0);
+
+#[map(name = "cpu_frequency")]
+pub static CPU_FREQUENCY: PerfEventArray<CpuFrequency> = PerfEventArray::new(0);
