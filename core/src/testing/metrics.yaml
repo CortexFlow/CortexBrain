@@ -19,7 +19,7 @@ spec:
       hostNetwork: true
       containers:
         - name: metrics
-          image: lorenzotettamanti/cortexflow-metrics:otel-test-2
+          image: lorenzotettamanti/cortexflow-metrics:otel-test-5
           command: ["/bin/bash", "-c"]
           args:
             - |
@@ -56,6 +56,9 @@ spec:
             - name: kernel-dev
               mountPath: /lib/modules
               readOnly: false
+            - name: tracefs
+              mountPath: /sys/kernel/debug
+              readOnly: false
           securityContext:
             privileged: true
             allowPrivilegeEscalation: true
@@ -80,6 +83,9 @@ spec:
             - name: kernel-dev
               mountPath: /lib/modules
               readOnly: false
+            - name: tracefs
+              mountPath: /sys/kernel/debug
+              readOnly: false
           securityContext:
             privileged: true
             allowPrivilegeEscalation: true
@@ -103,3 +109,10 @@ spec:
           hostPath:
             path: /lib/modules
             type: Directory
+
+        - name: tracefs
+          hostPath:
+              path: /sys/kernel/debug
+              type: Directory
+
+          
