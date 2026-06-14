@@ -26,7 +26,7 @@ use cortexbrain_common::{
     constants,
     logger::otlp_logger_init,
     map_handlers::{init_bpf_maps, map_pinner},
-    program_handlers::load_program,
+    program_handlers::{load_program, load_tracepoint_program},
 };
 
 #[tokio::main]
@@ -46,6 +46,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let tcp_bpf = bpf.clone();
     let tcp_rev_bpf = bpf.clone();
     let tcp_v6_bpf = bpf.clone();
+    let cpu_frequency = bpf.clone();
 
     info!("Running Ebpf logger");
     info!("loading programs");
@@ -53,7 +54,11 @@ async fn main() -> Result<(), anyhow::Error> {
     let bpf_map_save_path =
         env::var(constants::PIN_MAP_PATH).context("PIN_MAP_PATH environment variable required")?;
 
-    let map_data = vec!["time_stamp_events".to_string(), "net_metrics".to_string()];
+    let map_data = vec![
+        "time_stamp_events".to_string(),
+        "net_metrics".to_string(),
+        "cpu_frequency".to_string(),
+    ];
 
     match init_bpf_maps(bpf.clone(), map_data) {
         Ok(bpf_maps) => {
@@ -81,6 +86,15 @@ async fn main() -> Result<(), anyhow::Error> {
                             tcp_rev_bpf,
                             "tcp_rcv_state_process",
                             "tcp_rcv_state_process",
+                        )
+                        .context(
+                            "An error occurred during the execution of load_program function",
+                        )?;
+                        load_tracepoint_program(
+                            cpu_frequency,
+                            "trace_cpu_frequency",
+                            "power",
+                            "cpu_frequency",
                         )
                         .context(
                             "An error occurred during the execution of load_program function",
