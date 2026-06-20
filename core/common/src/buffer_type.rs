@@ -132,10 +132,25 @@ unsafe impl aya::Pod for TimeStampMetrics {}
 #[repr(C, packed)]
 #[derive(Clone, Copy, Zeroable)]
 pub struct CpuFrequency {
-    pub cpu_id: u32,
-    pub cpu_freq: u32,
+    //pub cpu_id: u32,
+    //pub cpu_freq: u32,
+    pub bytes_alloc: u32,
+    pub pid: u32,
+    pub command: [u8; 16],
 }
 unsafe impl aya::Pod for CpuFrequency {}
+
+#[cfg(feature = "monitoring-structs")]
+#[repr(C, packed)]
+#[derive(Clone, Copy, Zeroable)]
+pub struct MemAlloc {
+    pub tgid: u32,
+    pub length: u64,
+    pub addr: u64,
+    pub command: [u8; TASK_COMM_LEN],
+}
+#[cfg(feature = "monitoring-structs")]
+unsafe impl aya::Pod for MemAlloc {}
 
 // docs:
 // This function perform a byte swap from little-endian to big-endian
@@ -166,10 +181,10 @@ pub enum BufferType {
     TimeStampMetrics,
     #[cfg(feature = "monitoring-structs")]
     CpuFrequency,
+    #[cfg(feature = "monitoring-structs")]
+    MemAlloc,
 }
 
-// IDEA: this is an experimental implementation to centralize buffer reading logic
-// TODO: add variant for cortexflow API exporter
 #[cfg(feature = "buffer-reader")]
 impl BufferType {
     #[cfg(feature = "network-structs")]
@@ -492,8 +507,8 @@ impl BufferType {
         buffers: &mut [BytesMut],
         tot_events: i32,
         offset: i32,
-        //exporter: &str,
-        //metrics: Arc<Metrics>,
+        exporter: &str,
+        metrics: Arc<Metrics>,
     ) {
         for i in offset..tot_events {
             let vec_bytes = &buffers[i as usize];
@@ -514,14 +529,69 @@ impl BufferType {
                 let cpu_freq_metrics: CpuFrequency =
                     unsafe { std::ptr::read_unaligned(vec_bytes.as_ptr() as *const _) };
 
-                //match exporter {
-                //    "otlp" => metrics.record_timestamp_metrics(&time_stamp_event),
-                //    _ => continue,
-                //}
+                match exporter {
+                    "otlp" => metrics.record_cpu_bytes_alloc(&cpu_freq_metrics),
+                    _ => continue,
+                }
 
-                let cpu_id = cpu_freq_metrics.cpu_id;
-                let cpu_freq = cpu_freq_metrics.cpu_freq;
-                info!("Cpu id: {} Cpu frequency: {}", cpu_id, cpu_freq);
+                //let cpu_id = cpu_freq_metrics.cpu_id;
+                //let cpu_freq = cpu_freq_metrics.cpu_freq;
+                let bytes_alloc = cpu_freq_metrics.bytes_alloc;
+                //info!(
+                //    "Cpu id: {} Cpu frequency: {} Bytes alloc: {}",
+                //    cpu_id, cpu_freq, bytes_alloc
+                //);
+                let pid = cpu_freq_metrics.pid;
+                let command = cpu_freq_metrics.command;
+                info!(
+                    "Cpu Bytes alloc: {} pid : {} command: {:?}",
+                    bytes_alloc, pid, command
+                );
+            }
+        }
+    }
+
+    #[cfg(feature = "monitoring-structs")]
+    pub async fn read_mem_alloc(
+        buffers: &mut [BytesMut],
+        tot_events: i32,
+        offset: i32,
+        exporter: &str,
+        metrics: Arc<Metrics>,
+    ) {
+        for i in offset..tot_events {
+            let vec_bytes = &buffers[i as usize];
+            if vec_bytes.len() < std::mem::size_of::<MemAlloc>() {
+                error!(
+                    "Corrupted MemAlloc data. Raw data: {}. Readed {} bytes expected {} bytes",
+                    vec_bytes
+                        .iter()
+                        .map(|b| format!("{:02x}", b))
+                        .collect::<Vec<_>>()
+                        .join(" "),
+                    vec_bytes.len(),
+                    std::mem::size_of::<MemAlloc>()
+                );
+                continue;
+            }
+            if vec_bytes.len() >= std::mem::size_of::<MemAlloc>() {
+                let mem_alloc: MemAlloc =
+                    unsafe { std::ptr::read_unaligned(vec_bytes.as_ptr() as *const _) };
+
+                match exporter {
+                    "otlp" => metrics.record_enter_mem_alloc(&mem_alloc),
+                    _ => continue,
+                }
+
+                let tgid = mem_alloc.tgid;
+                let command = String::from_utf8_lossy(&mem_alloc.command);
+                let addr = mem_alloc.addr;
+                let length = mem_alloc.length;
+
+                info!(
+                    "MemAlloc - tgid: {}, command: {}, addr: {}, length: {}",
+                    tgid, command, addr, length
+                );
             }
         }
     }
@@ -599,8 +669,25 @@ pub async fn read_perf_buffer<T: std::borrow::BorrowMut<aya::maps::MapData>>(
                             }
                             #[cfg(feature = "monitoring-structs")]
                             BufferType::CpuFrequency => {
-                                BufferType::read_cpu_frequency(&mut buffers, tot_events, offset)
-                                    .await
+                                BufferType::read_cpu_frequency(
+                                    &mut buffers,
+                                    tot_events,
+                                    offset,
+                                    "otlp",
+                                    metrics.clone().expect("Metric required for CpuFrequency"),
+                                )
+                                .await
+                            }
+                            #[cfg(feature = "monitoring-structs")]
+                            BufferType::MemAlloc => {
+                                BufferType::read_mem_alloc(
+                                    &mut buffers,
+                                    tot_events,
+                                    offset,
+                                    "otlp",
+                                    metrics.clone().expect("Metric required for MemAlloc"),
+                                )
+                                .await
                             }
                         }
                     }
@@ -628,6 +715,8 @@ pub enum BufferSize {
     TimeMetricsEvents,
     #[cfg(feature = "monitoring-structs")]
     CpuFrequency,
+    #[cfg(feature = "monitoring-structs")]
+    MemAlloc,
 }
 #[cfg(feature = "buffer-reader")]
 impl BufferSize {
@@ -645,6 +734,8 @@ impl BufferSize {
             BufferSize::TimeMetricsEvents => std::mem::size_of::<TimeStampMetrics>(),
             #[cfg(feature = "monitoring-structs")]
             BufferSize::CpuFrequency => std::mem::size_of::<CpuFrequency>(),
+            #[cfg(feature = "monitoring-structs")]
+            BufferSize::MemAlloc => std::mem::size_of::<MemAlloc>(),
         }
     }
     pub fn set_buffer(&self) -> Vec<BytesMut> {
@@ -690,6 +781,11 @@ impl BufferSize {
             }
             #[cfg(feature = "monitoring-structs")]
             BufferSize::CpuFrequency => {
+                let capacity = self.get_size() * 1024;
+                return vec![BytesMut::with_capacity(capacity); tot_cpu];
+            }
+            #[cfg(feature = "monitoring-structs")]
+            BufferSize::MemAlloc => {
                 let capacity = self.get_size() * 1024;
                 return vec![BytesMut::with_capacity(capacity); tot_cpu];
             }
