@@ -47,6 +47,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let tcp_rev_bpf = bpf.clone();
     let tcp_v6_bpf = bpf.clone();
     let cpu_frequency = bpf.clone();
+    let mem_alloc_bpf = bpf.clone();
 
     info!("Running Ebpf logger");
     info!("loading programs");
@@ -58,6 +59,7 @@ async fn main() -> Result<(), anyhow::Error> {
         "time_stamp_events".to_string(),
         "net_metrics".to_string(),
         "cpu_frequency".to_string(),
+        "mem_alloc".to_string(),
     ];
 
     match init_bpf_maps(bpf.clone(), map_data) {
@@ -93,8 +95,17 @@ async fn main() -> Result<(), anyhow::Error> {
                         load_tracepoint_program(
                             cpu_frequency,
                             "trace_cpu_frequency",
-                            "power",
-                            "cpu_frequency",
+                            "percpu",
+                            "percpu_alloc_percpu",
+                        )
+                        .context(
+                            "An error occurred during the execution of load_program function",
+                        )?;
+                        load_tracepoint_program(
+                            mem_alloc_bpf,
+                            "trace_enter_mmap",
+                            "syscalls",
+                            "sys_enter_mmap",
                         )
                         .context(
                             "An error occurred during the execution of load_program function",
