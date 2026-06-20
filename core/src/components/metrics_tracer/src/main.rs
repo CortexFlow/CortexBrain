@@ -5,15 +5,20 @@
 mod bindings;
 mod cpu;
 mod data_structures;
-use core::{mem, ptr};
+mod memory;
 
 use crate::bindings::net_device;
-use crate::cpu::{cpu_frequency, cpu_idle};
+use crate::cpu::{cpu_idle, per_cpu_bytes_alloc};
+use crate::data_structures::CPU_FREQUENCY;
+use crate::data_structures::CpuFrequency;
+use crate::data_structures::MEM_ALLOC;
+use crate::data_structures::MemAlloc;
 use crate::data_structures::NET_METRICS;
 use crate::data_structures::{
     NetworkMetrics, TASK_COMM_LEN, TIME_STAMP_EVENTS, TIME_STAMP_START, TimeStampEvent,
     TimeStampStartInfo,
 };
+use crate::memory::enter_mmap;
 use aya_ebpf::EbpfContext;
 use aya_ebpf::helpers::bpf_get_current_pid_tgid;
 use aya_ebpf::helpers::generated::{bpf_ktime_get_ns, bpf_perf_event_output};
@@ -23,6 +28,7 @@ use aya_ebpf::helpers::{
 use aya_ebpf::macros::{kprobe, map, tracepoint};
 use aya_ebpf::maps::{HashMap, PerfEventArray};
 use aya_ebpf::programs::{ProbeContext, TracePointContext};
+use core::{mem, ptr};
 
 const AF_INET: u16 = 2;
 const AF_INET6: u16 = 10;
@@ -265,7 +271,7 @@ fn on_rcv_state_process(ctx: ProbeContext) -> Result<(), i64> {
 
 #[tracepoint]
 fn trace_cpu_frequency(ctx: TracePointContext) -> u32 {
-    match cpu_frequency(ctx) {
+    match trace_cpu_metrics(&ctx) {
         Ok(_) => 0,
         Err(e) => e as u32,
     }
@@ -277,6 +283,50 @@ fn trace_cpu_idle(ctx: TracePointContext) -> u32 {
         Ok(_) => 0,
         Err(e) => e as u32,
     }
+}
+
+fn trace_cpu_metrics(ctx: &TracePointContext) -> Result<(), i64> {
+    let (bytes_alloc, pid, command) = per_cpu_bytes_alloc(ctx)?;
+    //let (cpu_id, cpu_freq) = cpu_frequency(&ctx)?;
+    let cpu_metrics = CpuFrequency {
+        //    cpu_id,
+        //   cpu_freq,
+        bytes_alloc,
+        pid,
+        command,
+    };
+
+    unsafe { CPU_FREQUENCY.output(ctx, &cpu_metrics, 0) };
+
+    Ok(())
+}
+
+/// Tracepoint attached to `syscalls:sys_enter_mmap`.
+///
+/// Emits a `MemAlloc` event for every `mmap` syscall.  No PID/command filter
+/// is applied yet (see the next update), so this will generate events for every
+/// process in the system.
+#[tracepoint]
+fn trace_enter_mmap(ctx: TracePointContext) -> u32 {
+    match trace_memory_allocation(&ctx) {
+        Ok(_) => 0,
+        Err(e) => e as u32,
+    }
+}
+
+fn trace_memory_allocation(ctx: &TracePointContext) -> Result<(), i64> {
+    let (tgid, addr, length, command) = enter_mmap(ctx)?;
+
+    let memory_alloc_metrics = MemAlloc {
+        tgid,
+        addr,
+        length,
+        command,
+    };
+
+    unsafe { MEM_ALLOC.output(ctx, &memory_alloc_metrics, 0) };
+
+    Ok(())
 }
 
 // panic handler
