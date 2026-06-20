@@ -11,7 +11,7 @@
 //!   extracted from the eBPF struct, allowing downstream collectors to group
 //!   telemetry by process.
 
-use crate::buffer_type::{NetworkMetrics, TimeStampMetrics};
+use crate::buffer_type::{CpuFrequency, MemAlloc, NetworkMetrics, TimeStampMetrics};
 use opentelemetry::KeyValue;
 use opentelemetry::metrics::{Counter, Gauge, Histogram, Meter};
 pub struct Metrics {
@@ -35,6 +35,18 @@ pub struct Metrics {
     /// Histogram of `ts_us` values seen in both `net_metrics` and
     /// `time_stamp_events`.
     pub ts_us: Histogram<u64>,
+
+    /// Cpu bytes alloc total events
+    pub cpu_bytes_alloc_events_total: Counter<u64>,
+
+    /// Cpu bytes allocation
+    pub cpu_bytes_alloc: Gauge<i64>,
+
+    /// Total number of memory allocation (mmap) events processed.
+    pub mem_alloc_events_total: Counter<u64>,
+
+    /// Observed bytes requested via mmap syscalls.
+    pub enter_mem_alloc: Gauge<i64>,
 }
 
 impl Metrics {
@@ -66,7 +78,7 @@ impl Metrics {
 
         // delta microseconds
         let delta_us = meter
-            .u64_histogram("cortexbrain_delta_us")
+            .u64_histogram("delta_us")
             .with_description("Distribution of delta_us values from timestamp events")
             .build();
 
@@ -76,6 +88,30 @@ impl Metrics {
             .with_description("Distribution of timestamp values from eBPF events")
             .build();
 
+        // cpu bytes alloc total events
+        let cpu_bytes_alloc_events_total = meter
+            .u64_counter("bytes_alloc_events_total")
+            .with_description("Total bytes_alloc events occuring in the CPU")
+            .build();
+
+        // cpu bytes allocation
+        let cpu_bytes_alloc = meter
+            .i64_gauge("cpu_bytes_alloc")
+            .with_description("Cpu bytes allocation per event")
+            .build();
+
+        // memory allocation (mmap) events total
+        let mem_alloc_events_total = meter
+            .u64_counter("mem_alloc_events_total")
+            .with_description("Total number of memory allocation (mmap) events processed")
+            .build();
+
+        // bytes requested via mmap syscalls
+        let enter_mem_alloc = meter
+            .i64_gauge("enter_mem_alloc")
+            .with_description("Bytes requested via mmap syscalls")
+            .build();
+
         Self {
             events_total,
             packets_total,
@@ -83,6 +119,10 @@ impl Metrics {
             sk_err,
             delta_us,
             ts_us,
+            cpu_bytes_alloc,
+            cpu_bytes_alloc_events_total,
+            mem_alloc_events_total,
+            enter_mem_alloc,
         }
     }
 
@@ -129,5 +169,36 @@ impl Metrics {
         self.events_total.add(1, attrs);
         self.delta_us.record(m.delta_us, attrs);
         self.ts_us.record(m.ts_us, attrs);
+    }
+
+    pub fn record_cpu_bytes_alloc(&self, m: &CpuFrequency) {
+        let bytes_allocated = m.bytes_alloc;
+        let tgid = m.pid; // percpu tracepoints expose TGID in common_pid
+        let comm = String::from_utf8_lossy(&m.command);
+        let command = comm.trim_end_matches('\0').to_string();
+        let attrs = &[
+            KeyValue::new("tgid", tgid as i64),
+            KeyValue::new("command", command),
+        ];
+        self.cpu_bytes_alloc_events_total.add(1, attrs);
+        self.cpu_bytes_alloc.record(bytes_allocated as i64, attrs);
+    }
+
+    /// Record a single [`MemAlloc`] event (mmap syscall).
+    ///
+    /// Increments the dedicated `mem_alloc_events_total` counter and records
+    /// the requested length in the `enter_mem_alloc` gauge.  The shared
+    /// `events_total` counter is intentionally **not** incremented for these
+    /// events.
+    pub fn record_enter_mem_alloc(&self, m: &MemAlloc) {
+        let comm = String::from_utf8_lossy(&m.command);
+        let command = comm.trim_end_matches('\0').to_string();
+        let attrs = &[
+            KeyValue::new("tgid", m.tgid as i64),
+            KeyValue::new("command", command),
+        ];
+
+        self.mem_alloc_events_total.add(1, attrs);
+        self.enter_mem_alloc.record(m.length as i64, attrs);
     }
 }
