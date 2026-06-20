@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: vegas-test
+  namespace: cortexflow
+  labels:
+    app: vegas-test
+spec:
+  hostPID: true
+  hostNetwork: true
+  containers:
+    - name: vegas-test
+      image: lorenzotettamanti/vegas-test:latest
+      command: ["/bin/bash", "-c", "sleep 3600"]
+      securityContext:
+        privileged: false
+        allowPrivilegeEscalation: false
+
+          
