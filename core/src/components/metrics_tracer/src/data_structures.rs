@@ -44,9 +44,23 @@ pub struct TimeStampEvent {
     pub daddr_v6: [u32; 4],
 }
 
+#[repr(C, packed)]
+#[derive(Copy, Clone)]
 pub struct CpuFrequency {
-    pub(crate) cpu_id: u32,
-    pub(crate) cpu_freq: u32,
+    //pub(crate) cpu_id: u32,
+    //pub(crate) cpu_freq: u32,
+    pub(crate) bytes_alloc: u32,
+    pub(crate) pid: u32,
+    pub(crate) command: [u8; 16],
+}
+
+#[repr(C, packed)]
+#[derive(Copy, Clone)]
+pub struct MemAlloc {
+    pub(crate) tgid: u32,
+    pub(crate) length: u64,
+    pub(crate) addr: u64,
+    pub(crate) command: [u8; 16],
 }
 
 // Map: connect-start timestamp by socket pointer
@@ -64,3 +78,6 @@ pub static NET_METRICS: PerfEventArray<NetworkMetrics> = PerfEventArray::new(0);
 
 #[map(name = "cpu_frequency")]
 pub static CPU_FREQUENCY: PerfEventArray<CpuFrequency> = PerfEventArray::new(0);
+
+#[map(name = "mem_alloc")]
+pub static MEM_ALLOC: PerfEventArray<MemAlloc> = PerfEventArray::new(0);
