@@ -8,12 +8,12 @@ mod data_structures;
 mod memory;
 
 use crate::bindings::net_device;
-use crate::cpu::{cpu_idle, per_cpu_bytes_alloc};
-use crate::data_structures::CPU_FREQUENCY;
+use crate::cpu::{cpu_idle, per_cpu_bytes_alloc, sched_stat_runtime, sched_stat_wait};
 use crate::data_structures::CpuFrequency;
-use crate::data_structures::MEM_ALLOC;
-use crate::data_structures::MemAlloc;
 use crate::data_structures::NET_METRICS;
+use crate::data_structures::{CPU_FREQUENCY, SchedStatWait};
+use crate::data_structures::{MEM_ALLOC, SCHED_STAT_RUNTIME, SCHED_STAT_WAIT};
+use crate::data_structures::{MemAlloc, SchedStatRuntime};
 use crate::data_structures::{
     NetworkMetrics, TASK_COMM_LEN, TIME_STAMP_EVENTS, TIME_STAMP_START, TimeStampEvent,
     TimeStampStartInfo,
@@ -325,6 +325,50 @@ fn trace_memory_allocation(ctx: &TracePointContext) -> Result<(), i64> {
     };
 
     unsafe { MEM_ALLOC.output(ctx, &memory_alloc_metrics, 0) };
+
+    Ok(())
+}
+
+#[tracepoint]
+fn trace_sched_stat_wait(ctx: TracePointContext) -> u32 {
+    match sched_stat_wait_tracer(&ctx) {
+        Ok(_) => 0,
+        Err(e) => e as u32,
+    }
+}
+
+fn sched_stat_wait_tracer(ctx: &TracePointContext) -> Result<(), i64> {
+    let (tgid, delay, command) = sched_stat_wait(ctx)?;
+
+    let sched_stat_wait_data = SchedStatWait {
+        tgid,
+        delay,
+        command,
+    };
+
+    unsafe { SCHED_STAT_WAIT.output(ctx, &sched_stat_wait_data, 0) };
+
+    Ok(())
+}
+
+#[tracepoint]
+fn trace_sched_stat_runtime(ctx: TracePointContext) -> u32 {
+    match sched_stat_runtime_tracer(&ctx) {
+        Ok(_) => 0,
+        Err(e) => e as u32,
+    }
+}
+
+fn sched_stat_runtime_tracer(ctx: &TracePointContext) -> Result<(), i64> {
+    let (tgid, runtime, command) = sched_stat_runtime(ctx)?;
+
+    let sched_stat_runtime_data = SchedStatRuntime {
+        tgid,
+        runtime,
+        command,
+    };
+
+    unsafe { SCHED_STAT_RUNTIME.output(ctx, &sched_stat_runtime_data, 0) };
 
     Ok(())
 }

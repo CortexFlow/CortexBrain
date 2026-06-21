@@ -63,6 +63,22 @@ pub struct MemAlloc {
     pub(crate) command: [u8; 16],
 }
 
+#[repr(C, packed)]
+#[derive(Copy, Clone)]
+pub struct SchedStatWait {
+    pub(crate) tgid: u32,
+    pub(crate) delay: u64,
+    pub(crate) command: [u8; 16],
+}
+
+#[repr(C, packed)]
+#[derive(Copy, Clone)]
+pub struct SchedStatRuntime {
+    pub(crate) tgid: u32,
+    pub(crate) runtime: u64,
+    pub(crate) command: [u8; 16],
+}
+
 // Map: connect-start timestamp by socket pointer
 #[map(name = "time_stamp_start")]
 pub static mut TIME_STAMP_START: HashMap<*mut core::ffi::c_void, TimeStampStartInfo> =
@@ -81,3 +97,9 @@ pub static CPU_FREQUENCY: PerfEventArray<CpuFrequency> = PerfEventArray::new(0);
 
 #[map(name = "mem_alloc")]
 pub static MEM_ALLOC: PerfEventArray<MemAlloc> = PerfEventArray::new(0);
+
+#[map(name = "sched_stat_wait")]
+pub static SCHED_STAT_WAIT: PerfEventArray<SchedStatWait> = PerfEventArray::new(0);
+
+#[map(name = "sched_stat_runtime")]
+pub static SCHED_STAT_RUNTIME: PerfEventArray<SchedStatRuntime> = PerfEventArray::new(0);
