@@ -33,3 +33,27 @@ pub fn per_cpu_bytes_alloc(ctx: &TracePointContext) -> Result<((u32, u32, [u8; 1
 
     Ok((bytes_alloc, pid, command))
 }
+
+pub fn sched_stat_wait(ctx: &TracePointContext) -> Result<((u32, u64, [u8; 16])), i64> {
+    let pid_offset = 4;
+    let delay_offset = 16;
+
+    let pid = unsafe { ctx.read_at(pid_offset) }?;
+
+    let delay = unsafe { ctx.read_at(delay_offset) }?;
+    let command = ctx.command()?;
+
+    Ok((pid, delay, command))
+}
+
+pub fn sched_stat_runtime(ctx: &TracePointContext) -> Result<((u32, u64, [u8; 16])), i64> {
+    let pid_offset = 4;
+    let runtime_offset = 16;
+
+    let pid = unsafe { ctx.read_at(pid_offset) }?;
+
+    let runtime = unsafe { ctx.read_at(runtime_offset) }?;
+    let command = ctx.command()?;
+
+    Ok((pid, runtime, command))
+}
