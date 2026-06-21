@@ -152,6 +152,28 @@ pub struct MemAlloc {
 #[cfg(feature = "monitoring-structs")]
 unsafe impl aya::Pod for MemAlloc {}
 
+#[cfg(feature = "monitoring-structs")]
+#[repr(C, packed)]
+#[derive(Clone, Copy, Zeroable)]
+pub struct SchedStatWait {
+    pub tgid: u32,
+    pub delay: u64,
+    pub command: [u8; TASK_COMM_LEN],
+}
+#[cfg(feature = "monitoring-structs")]
+unsafe impl aya::Pod for SchedStatWait {}
+
+#[cfg(feature = "monitoring-structs")]
+#[repr(C, packed)]
+#[derive(Clone, Copy, Zeroable)]
+pub struct SchedStatRuntime {
+    pub tgid: u32,
+    pub runtime: u64,
+    pub command: [u8; TASK_COMM_LEN],
+}
+#[cfg(feature = "monitoring-structs")]
+unsafe impl aya::Pod for SchedStatRuntime {}
+
 // docs:
 // This function perform a byte swap from little-endian to big-endian
 // It's used to reconstruct the correct IPv4 address from the u32 representation
@@ -183,6 +205,10 @@ pub enum BufferType {
     CpuFrequency,
     #[cfg(feature = "monitoring-structs")]
     MemAlloc,
+    #[cfg(feature = "monitoring-structs")]
+    SchedStatWait,
+    #[cfg(feature = "monitoring-structs")]
+    SchedStatRuntime,
 }
 
 #[cfg(feature = "buffer-reader")]
@@ -595,6 +621,94 @@ impl BufferType {
             }
         }
     }
+
+    #[cfg(feature = "monitoring-structs")]
+    pub async fn read_sched_stat_wait(
+        buffers: &mut [BytesMut],
+        tot_events: i32,
+        offset: i32,
+        exporter: &str,
+        metrics: Arc<Metrics>,
+    ) {
+        for i in offset..tot_events {
+            let vec_bytes = &buffers[i as usize];
+            if vec_bytes.len() < std::mem::size_of::<SchedStatWait>() {
+                error!(
+                    "Corrupted SchedStatWait data. Raw data: {}. Readed {} bytes expected {} bytes",
+                    vec_bytes
+                        .iter()
+                        .map(|b| format!("{:02x}", b))
+                        .collect::<Vec<_>>()
+                        .join(" "),
+                    vec_bytes.len(),
+                    std::mem::size_of::<SchedStatWait>()
+                );
+                continue;
+            }
+            if vec_bytes.len() >= std::mem::size_of::<SchedStatWait>() {
+                let sched_stat_wait: SchedStatWait =
+                    unsafe { std::ptr::read_unaligned(vec_bytes.as_ptr() as *const _) };
+
+                match exporter {
+                    "otlp" => metrics.record_sched_stat_wait(&sched_stat_wait),
+                    _ => continue,
+                }
+
+                let tgid = sched_stat_wait.tgid;
+                let command = String::from_utf8_lossy(&sched_stat_wait.command);
+                let delay = sched_stat_wait.delay;
+
+                info!(
+                    "SchedStatWait - tgid: {}, command: {}, delay: {}",
+                    tgid, command, delay
+                );
+            }
+        }
+    }
+
+    #[cfg(feature = "monitoring-structs")]
+    pub async fn read_sched_stat_runtime(
+        buffers: &mut [BytesMut],
+        tot_events: i32,
+        offset: i32,
+        exporter: &str,
+        metrics: Arc<Metrics>,
+    ) {
+        for i in offset..tot_events {
+            let vec_bytes = &buffers[i as usize];
+            if vec_bytes.len() < std::mem::size_of::<SchedStatRuntime>() {
+                error!(
+                    "Corrupted SchedStatRuntime data. Raw data: {}. Readed {} bytes expected {} bytes",
+                    vec_bytes
+                        .iter()
+                        .map(|b| format!("{:02x}", b))
+                        .collect::<Vec<_>>()
+                        .join(" "),
+                    vec_bytes.len(),
+                    std::mem::size_of::<SchedStatRuntime>()
+                );
+                continue;
+            }
+            if vec_bytes.len() >= std::mem::size_of::<SchedStatRuntime>() {
+                let sched_stat_runtime: SchedStatRuntime =
+                    unsafe { std::ptr::read_unaligned(vec_bytes.as_ptr() as *const _) };
+
+                match exporter {
+                    "otlp" => metrics.record_sched_stat_runtime(&sched_stat_runtime),
+                    _ => continue,
+                }
+
+                let tgid = sched_stat_runtime.tgid;
+                let command = String::from_utf8_lossy(&sched_stat_runtime.command);
+                let runtime = sched_stat_runtime.runtime;
+
+                info!(
+                    "SchedStatRuntime - tgid: {}, command: {}, runtime: {}",
+                    tgid, command, runtime
+                );
+            }
+        }
+    }
 }
 
 // docs: read buffer function:
@@ -689,6 +803,28 @@ pub async fn read_perf_buffer<T: std::borrow::BorrowMut<aya::maps::MapData>>(
                                 )
                                 .await
                             }
+                            #[cfg(feature = "monitoring-structs")]
+                            BufferType::SchedStatWait => {
+                                BufferType::read_sched_stat_wait(
+                                    &mut buffers,
+                                    tot_events,
+                                    offset,
+                                    "otlp",
+                                    metrics.clone().expect("Metric required for SchedStatWait"),
+                                )
+                                .await
+                            }
+                            #[cfg(feature = "monitoring-structs")]
+                            BufferType::SchedStatRuntime => {
+                                BufferType::read_sched_stat_runtime(
+                                    &mut buffers,
+                                    tot_events,
+                                    offset,
+                                    "otlp",
+                                    metrics.clone().expect("Metric required for SchedStatRuntime"),
+                                )
+                                .await
+                            }
                         }
                     }
                 }
@@ -717,6 +853,10 @@ pub enum BufferSize {
     CpuFrequency,
     #[cfg(feature = "monitoring-structs")]
     MemAlloc,
+    #[cfg(feature = "monitoring-structs")]
+    SchedStatWait,
+    #[cfg(feature = "monitoring-structs")]
+    SchedStatRuntime,
 }
 #[cfg(feature = "buffer-reader")]
 impl BufferSize {
@@ -736,6 +876,10 @@ impl BufferSize {
             BufferSize::CpuFrequency => std::mem::size_of::<CpuFrequency>(),
             #[cfg(feature = "monitoring-structs")]
             BufferSize::MemAlloc => std::mem::size_of::<MemAlloc>(),
+            #[cfg(feature = "monitoring-structs")]
+            BufferSize::SchedStatWait => std::mem::size_of::<SchedStatWait>(),
+            #[cfg(feature = "monitoring-structs")]
+            BufferSize::SchedStatRuntime => std::mem::size_of::<SchedStatRuntime>(),
         }
     }
     pub fn set_buffer(&self) -> Vec<BytesMut> {
@@ -786,6 +930,16 @@ impl BufferSize {
             }
             #[cfg(feature = "monitoring-structs")]
             BufferSize::MemAlloc => {
+                let capacity = self.get_size() * 1024;
+                return vec![BytesMut::with_capacity(capacity); tot_cpu];
+            }
+            #[cfg(feature = "monitoring-structs")]
+            BufferSize::SchedStatWait => {
+                let capacity = self.get_size() * 1024;
+                return vec![BytesMut::with_capacity(capacity); tot_cpu];
+            }
+            #[cfg(feature = "monitoring-structs")]
+            BufferSize::SchedStatRuntime => {
                 let capacity = self.get_size() * 1024;
                 return vec![BytesMut::with_capacity(capacity); tot_cpu];
             }
