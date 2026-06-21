@@ -53,6 +53,14 @@ fn default_otlp_endpoint_from_protocol() -> &'static str {
     }
 }
 
+fn resolved_otlp_protocol() -> String {
+    env::var(OTEL_EXPORTER_OTLP_PROTOCOL)
+        .ok()
+        .map(|value| value.to_ascii_lowercase())
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| "grpc".to_string())
+}
+
 /// Singleton that owns the concrete `SdkMeterProvider` instance.
 /// OnceLock guarantees single initialisation, we avoid accidentally creating two providers (and
 /// two background export tasks) if `init_opentelemetry()` were ever called
@@ -97,11 +105,20 @@ static METER_PROVIDER: OnceLock<SdkMeterProvider> = OnceLock::new();
 pub fn init_opentelemetry() -> Result<Meter, anyhow::Error> {
     let endpoint = env::var(OTEL_EXPORTER_OTLP_ENDPOINT)
         .unwrap_or_else(|_| default_otlp_endpoint_from_protocol().to_string());
+    let protocol = resolved_otlp_protocol();
 
-    let exporter = MetricExporter::builder()
-        .with_endpoint(endpoint)
-        .with_timeout(Duration::from_secs(10))
-        .build()?;
+    let exporter = match protocol.as_str() {
+        "http/protobuf" | "http/json" => MetricExporter::builder()
+            .with_http()
+            .with_endpoint(endpoint)
+            .with_timeout(Duration::from_secs(10))
+            .build()?,
+        _ => MetricExporter::builder()
+            .with_tonic()
+            .with_endpoint(endpoint)
+            .with_timeout(Duration::from_secs(10))
+            .build()?,
+    };
 
     let reader = PeriodicReader::builder(exporter)
         .with_interval(Duration::from_secs(5))

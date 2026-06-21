@@ -76,14 +76,31 @@ fn resolved_service_name(default_service_name: String) -> String {
     }
 }
 
+fn resolved_otlp_protocol() -> String {
+    std::env::var(OTEL_EXPORTER_OTLP_PROTOCOL)
+        .ok()
+        .map(|value| value.to_ascii_lowercase())
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| "grpc".to_string())
+}
+
 pub fn otlp_logger_init(service_name: String) -> SdkLoggerProvider {
     // exporter and provider initialization
     let otlp_endpoint = resolved_otlp_endpoint();
+    let otlp_protocol = resolved_otlp_protocol();
 
-    let exporter = LogExporter::builder()
-        .with_endpoint(otlp_endpoint)
-        .build()
-        .expect("Failed to create OTLP exporter");
+    let exporter = match otlp_protocol.as_str() {
+        "http/protobuf" | "http/json" => LogExporter::builder()
+            .with_http()
+            .with_endpoint(otlp_endpoint)
+            .build()
+            .expect("Failed to create OTLP HTTP exporter"),
+        _ => LogExporter::builder()
+            .with_tonic()
+            .with_endpoint(otlp_endpoint)
+            .build()
+            .expect("Failed to create OTLP gRPC exporter"),
+    };
 
     // Resource::builder() automatically reads OTEL_RESOURCE_ATTRIBUTES.
     let service_name = resolved_service_name(service_name);
