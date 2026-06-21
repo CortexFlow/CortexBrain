@@ -11,7 +11,9 @@
 //!   extracted from the eBPF struct, allowing downstream collectors to group
 //!   telemetry by process.
 
-use crate::buffer_type::{CpuFrequency, MemAlloc, NetworkMetrics, TimeStampMetrics};
+use crate::buffer_type::{
+    CpuFrequency, MemAlloc, NetworkMetrics, SchedStatRuntime, SchedStatWait, TimeStampMetrics,
+};
 use opentelemetry::KeyValue;
 use opentelemetry::metrics::{Counter, Gauge, Histogram, Meter};
 pub struct Metrics {
@@ -47,6 +49,12 @@ pub struct Metrics {
 
     /// Observed bytes requested via mmap syscalls.
     pub enter_mem_alloc: Gauge<i64>,
+
+    /// Observed scheduler wait time in nanoseconds (sched_stat_wait).
+    pub sched_stat_wait: Gauge<i64>,
+
+    /// Observed scheduler runtime in nanoseconds (sched_stat_runtime).
+    pub sched_stat_runtime: Gauge<i64>,
 }
 
 impl Metrics {
@@ -112,6 +120,18 @@ impl Metrics {
             .with_description("Bytes requested via mmap syscalls")
             .build();
 
+        // scheduler wait time in nanoseconds
+        let sched_stat_wait = meter
+            .i64_gauge("sched_stat_wait")
+            .with_description("Scheduler wait time in nanoseconds from sched_stat_wait")
+            .build();
+
+        // scheduler runtime in nanoseconds
+        let sched_stat_runtime = meter
+            .i64_gauge("sched_stat_runtime")
+            .with_description("Scheduler runtime in nanoseconds from sched_stat_runtime")
+            .build();
+
         Self {
             events_total,
             packets_total,
@@ -123,6 +143,8 @@ impl Metrics {
             cpu_bytes_alloc_events_total,
             mem_alloc_events_total,
             enter_mem_alloc,
+            sched_stat_wait,
+            sched_stat_runtime,
         }
     }
 
@@ -200,5 +222,35 @@ impl Metrics {
 
         self.mem_alloc_events_total.add(1, attrs);
         self.enter_mem_alloc.record(m.length as i64, attrs);
+    }
+
+    /// Record a single [`SchedStatWait`] event.
+    ///
+    /// Records `delay` in the `sched_stat_wait` gauge.  No shared or dedicated
+    /// counter is incremented, as requested.
+    pub fn record_sched_stat_wait(&self, m: &SchedStatWait) {
+        let comm = String::from_utf8_lossy(&m.command);
+        let command = comm.trim_end_matches('\0').to_string();
+        let attrs = &[
+            KeyValue::new("tgid", m.tgid as i64),
+            KeyValue::new("command", command),
+        ];
+
+        self.sched_stat_wait.record(m.delay as i64, attrs);
+    }
+
+    /// Record a single [`SchedStatRuntime`] event.
+    ///
+    /// Records `runtime` in the `sched_stat_runtime` gauge.  No shared or
+    /// dedicated counter is incremented, as requested.
+    pub fn record_sched_stat_runtime(&self, m: &SchedStatRuntime) {
+        let comm = String::from_utf8_lossy(&m.command);
+        let command = comm.trim_end_matches('\0').to_string();
+        let attrs = &[
+            KeyValue::new("tgid", m.tgid as i64),
+            KeyValue::new("command", command),
+        ];
+
+        self.sched_stat_runtime.record(m.runtime as i64, attrs);
     }
 }

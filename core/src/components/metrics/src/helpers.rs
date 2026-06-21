@@ -70,11 +70,21 @@ pub async fn event_listener(bpf_maps: BpfMapsData, meter: Meter) -> Result<(), a
         .remove("mem_alloc")
         .expect("Cannot create mem_alloc perf buffer");
 
+    let (_sched_stat_wait_array, sched_stat_wait_perf_buffer) = maps
+        .remove("sched_stat_wait")
+        .expect("Cannot create sched_stat_wait perf buffer");
+
+    let (_sched_stat_runtime_array, sched_stat_runtime_perf_buffer) = maps
+        .remove("sched_stat_runtime")
+        .expect("Cannot create sched_stat_runtime perf buffer");
+
     // Allocate byte-buffers sized for each structure type
     let net_metrics_buffers = BufferSize::NetworkMetricsEvents.set_buffer();
     let time_stamp_events_buffers = BufferSize::TimeMetricsEvents.set_buffer();
     let cpu_frequency_events_buffers = BufferSize::CpuFrequency.set_buffer();
     let mem_alloc_buffers = BufferSize::MemAlloc.set_buffer();
+    let sched_stat_wait_buffers = BufferSize::SchedStatWait.set_buffer();
+    let sched_stat_runtime_buffers = BufferSize::SchedStatRuntime.set_buffer();
 
     let metrics = Arc::new(Metrics::new(&meter));
 
@@ -140,6 +150,36 @@ pub async fn event_listener(bpf_maps: BpfMapsData, meter: Meter) -> Result<(), a
         })
     };
 
+    let sched_stat_wait_metrics = {
+        let metrics = Arc::clone(&metrics);
+        let mut array_buffers = sched_stat_wait_perf_buffer;
+        let mut buffers = sched_stat_wait_buffers;
+        tokio::spawn(async move {
+            read_perf_buffer(
+                array_buffers,
+                buffers,
+                BufferType::SchedStatWait,
+                Some(metrics),
+            )
+            .await;
+        })
+    };
+
+    let sched_stat_runtime_metrics = {
+        let metrics = Arc::clone(&metrics);
+        let mut array_buffers = sched_stat_runtime_perf_buffer;
+        let mut buffers = sched_stat_runtime_buffers;
+        tokio::spawn(async move {
+            read_perf_buffer(
+                array_buffers,
+                buffers,
+                BufferType::SchedStatRuntime,
+                Some(metrics),
+            )
+            .await;
+        })
+    };
+
     info!("Event listeners started, entering main loop...");
 
     tokio::select! {
@@ -164,6 +204,18 @@ pub async fn event_listener(bpf_maps: BpfMapsData, meter: Meter) -> Result<(), a
         result = mem_alloc_metrics => {
             if let Err(e) = result {
                 error!("MemAlloc events task failed: {:?}", e);
+            }
+        }
+
+        result = sched_stat_wait_metrics => {
+            if let Err(e) = result {
+                error!("SchedStatWait events task failed: {:?}", e);
+            }
+        }
+
+        result = sched_stat_runtime_metrics => {
+            if let Err(e) = result {
+                error!("SchedStatRuntime events task failed: {:?}", e);
             }
         }
 
