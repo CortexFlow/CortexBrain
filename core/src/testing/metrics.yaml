@@ -36,6 +36,15 @@ spec:
 
               echo "Running application..."
               exec /usr/local/bin/cortexflow-metrics || echo "Application exited with code $?"
+          env:
+          - name: OTEL_SERVICE_NAME
+            value: cortexflow-metrics
+          - name: OTEL_EXPORTER_OTLP_ENDPOINT
+            value: http://localhost:4317
+          - name: OTEL_EXPORTER_OTLP_PROTOCOL
+            value: grpc
+          - name: OTEL_RESOURCE_ATTRIBUTES
+            value: service.namespace=cortexflow,service.version=0.1.5
           volumeMounts:
             - name: bpf
               mountPath: /sys/fs/bpf
