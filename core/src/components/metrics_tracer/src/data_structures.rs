@@ -79,6 +79,13 @@ pub struct SchedStatRuntime {
     pub(crate) command: [u8; 16],
 }
 
+#[repr(C, packed)]
+#[derive(Copy, Clone)]
+pub struct CpuIdle {
+    pub(crate) cpu_id: u32,
+    pub(crate) state: u32,
+}
+
 // Map: connect-start timestamp by socket pointer
 #[map(name = "time_stamp_start")]
 pub static mut TIME_STAMP_START: HashMap<*mut core::ffi::c_void, TimeStampStartInfo> =
@@ -103,3 +110,10 @@ pub static SCHED_STAT_WAIT: PerfEventArray<SchedStatWait> = PerfEventArray::new(
 
 #[map(name = "sched_stat_runtime")]
 pub static SCHED_STAT_RUNTIME: PerfEventArray<SchedStatRuntime> = PerfEventArray::new(0);
+
+#[map(name = "cpu_idle")]
+pub static CPU_IDLE: PerfEventArray<CpuIdle> = PerfEventArray::new(0);
+
+#[map(name = "cpu_idle_last_state")]
+pub static mut CPU_IDLE_LAST_STATE: HashMap<u32, u32> =
+    HashMap::<u32, u32>::with_max_entries(256, 0);
