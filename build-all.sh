@@ -1,24 +1,19 @@
 #!/bin/bash
-set -e
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CORE_DIR="$ROOT_DIR/core"
 
 echo "Building CortexFlow Agent"
-pushd ./core
-./agent-api-build.sh
-popd
+"$CORE_DIR/agent-api-build.sh"
 
-sleep 1
-
+echo ""
 echo "Building CortexFlow Identity"
-pushd ./core/src/components/identity
-./build-identity.sh
-popd
+"$CORE_DIR/src/components/identity/build-identity.sh"
 
-sleep 1
-
+echo ""
 echo "Building CortexFlow Metrics"
-pushd ./core/src/components/metrics
-./build-metrics.sh
-popd
+"$CORE_DIR/src/components/metrics/build-metrics.sh"
 
 sleep 1
 
