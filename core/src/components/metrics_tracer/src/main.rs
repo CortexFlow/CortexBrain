@@ -12,12 +12,12 @@ use crate::cpu::{cpu_idle, per_cpu_bytes_alloc, sched_stat_runtime, sched_stat_w
 use crate::data_structures::CpuFrequency;
 use crate::data_structures::NET_METRICS;
 use crate::data_structures::{CPU_FREQUENCY, SchedStatWait};
-use crate::data_structures::{MEM_ALLOC, SCHED_STAT_RUNTIME, SCHED_STAT_WAIT};
-use crate::data_structures::{MemAlloc, SchedStatRuntime};
 use crate::data_structures::{
-    NetworkMetrics, TASK_COMM_LEN, TIME_STAMP_EVENTS, TIME_STAMP_START, TimeStampEvent,
+    CPU_IDLE, NetworkMetrics, TASK_COMM_LEN, TIME_STAMP_EVENTS, TIME_STAMP_START, TimeStampEvent,
     TimeStampStartInfo,
 };
+use crate::data_structures::{MEM_ALLOC, SCHED_STAT_RUNTIME, SCHED_STAT_WAIT};
+use crate::data_structures::{MemAlloc, SchedStatRuntime};
 use crate::memory::enter_mmap;
 use aya_ebpf::EbpfContext;
 use aya_ebpf::helpers::bpf_get_current_pid_tgid;

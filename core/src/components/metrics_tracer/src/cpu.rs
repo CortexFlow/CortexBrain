@@ -5,13 +5,33 @@
 use aya_ebpf::{EbpfContext, programs::TracePointContext};
 use aya_log_ebpf::info;
 
-use crate::data_structures::{CPU_FREQUENCY, CpuFrequency};
+use crate::data_structures::{CPU_FREQUENCY, CPU_IDLE, CPU_IDLE_LAST_STATE, CpuFrequency, CpuIdle};
 
 pub fn cpu_idle(ctx: TracePointContext) -> Result<(), i64> {
     let state_offset = 8;
     let cpu_id_offset = 12;
     let state: u32 = unsafe { ctx.read_at(state_offset) }?;
     let cpu_id: u32 = unsafe { ctx.read_at(cpu_id_offset) }?;
+
+    let map_ptr = unsafe { &raw mut CPU_IDLE_LAST_STATE };
+
+    // skip the data when:
+    //      - last_state is equal to the current state
+    //      - last_state is equal to 4294967295 or -1. This codes means that the cpu is exiting from the current state and entering a new state
+    let emit = match unsafe { (*map_ptr).get(&cpu_id) } {
+        Some(last_state)
+            if (*last_state == state) || (*last_state == 4294967295) || (*last_state == -1) =>
+        {
+            false
+        }
+        _ => true,
+    };
+
+    if emit {
+        let _ = unsafe { (*map_ptr).insert(&cpu_id, &state, 0) };
+        let event = CpuIdle { cpu_id, state };
+        unsafe { CPU_IDLE.output(&ctx, &event, 0) };
+    }
 
     info!(&ctx, "CPU idle: State: {} cpu_id: {}", state, cpu_id);
     Ok(())
