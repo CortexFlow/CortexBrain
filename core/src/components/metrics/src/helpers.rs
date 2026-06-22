@@ -66,6 +66,10 @@ pub async fn event_listener(bpf_maps: BpfMapsData, meter: Meter) -> Result<(), a
         .remove("cpu_frequency")
         .expect("Cannot create cpu_frequency_perf_buffer");
 
+    let (_cpu_idle_array, cpu_idle_perf_buffer) = maps
+        .remove("cpu_idle")
+        .expect("Cannot create cpu_idle perf buffer");
+
     let (_mem_alloc_array, mem_alloc_perf_buffer) = maps
         .remove("mem_alloc")
         .expect("Cannot create mem_alloc perf buffer");
@@ -82,6 +86,7 @@ pub async fn event_listener(bpf_maps: BpfMapsData, meter: Meter) -> Result<(), a
     let net_metrics_buffers = BufferSize::NetworkMetricsEvents.set_buffer();
     let time_stamp_events_buffers = BufferSize::TimeMetricsEvents.set_buffer();
     let cpu_frequency_events_buffers = BufferSize::CpuFrequency.set_buffer();
+    let cpu_idle_buffers = BufferSize::CpuIdle.set_buffer();
     let mem_alloc_buffers = BufferSize::MemAlloc.set_buffer();
     let sched_stat_wait_buffers = BufferSize::SchedStatWait.set_buffer();
     let sched_stat_runtime_buffers = BufferSize::SchedStatRuntime.set_buffer();
@@ -135,18 +140,21 @@ pub async fn event_listener(bpf_maps: BpfMapsData, meter: Meter) -> Result<(), a
         })
     };
 
+    let cpu_idle_metrics = {
+        let metrics = Arc::clone(&metrics);
+        let mut array_buffers = cpu_idle_perf_buffer;
+        let mut buffers = cpu_idle_buffers;
+        tokio::spawn(async move {
+            read_perf_buffer(array_buffers, buffers, BufferType::CpuIdle, Some(metrics)).await;
+        })
+    };
+
     let mem_alloc_metrics = {
         let metrics = Arc::clone(&metrics);
         let mut array_buffers = mem_alloc_perf_buffer;
         let mut buffers = mem_alloc_buffers;
         tokio::spawn(async move {
-            read_perf_buffer(
-                array_buffers,
-                buffers,
-                BufferType::MemAlloc,
-                Some(metrics),
-            )
-            .await;
+            read_perf_buffer(array_buffers, buffers, BufferType::MemAlloc, Some(metrics)).await;
         })
     };
 
@@ -198,6 +206,12 @@ pub async fn event_listener(bpf_maps: BpfMapsData, meter: Meter) -> Result<(), a
         result = cpu_frequency_metrics => {
             if let Err(e) = result {
                 error!("Cpu frequency events task failed: {:?}", e);
+            }
+        }
+
+        result = cpu_idle_metrics => {
+            if let Err(e) = result {
+                error!("CpuIdle events task failed: {:?}", e);
             }
         }
 

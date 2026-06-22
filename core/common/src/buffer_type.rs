@@ -174,6 +174,16 @@ pub struct SchedStatRuntime {
 #[cfg(feature = "monitoring-structs")]
 unsafe impl aya::Pod for SchedStatRuntime {}
 
+#[cfg(feature = "monitoring-structs")]
+#[repr(C, packed)]
+#[derive(Clone, Copy, Zeroable)]
+pub struct CpuIdle {
+    pub cpu_id: u32,
+    pub state: u32,
+}
+#[cfg(feature = "monitoring-structs")]
+unsafe impl aya::Pod for CpuIdle {}
+
 // docs:
 // This function perform a byte swap from little-endian to big-endian
 // It's used to reconstruct the correct IPv4 address from the u32 representation
@@ -209,6 +219,8 @@ pub enum BufferType {
     SchedStatWait,
     #[cfg(feature = "monitoring-structs")]
     SchedStatRuntime,
+    #[cfg(feature = "monitoring-structs")]
+    CpuIdle,
 }
 
 #[cfg(feature = "buffer-reader")]
@@ -709,6 +721,49 @@ impl BufferType {
             }
         }
     }
+
+    #[cfg(feature = "monitoring-structs")]
+    pub async fn read_cpu_idle(
+        buffers: &mut [BytesMut],
+        tot_events: i32,
+        offset: i32,
+        exporter: &str,
+        metrics: Arc<Metrics>,
+    ) {
+        for i in offset..tot_events {
+            let vec_bytes = &buffers[i as usize];
+            if vec_bytes.len() < std::mem::size_of::<CpuIdle>() {
+                error!(
+                    "Corrupted CpuIdle data. Raw data: {}. Readed {} bytes expected {} bytes",
+                    vec_bytes
+                        .iter()
+                        .map(|b| format!("{:02x}", b))
+                        .collect::<Vec<_>>()
+                        .join(" "),
+                    vec_bytes.len(),
+                    std::mem::size_of::<CpuIdle>()
+                );
+                continue;
+            }
+            if vec_bytes.len() >= std::mem::size_of::<CpuIdle>() {
+                let cpu_idle: CpuIdle =
+                    unsafe { std::ptr::read_unaligned(vec_bytes.as_ptr() as *const _) };
+
+                match exporter {
+                    "otlp" => metrics.record_cpu_idle(&cpu_idle),
+                    _ => continue,
+                }
+
+                let cpu_id = cpu_idle.cpu_id;
+                let state = cpu_idle.state;
+
+                info!(
+                    "CpuIdle state changed - cpu_id: {}, state: {}",
+                    cpu_id, state
+                );
+            }
+        }
+    }
 }
 
 // docs: read buffer function:
@@ -821,7 +876,20 @@ pub async fn read_perf_buffer<T: std::borrow::BorrowMut<aya::maps::MapData>>(
                                     tot_events,
                                     offset,
                                     "otlp",
-                                    metrics.clone().expect("Metric required for SchedStatRuntime"),
+                                    metrics
+                                        .clone()
+                                        .expect("Metric required for SchedStatRuntime"),
+                                )
+                                .await
+                            }
+                            #[cfg(feature = "monitoring-structs")]
+                            BufferType::CpuIdle => {
+                                BufferType::read_cpu_idle(
+                                    &mut buffers,
+                                    tot_events,
+                                    offset,
+                                    "otlp",
+                                    metrics.clone().expect("Metric required for CpuIdle"),
                                 )
                                 .await
                             }
@@ -857,6 +925,8 @@ pub enum BufferSize {
     SchedStatWait,
     #[cfg(feature = "monitoring-structs")]
     SchedStatRuntime,
+    #[cfg(feature = "monitoring-structs")]
+    CpuIdle,
 }
 #[cfg(feature = "buffer-reader")]
 impl BufferSize {
@@ -880,6 +950,8 @@ impl BufferSize {
             BufferSize::SchedStatWait => std::mem::size_of::<SchedStatWait>(),
             #[cfg(feature = "monitoring-structs")]
             BufferSize::SchedStatRuntime => std::mem::size_of::<SchedStatRuntime>(),
+            #[cfg(feature = "monitoring-structs")]
+            BufferSize::CpuIdle => std::mem::size_of::<CpuIdle>(),
         }
     }
     pub fn set_buffer(&self) -> Vec<BytesMut> {
@@ -940,6 +1012,11 @@ impl BufferSize {
             }
             #[cfg(feature = "monitoring-structs")]
             BufferSize::SchedStatRuntime => {
+                let capacity = self.get_size() * 1024;
+                return vec![BytesMut::with_capacity(capacity); tot_cpu];
+            }
+            #[cfg(feature = "monitoring-structs")]
+            BufferSize::CpuIdle => {
                 let capacity = self.get_size() * 1024;
                 return vec![BytesMut::with_capacity(capacity); tot_cpu];
             }

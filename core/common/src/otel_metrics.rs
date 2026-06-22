@@ -12,7 +12,8 @@
 //!   telemetry by process.
 
 use crate::buffer_type::{
-    CpuFrequency, MemAlloc, NetworkMetrics, SchedStatRuntime, SchedStatWait, TimeStampMetrics,
+    CpuFrequency, CpuIdle, MemAlloc, NetworkMetrics, SchedStatRuntime, SchedStatWait,
+    TimeStampMetrics,
 };
 use opentelemetry::KeyValue;
 use opentelemetry::metrics::{Counter, Gauge, Histogram, Meter};
@@ -55,6 +56,9 @@ pub struct Metrics {
 
     /// Observed scheduler runtime in nanoseconds (sched_stat_runtime).
     pub sched_stat_runtime: Gauge<i64>,
+
+    /// Current CPU idle C-state per cpu_id, updated only on state change.
+    pub cpu_idle_state: Gauge<i64>,
 }
 
 impl Metrics {
@@ -132,6 +136,12 @@ impl Metrics {
             .with_description("Scheduler runtime in nanoseconds from sched_stat_runtime")
             .build();
 
+        // current CPU idle C-state per cpu_id
+        let cpu_idle_state = meter
+            .i64_gauge("cpu_idle_state")
+            .with_description("Current CPU idle C-state per cpu_id, updated only on state change")
+            .build();
+
         Self {
             events_total,
             packets_total,
@@ -145,6 +155,7 @@ impl Metrics {
             enter_mem_alloc,
             sched_stat_wait,
             sched_stat_runtime,
+            cpu_idle_state,
         }
     }
 
@@ -252,5 +263,15 @@ impl Metrics {
         ];
 
         self.sched_stat_runtime.record(m.runtime as i64, attrs);
+    }
+
+    /// Record a single [`CpuIdle`] event.
+    ///
+    /// Updates `cpu_idle_state` gauge to the latest C-state for the given
+    /// `cpu_id`. Events are only emitted by eBPF when the state changes.
+    pub fn record_cpu_idle(&self, m: &CpuIdle) {
+        let attrs = &[KeyValue::new("cpu_id", m.cpu_id as i64)];
+
+        self.cpu_idle_state.record(m.state as i64, attrs);
     }
 }
