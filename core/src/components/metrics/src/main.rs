@@ -47,6 +47,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let tcp_rev_bpf = bpf.clone();
     let tcp_v6_bpf = bpf.clone();
     let cpu_frequency = bpf.clone();
+    let cpu_idle_bpf = bpf.clone();
     let mem_alloc_bpf = bpf.clone();
     let sched_stat_wait_bpf = bpf.clone();
     let sched_stat_runtime_bpf = bpf.clone();
@@ -61,6 +62,7 @@ async fn main() -> Result<(), anyhow::Error> {
         "time_stamp_events".to_string(),
         "net_metrics".to_string(),
         "cpu_frequency".to_string(),
+        "cpu_idle".to_string(),
         "mem_alloc".to_string(),
         "sched_stat_wait".to_string(),
         "sched_stat_runtime".to_string(),
@@ -101,6 +103,15 @@ async fn main() -> Result<(), anyhow::Error> {
                             "trace_cpu_frequency",
                             "percpu",
                             "percpu_alloc_percpu",
+                        )
+                        .context(
+                            "An error occurred during the execution of load_program function",
+                        )?;
+                        load_tracepoint_program(
+                            cpu_idle_bpf,
+                            "trace_cpu_idle",
+                            "power",
+                            "cpu_idle",
                         )
                         .context(
                             "An error occurred during the execution of load_program function",
