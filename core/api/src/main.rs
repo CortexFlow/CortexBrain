@@ -1,5 +1,6 @@
 // module imports
 use cortexbrain_common::logger;
+use std::env;
 use tonic::transport::{Error, Server};
 
 mod agent;
@@ -19,6 +20,8 @@ use crate::api::AgentApi; //api implementations //from tonic. generated from age
 use tokio::main;
 use tracing::{error, info};
 
+const AGENT_API_ENABLE_REFLECTION_ENV: &str = "AGENT_API_ENABLE_REFLECTION";
+
 #[main]
 async fn main() -> Result<(), Error> {
     //init tracing subscriber
@@ -30,6 +33,20 @@ async fn main() -> Result<(), Error> {
     //FIXME: binding on 0.0.0.0 address is not ideal for a production environment. This will need future fixes
     let address = "0.0.0.0:9090".parse().unwrap();
     let api = AgentApi::default();
+
+    if !reflection_enabled() {
+        info!(
+            "Reflection disabled. Set {AGENT_API_ENABLE_REFLECTION_ENV}=true to enable it for debugging"
+        );
+        match Server::builder().add_service(AgentServer::new(api)).serve(address).await {
+            Ok(_) => info!("Server started with no errors"),
+            Err(e) => error!(
+                "An error occured during the Server::builder process. Error {}",
+                e
+            ),
+        }
+        return Ok(());
+    }
 
     match tonic_reflection::server::Builder::configure()
         .register_encoded_file_descriptor_set(agent_proto::AGENT_DESCRIPTOR)
@@ -56,4 +73,14 @@ async fn main() -> Result<(), Error> {
         ),
     }
     Ok(())
+}
+
+fn reflection_enabled() -> bool {
+    match env::var(AGENT_API_ENABLE_REFLECTION_ENV) {
+        Ok(value) => {
+            let normalized = value.trim().to_ascii_lowercase();
+            matches!(normalized.as_str(), "1" | "true" | "yes" | "on")
+        }
+        Err(_) => false,
+    }
 }
