@@ -51,6 +51,8 @@ spec:
               value: grpc
             - name: OTEL_RESOURCE_ATTRIBUTES
               value: service.namespace=cortexflow,service.version=0.1.5
+            - name: AGENT_API_ENABLE_REFLECTION
+              value: "true"
           volumeMounts:
             - name: bpf
               mountPath: /sys/fs/bpf
