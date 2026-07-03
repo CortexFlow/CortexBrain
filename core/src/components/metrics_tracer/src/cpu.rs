@@ -19,11 +19,7 @@ pub fn cpu_idle(ctx: TracePointContext) -> Result<(), i64> {
     //      - last_state is equal to the current state
     //      - last_state is equal to 4294967295 or -1. This codes means that the cpu is exiting from the current state and entering a new state
     let emit = match unsafe { (*map_ptr).get(&cpu_id) } {
-        Some(last_state)
-            if (*last_state == state) || (*last_state == 4294967295) || (*last_state == -1) =>
-        {
-            false
-        }
+        Some(last_state) if (*last_state == state) || (*last_state == 4294967295) => false,
         _ => true,
     };
 
