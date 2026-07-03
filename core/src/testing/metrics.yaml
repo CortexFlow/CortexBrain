@@ -19,7 +19,7 @@ spec:
       hostNetwork: true
       containers:
         - name: metrics
-          image: lorenzotettamanti/cortexflow-metrics:otel-test-5
+          image: lorenzotettamanti/cortexflow-metrics:otel-test-15
           command: ["/bin/bash", "-c"]
           args:
             - |
@@ -62,7 +62,7 @@ spec:
                 - SYS_PTRACE
         - name: bpftool-control-manager
           image: danielpacak/bpftool-runner:latest
-          command: ["/bin/bash", "-c","sleep infinity"]
+          command: ["/bin/bash", "-c", "sleep infinity"]
           volumeMounts:
             - name: bpf
               mountPath: /sys/fs/bpf
@@ -103,7 +103,6 @@ spec:
 
         - name: tracefs
           hostPath:
-              path: /sys/kernel/debug
-              type: Directory
+            path: /sys/kernel/debug
+            type: Directory
 
-          

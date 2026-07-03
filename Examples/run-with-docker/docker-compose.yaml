@@ -1,6 +1,6 @@
 services:
   cortexflow-metrics:
-    image: lorenzotettamanti/cortexflow-metrics:otel-metrics-15
+    image: lorenzotettamanti/cortexflow-metrics:otel-test-15
     container_name: cortexflow-metrics
     stop_signal: SIGINT
     restart: unless-stopped
