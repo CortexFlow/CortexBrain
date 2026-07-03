@@ -1,0 +1,109 @@
+services:
+  cortexflow-metrics:
+    image: lorenzotettamanti/cortexflow-metrics:otel-metrics-15
+    container_name: cortexflow-metrics
+    stop_signal: SIGINT
+    restart: unless-stopped
+    privileged: true
+    pid: host
+    init: true
+    command: ["/usr/local/bin/cortexflow-metrics"]
+    environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - OTEL_EXPORTER_OTLP_PROTOCOL=grpc
+    volumes:
+      - type: bind
+        source: /sys/fs/bpf
+        target: /sys/fs/bpf
+        bind:
+          propagation: shared
+      - /lib/modules:/lib/modules:ro
+      - /sys/kernel/debug:/sys/kernel/debug
+      - /proc:/host/proc:ro
+    networks:
+      - cortexflow
+
+  #cortexflow-identity:
+  #  image: lorenzotettamanti/cortexflow-identity:0.1.2
+  #  container_name: cortexflow-identity
+  #  stop_signal: SIGINT
+  #  restart: unless-stopped
+  #  privileged: true
+  #  pid: host
+  #  init: true
+  #  command: ["/usr/local/bin/cortexflow-identity-service"]
+  #  volumes:
+  #    - type: bind
+  #      source: /sys/fs/bpf
+  #      target: /sys/fs/bpf
+  #      bind:
+  #        propagation: shared
+  #    - /lib/modules:/lib/modules:ro
+  #    - /sys/kernel/debug:/sys/kernel/debug
+  #    - /proc:/host/proc:ro
+  #  networks:
+  #    - cortexflow
+
+  otel-collector:
+    image: otel/opentelemetry-collector:0.95.0
+    container_name: otel-collector
+    command:
+      - "--config=/conf/otel-collector-config.yaml"
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+      - "8889:8889"
+    environment:
+      - GOMEMLIMIT=1600MiB
+    volumes:
+      - ./otel-collector-config.yaml:/conf/otel-collector-config.yaml:ro
+    networks:
+      - cortexflow
+    depends_on:
+      #      - cortexflow-identity
+      - cortexflow-metrics
+
+  prometheus:
+    image: prom/prometheus:v2.51.2
+    container_name: prometheus
+    user: "65534:65534"
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.enable-lifecycle"
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    networks:
+      - cortexflow
+    depends_on:
+      - otel-collector
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    user: "472:472"
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_AUTH_ANONYMOUS_ENABLED=false
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    networks:
+      - cortexflow
+    depends_on:
+      - prometheus
+
+networks:
+  cortexflow:
+
+volumes:
+  prometheus-data:
+  grafana-data:
