@@ -82,7 +82,7 @@ services:
       - otel-collector
 
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:11.6.16
     container_name: grafana
     user: "472:472"
     ports:
