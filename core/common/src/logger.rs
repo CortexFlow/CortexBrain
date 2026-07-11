@@ -44,18 +44,67 @@ use opentelemetry_otlp::{LogExporter, WithExportConfig};
 use opentelemetry_sdk::Resource;
 use opentelemetry_sdk::logs::SdkLoggerProvider;
 
+const OTEL_SERVICE_NAME: &str = "OTEL_SERVICE_NAME";
+const OTEL_EXPORTER_OTLP_ENDPOINT: &str = "OTEL_EXPORTER_OTLP_ENDPOINT";
+const OTEL_EXPORTER_OTLP_PROTOCOL: &str = "OTEL_EXPORTER_OTLP_PROTOCOL";
+const DEFAULT_OTLP_GRPC_ENDPOINT: &str = "http://localhost:4317";
+const DEFAULT_OTLP_HTTP_ENDPOINT: &str = "http://localhost:4318";
+
+fn resolved_otlp_endpoint() -> String {
+    if let Ok(endpoint) = std::env::var(OTEL_EXPORTER_OTLP_ENDPOINT)
+        && !endpoint.trim().is_empty()
+    {
+        return endpoint;
+    }
+
+    let default = match std::env::var(OTEL_EXPORTER_OTLP_PROTOCOL)
+        .ok()
+        .map(|value| value.to_ascii_lowercase())
+        .as_deref()
+    {
+        Some("http/protobuf") | Some("http/json") => DEFAULT_OTLP_HTTP_ENDPOINT,
+        _ => DEFAULT_OTLP_GRPC_ENDPOINT,
+    };
+
+    default.to_string()
+}
+
+fn resolved_service_name(default_service_name: String) -> String {
+    match std::env::var(OTEL_SERVICE_NAME) {
+        Ok(service_name) if !service_name.trim().is_empty() => service_name,
+        _ => default_service_name,
+    }
+}
+
+fn resolved_otlp_protocol() -> String {
+    std::env::var(OTEL_EXPORTER_OTLP_PROTOCOL)
+        .ok()
+        .map(|value| value.to_ascii_lowercase())
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| "grpc".to_string())
+}
+
 pub fn otlp_logger_init(service_name: String) -> SdkLoggerProvider {
-    //exporter and provider initialization
-    let otlp_endpoint = std::env::var("OTEL_EXPORTER_OTLP_ENDPOINT")
-        .unwrap_or_else(|_| "http://localhost:4317".to_string());
+    // exporter and provider initialization
+    let otlp_endpoint = resolved_otlp_endpoint();
+    let otlp_protocol = resolved_otlp_protocol();
 
-    let exporter = LogExporter::builder()
-        .with_tonic()
-        .with_endpoint(otlp_endpoint)
-        .build()
-        .expect("Failed to create OTLP exporter");
+    let exporter = match otlp_protocol.as_str() {
+        "http/protobuf" | "http/json" => LogExporter::builder()
+            .with_http()
+            .with_endpoint(otlp_endpoint)
+            .build()
+            .expect("Failed to create OTLP HTTP exporter"),
+        _ => LogExporter::builder()
+            .with_tonic()
+            .with_endpoint(otlp_endpoint)
+            .build()
+            .expect("Failed to create OTLP gRPC exporter"),
+    };
 
-    //needs a service name
+    // Resource::builder() automatically reads OTEL_RESOURCE_ATTRIBUTES.
+    let service_name = resolved_service_name(service_name);
+
     let provider = SdkLoggerProvider::builder()
         .with_resource(Resource::builder().with_service_name(service_name).build())
         .with_batch_exporter(exporter)

@@ -16,37 +16,7 @@ jobs:
       
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
-      
-    - name: Install Rust toolchain
-      uses: dtolnay/rust-toolchain@master
-      with:
-        toolchain: nightly
-        components: rust-src
-        
-    - name: Install BPF dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y \
-          clang \
-          llvm \
-          libelf-dev \
-          libpcap-dev \
-          build-essential \
-          libbpf-dev \
-          linux-tools-generic \
-          linux-tools-common \
-          protobuf-compiler
-          
-    - name: Install bindgen-cli and bpf-linker
-      run: |
-        cargo install bindgen-cli
-        cargo install bpf-linker
-      
-    - name: Setup bpftool symlink
-      run: |
-        sudo ln -sf /usr/lib/linux-tools/*/bpftool /usr/local/bin/bpftool || \
-        sudo ln -sf /usr/lib/linux-tools-*/bpftool /usr/local/bin/bpftool
-          
+
     - name: Build CortexFlow Agent
       run: |
         cd core
@@ -57,18 +27,18 @@ jobs:
         
     - name: Build CortexFlow Identity
       run: |
-        cd core/src/components/identity
-        chmod +x build-identity.sh
+        cd core
+        chmod +x identity-build.sh
         echo "🚀 Starting CortexFlow Identity build..."
-        ./build-identity.sh || { echo "❌ Identity build failed"; exit 1; }
+        ./identity-build.sh || { echo "❌ Identity build failed"; exit 1; }
         echo "✅ Identity build completed"
-        
+
     - name: Build CortexFlow Metrics
       run: |
-        cd core/src/components/metrics
-        chmod +x build-metrics.sh
+        cd core
+        chmod +x metrics-build.sh
         echo "🚀 Starting CortexFlow Metrics build..."
-        ./build-metrics.sh || { echo "❌ Metrics build failed"; exit 1; }
+        ./metrics-build.sh || { echo "❌ Metrics build failed"; exit 1; }
         echo "✅ Metrics build completed"
         
     - name: Verify Docker images were built

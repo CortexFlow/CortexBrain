@@ -1,16 +1,8 @@
 #!/bin/bash
+set -euo pipefail
 
-echo "Building the conntracker files"
-pushd src/components/conntracker
-./build-conntracker.sh
-popd
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-echo "Copying connection tracker binaries"
-cp -r target/bpfel-unknown-none/release/conntracker conntracker
-
-# Run docker build
+echo "Building cortexflow-agent image from core workspace context"
+cd "$SCRIPT_DIR"
 docker build -f api/Dockerfile -t cortexflow-agent:0.0.1 --provenance=false --sbom=false .
-
-# Cleanup
-echo "Cleaning building files"
-rm -rf conntracker

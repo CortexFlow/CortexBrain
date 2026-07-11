@@ -2,7 +2,7 @@
 //! This module configures and bootstraps the OpenTelemetry SDK (OTel SDK)
 //! within the `metrics` binary. Its goal is to expose a [`Meter`] --- the
 //! primary entry-point for creating counters, gauges and histograms ---
-//! backed by an **OTLP/gRPC** metric exporter.
+//! backed by an OTLP metric exporter (gRPC or HTTP, depending on configuration).
 //!
 //! # Relationship to the rest of the crate
 //!
@@ -28,18 +28,38 @@ use std::time::Duration;
 
 /// Environment variable that holds the OTLP collector endpoint.
 ///
-/// Expected format: `"http://collector:4317"` (gRPC transport).
+/// Expected format: `"http://collector:4317"` for gRPC or `"http://collector:4318"` for HTTP.
 ///
 pub const OTEL_EXPORTER_OTLP_ENDPOINT: &str = "OTEL_EXPORTER_OTLP_ENDPOINT";
+pub const OTEL_EXPORTER_OTLP_PROTOCOL: &str = "OTEL_EXPORTER_OTLP_PROTOCOL";
 
-/// Default OTLP endpoint used when [`OTEL_EXPORTER_OTLP_ENDPOINT`] is not
+/// Default OTLP endpoints used when [`OTEL_EXPORTER_OTLP_ENDPOINT`] is not
 /// present in the environment.
 ///
-/// Points to a locally-running OpenTelemetry Collector on the standard
-/// **gRPC** port `4317`.  Note that OTLP over HTTP typically uses `4318` ---
-/// make sure your Collector is actually listening for **gRPC** traffic on the
-/// port you configure.
-pub const DEFAULT_OTLP_ENDPOINT: &str = "http://localhost:4317";
+/// `DEFAULT_OTLP_GRPC_ENDPOINT` is selected for protocol `grpc` (or unknown),
+/// while `DEFAULT_OTLP_HTTP_ENDPOINT` is selected for `http/protobuf` and
+/// `http/json`.
+pub const DEFAULT_OTLP_GRPC_ENDPOINT: &str = "http://localhost:4317";
+pub const DEFAULT_OTLP_HTTP_ENDPOINT: &str = "http://localhost:4318";
+
+fn default_otlp_endpoint_from_protocol() -> &'static str {
+    match env::var(OTEL_EXPORTER_OTLP_PROTOCOL)
+        .ok()
+        .map(|value| value.to_ascii_lowercase())
+        .as_deref()
+    {
+        Some("http/protobuf") | Some("http/json") => DEFAULT_OTLP_HTTP_ENDPOINT,
+        _ => DEFAULT_OTLP_GRPC_ENDPOINT,
+    }
+}
+
+fn resolved_otlp_protocol() -> String {
+    env::var(OTEL_EXPORTER_OTLP_PROTOCOL)
+        .ok()
+        .map(|value| value.to_ascii_lowercase())
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| "grpc".to_string())
+}
 
 /// Singleton that owns the concrete `SdkMeterProvider` instance.
 /// OnceLock guarantees single initialisation, we avoid accidentally creating two providers (and
@@ -52,13 +72,14 @@ pub const DEFAULT_OTLP_ENDPOINT: &str = "http://localhost:4317";
 /// or Tokio task once populated.
 static METER_PROVIDER: OnceLock<SdkMeterProvider> = OnceLock::new();
 /// docs:
-/// Initialise the OpenTelemetry SDK, wire up the OTLP/gRPC exporter, and
+/// Initialise the OpenTelemetry SDK, wire up the OTLP exporter, and
 /// return a [`Meter`] ready for instrumenting the `metrics` crate.
 ///
 /// 1. Read the endpoint from [`OTEL_EXPORTER_OTLP_ENDPOINT`] with the
-///    hard-coded default [`DEFAULT_OTLP_ENDPOINT`].
-/// 2. Build a `MetricExporter` using the Tonic / gRPC transport:
-///    - with_tonic()` enables the Tonic-based gRPC client.
+///    protocol-aware defaults [`DEFAULT_OTLP_GRPC_ENDPOINT`] and
+///    [`DEFAULT_OTLP_HTTP_ENDPOINT`].
+/// 2. Build a `MetricExporter` using the transport resolved by
+///    `OTEL_EXPORTER_OTLP_PROTOCOL`.
 ///    - `with_endpoint()` sets the target Collector URL.
 ///    - `with_timeout(Duration::from_secs(10))` caps each export RPC to 10
 ///      seconds; if the Collector is unreachable the RPC aborts instead of
@@ -82,14 +103,22 @@ static METER_PROVIDER: OnceLock<SdkMeterProvider> = OnceLock::new();
 /// * The provider already having been initialised
 ///
 pub fn init_opentelemetry() -> Result<Meter, anyhow::Error> {
-    let endpoint =
-        env::var(OTEL_EXPORTER_OTLP_ENDPOINT).unwrap_or_else(|_| DEFAULT_OTLP_ENDPOINT.to_string());
+    let endpoint = env::var(OTEL_EXPORTER_OTLP_ENDPOINT)
+        .unwrap_or_else(|_| default_otlp_endpoint_from_protocol().to_string());
+    let protocol = resolved_otlp_protocol();
 
-    let exporter = MetricExporter::builder()
-        .with_tonic()
-        .with_endpoint(endpoint)
-        .with_timeout(Duration::from_secs(10))
-        .build()?;
+    let exporter = match protocol.as_str() {
+        "http/protobuf" | "http/json" => MetricExporter::builder()
+            .with_http()
+            .with_endpoint(endpoint)
+            .with_timeout(Duration::from_secs(10))
+            .build()?,
+        _ => MetricExporter::builder()
+            .with_tonic()
+            .with_endpoint(endpoint)
+            .with_timeout(Duration::from_secs(10))
+            .build()?,
+    };
 
     let reader = PeriodicReader::builder(exporter)
         .with_interval(Duration::from_secs(5))
