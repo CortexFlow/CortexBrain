@@ -12,7 +12,7 @@
 //!   telemetry by process.
 
 use crate::buffer_type::{
-    CpuFrequency, CpuIdle, MemAlloc, NetworkMetrics, SchedStatRuntime, SchedStatWait,
+    CpuFrequency, CpuIdle, MemAlloc, PacketLossMetrics, SchedStatRuntime, SchedStatWait,
     TimeStampMetrics,
 };
 use opentelemetry::KeyValue;
@@ -23,7 +23,7 @@ pub struct Metrics {
 
     /// Total number of network-related events produced by the `net_metrics`
     /// eBPF map.
-    pub packets_total: Counter<u64>,
+    pub socket_events_total: Counter<u64>,
 
     /// Observed socket drop count (`sk_drops`) from the kernel sock struct.
     pub sk_drops: Gauge<i64>,
@@ -33,11 +33,11 @@ pub struct Metrics {
 
     /// Histogram of `delta_us` values supplied by the `time_stamp_events`
     /// perf buffer.
-    pub delta_us: Histogram<u64>,
+    pub tcp_latency_us: Histogram<u64>,
 
     /// Histogram of `ts_us` values seen in both `net_metrics` and
     /// `time_stamp_events`.
-    pub ts_us: Histogram<u64>,
+    //pub tcp_ts_us: Histogram<u64>,
 
     /// Cpu bytes alloc total events
     pub cpu_bytes_alloc_events_total: Counter<u64>,
@@ -61,6 +61,8 @@ pub struct Metrics {
     pub cpu_idle_state: Gauge<i64>,
 }
 
+// TODO: add identity metrics with TC classifier packet counts
+// TODO: introduce a metric called total_tcp_packets total_udp_packets
 impl Metrics {
     /// Initialise all instruments backed by the supplied [`Meter`].
     pub fn new(meter: &Meter) -> Self {
@@ -70,10 +72,10 @@ impl Metrics {
             .with_description("Total number of eBPF events processed")
             .build();
 
-        // total packets
-        let packets_total = meter
-            .u64_counter("packets_total")
-            .with_description("Total number of network events processed")
+        // total socket events
+        let socket_events_total = meter
+            .u64_counter("socket_events_total")
+            .with_description("Total number of socket state events processed")
             .build();
 
         // socket drops
@@ -88,52 +90,58 @@ impl Metrics {
             .with_description("Socket error count per event")
             .build();
 
-        // delta microseconds
-        let delta_us = meter
-            .u64_histogram("delta_us")
-            .with_description("Distribution of delta_us values from timestamp events")
+        // tcp latency microseconds
+        let tcp_latency_us = meter
+            .u64_histogram("latency_us")
+            .with_description("Distribution of latency values from timestamp events")
             .build();
 
-        // timestamp microseconds grouped
-        let ts_us = meter
-            .u64_histogram("ts_us")
-            .with_description("Distribution of timestamp values from eBPF events")
-            .build();
+        // tcp timestamp microseconds grouped
+        //let tcp_ts_us = meter
+        //    .u64_histogram("ts_us")
+        //    .with_description("Distribution of timestamp values from eBPF events")
+        //    .build();
 
         // cpu bytes alloc total events
         let cpu_bytes_alloc_events_total = meter
             .u64_counter("bytes_alloc_events_total")
             .with_description("Total bytes_alloc events occuring in the CPU")
+            .with_unit("n")
             .build();
 
         // cpu bytes allocation
         let cpu_bytes_alloc = meter
             .i64_gauge("cpu_bytes_alloc")
             .with_description("Cpu bytes allocation per event")
+            .with_unit("bytes")
             .build();
 
         // memory allocation (mmap) events total
         let mem_alloc_events_total = meter
             .u64_counter("mem_alloc_events_total")
             .with_description("Total number of memory allocation (mmap) events processed")
+            .with_unit("n")
             .build();
 
         // bytes requested via mmap syscalls
         let enter_mem_alloc = meter
             .i64_gauge("enter_mem_alloc")
             .with_description("Bytes requested via mmap syscalls")
+            .with_unit("bytes")
             .build();
 
         // scheduler wait time in nanoseconds
         let sched_stat_wait = meter
             .i64_gauge("sched_stat_wait")
             .with_description("Scheduler wait time in nanoseconds from sched_stat_wait")
+            .with_unit("ns")
             .build();
 
         // scheduler runtime in nanoseconds
         let sched_stat_runtime = meter
             .i64_gauge("sched_stat_runtime")
             .with_description("Scheduler runtime in nanoseconds from sched_stat_runtime")
+            .with_unit("ns")
             .build();
 
         // current CPU idle C-state per cpu_id
@@ -144,11 +152,11 @@ impl Metrics {
 
         Self {
             events_total,
-            packets_total,
+            socket_events_total,
             sk_drops,
             sk_err,
-            delta_us,
-            ts_us,
+            tcp_latency_us,
+            //tcp_ts_us,
             cpu_bytes_alloc,
             cpu_bytes_alloc_events_total,
             mem_alloc_events_total,
@@ -169,7 +177,7 @@ impl Metrics {
     /// -`tgid` – task group ID.
     /// - `comm` – command name (null-terminated bytes converted to a UTF-8
     ///   string and trimmed).
-    pub fn record_network_metrics(&self, m: &NetworkMetrics) {
+    pub fn record_packet_loss_metrics(&self, m: &PacketLossMetrics) {
         let comm = String::from_utf8_lossy(&m.comm);
         let comm_trimmed = comm.trim_end_matches('\0').to_string();
         let attrs = &[
@@ -178,10 +186,10 @@ impl Metrics {
         ];
 
         self.events_total.add(1, attrs);
-        self.packets_total.add(1, attrs);
+        self.socket_events_total.add(1, attrs);
         self.sk_drops.record(m.sk_drops as i64, attrs);
-        self.sk_err.record(m.sk_err as i64, attrs);
-        self.ts_us.record(m.ts_us, attrs);
+        //self.sk_err.record(m.sk_err as i64, attrs);
+        //self.tcp_ts_us.record(m.tcp_ts_us, attrs);
     }
 
     /// Record a single [`TimeStampMetrics`] event.
@@ -200,8 +208,8 @@ impl Metrics {
         ];
 
         self.events_total.add(1, attrs);
-        self.delta_us.record(m.delta_us, attrs);
-        self.ts_us.record(m.ts_us, attrs);
+        self.tcp_latency_us.record(m.delta_us, attrs);
+        //self.tcp_ts_us.record(m.ts_us, attrs);
     }
 
     pub fn record_cpu_bytes_alloc(&self, m: &CpuFrequency) {
@@ -231,6 +239,7 @@ impl Metrics {
             KeyValue::new("command", command),
         ];
 
+        self.events_total.add(1, attrs);
         self.mem_alloc_events_total.add(1, attrs);
         self.enter_mem_alloc.record(m.length as i64, attrs);
     }
@@ -247,6 +256,7 @@ impl Metrics {
             KeyValue::new("command", command),
         ];
 
+        self.events_total.add(1, attrs);
         self.sched_stat_wait.record(m.delay as i64, attrs);
     }
 
@@ -262,6 +272,7 @@ impl Metrics {
             KeyValue::new("command", command),
         ];
 
+        self.events_total.add(1, attrs);
         self.sched_stat_runtime.record(m.runtime as i64, attrs);
     }
 
@@ -272,6 +283,7 @@ impl Metrics {
     pub fn record_cpu_idle(&self, m: &CpuIdle) {
         let attrs = &[KeyValue::new("cpu_id", m.cpu_id as i64)];
 
+        self.events_total.add(1, attrs);
         self.cpu_idle_state.record(m.state as i64, attrs);
     }
 }
