@@ -103,7 +103,7 @@ pub async fn event_listener(bpf_maps: BpfMapsData, meter: Meter) -> Result<(), a
             read_perf_buffer(
                 array_buffers,
                 buffers,
-                BufferType::NetworkMetrics,
+                BufferType::PacketLossMetrics,
                 Some(metrics),
             )
             .await;

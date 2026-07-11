@@ -95,7 +95,7 @@ pub const TASK_COMM_LEN: usize = 16; // linux/sched.h
 #[cfg(feature = "monitoring-structs")]
 #[repr(C, packed)]
 #[derive(Clone, Copy, Zeroable)]
-pub struct NetworkMetrics {
+pub struct PacketLossMetrics {
     pub tgid: u32,
     pub comm: [u8; TASK_COMM_LEN],
     pub ts_us: u64,
@@ -108,7 +108,7 @@ pub struct NetworkMetrics {
     pub sk_drops: i32,               // Offset 136
 }
 #[cfg(feature = "monitoring-structs")]
-unsafe impl aya::Pod for NetworkMetrics {}
+unsafe impl aya::Pod for PacketLossMetrics {}
 
 #[cfg(feature = "monitoring-structs")]
 #[repr(C, packed)]
@@ -208,7 +208,7 @@ pub enum BufferType {
     #[cfg(feature = "network-structs")]
     VethLog,
     #[cfg(feature = "monitoring-structs")]
-    NetworkMetrics,
+    PacketLossMetrics,
     #[cfg(feature = "monitoring-structs")]
     TimeStampMetrics,
     #[cfg(feature = "monitoring-structs")]
@@ -436,7 +436,7 @@ impl BufferType {
     ///
     /// Counterpart to [`read_network_buffer`] for the `time_stamp_events` map.
 
-    pub async fn read_network_metrics(
+    pub async fn read_packet_loss_metrics(
         buffers: &mut [BytesMut],
         tot_events: i32,
         offset: i32,
@@ -445,7 +445,7 @@ impl BufferType {
     ) {
         for i in offset..tot_events {
             let vec_bytes = &buffers[i as usize];
-            if vec_bytes.len() < std::mem::size_of::<NetworkMetrics>() {
+            if vec_bytes.len() < std::mem::size_of::<PacketLossMetrics>() {
                 error!(
                     "Corrupted Network Metrics data. Raw data: {}. Readed {} bytes expected {} bytes",
                     vec_bytes
@@ -454,28 +454,28 @@ impl BufferType {
                         .collect::<Vec<_>>()
                         .join(" "),
                     vec_bytes.len(),
-                    std::mem::size_of::<NetworkMetrics>()
+                    std::mem::size_of::<PacketLossMetrics>()
                 );
                 continue;
             }
-            if vec_bytes.len() >= std::mem::size_of::<NetworkMetrics>() {
-                let net_metrics: NetworkMetrics =
+            if vec_bytes.len() >= std::mem::size_of::<PacketLossMetrics>() {
+                let packet_loss: PacketLossMetrics =
                     unsafe { std::ptr::read_unaligned(vec_bytes.as_ptr() as *const _) };
 
                 match exporter {
-                    "otlp" => metrics.record_network_metrics(&net_metrics),
+                    "otlp" => metrics.record_packet_loss_metrics(&packet_loss),
                     _ => continue, // skip
                 }
-                let tgid = net_metrics.tgid;
-                let comm = String::from_utf8_lossy(&net_metrics.comm);
-                let ts_us = net_metrics.ts_us;
-                let sk_drop_count = net_metrics.sk_drops;
-                let sk_err = net_metrics.sk_err;
-                let sk_err_soft = net_metrics.sk_err_soft;
-                let sk_backlog_len = net_metrics.sk_backlog_len;
-                let sk_write_memory_queued = net_metrics.sk_write_memory_queued;
-                let sk_ack_backlog = net_metrics.sk_ack_backlog;
-                let sk_receive_buffer_size = net_metrics.sk_receive_buffer_size;
+                let tgid = packet_loss.tgid;
+                let comm = String::from_utf8_lossy(&packet_loss.comm);
+                let ts_us = packet_loss.ts_us;
+                let sk_drop_count = packet_loss.sk_drops;
+                let sk_err = packet_loss.sk_err;
+                let sk_err_soft = packet_loss.sk_err_soft;
+                let sk_backlog_len = packet_loss.sk_backlog_len;
+                let sk_write_memory_queued = packet_loss.sk_write_memory_queued;
+                let sk_ack_backlog = packet_loss.sk_ack_backlog;
+                let sk_receive_buffer_size = packet_loss.sk_receive_buffer_size;
 
                 info!(
                     "tgid: {}, comm: {}, ts_us: {}, sk_drops: {}, sk_err: {}, sk_err_soft: {}, sk_backlog_len: {}, sk_write_memory_queued: {}, sk_ack_backlog: {}, sk_receive_buffer_size: {}",
@@ -811,15 +811,15 @@ pub async fn read_perf_buffer<T: std::borrow::BorrowMut<aya::maps::MapData>>(
                                 .await
                             }
                             #[cfg(feature = "monitoring-structs")]
-                            BufferType::NetworkMetrics => {
-                                BufferType::read_network_metrics(
+                            BufferType::PacketLossMetrics => {
+                                BufferType::read_packet_loss_metrics(
                                     &mut buffers,
                                     tot_events,
                                     offset,
                                     "otlp",
                                     metrics
                                         .clone()
-                                        .expect("Metrics required for NetworkMetrics"),
+                                        .expect("Metrics required for PacketLossMetrics"),
                                 )
                                 .await
                             }
@@ -939,7 +939,7 @@ impl BufferSize {
             #[cfg(feature = "network-structs")]
             BufferSize::TcpEvents => std::mem::size_of::<TcpPacketRegistry>(),
             #[cfg(feature = "monitoring-structs")]
-            BufferSize::NetworkMetricsEvents => std::mem::size_of::<NetworkMetrics>(),
+            BufferSize::NetworkMetricsEvents => std::mem::size_of::<PacketLossMetrics>(),
             #[cfg(feature = "monitoring-structs")]
             BufferSize::TimeMetricsEvents => std::mem::size_of::<TimeStampMetrics>(),
             #[cfg(feature = "monitoring-structs")]
