@@ -79,10 +79,14 @@ async fn main() -> Result<(), anyhow::Error> {
                     info!("BPF maps pinned successfully to {}", bpf_map_save_path);
 
                     {
-                        load_program(bpf.clone(), "metrics_tracer", "tcp_identify_packet_loss")
-                            .context(
-                                "An error occurred during the execution of load_program function",
-                            )?;
+                        load_program(
+                            bpf.clone(),
+                            "packet_loss_tracer",
+                            "tcp_identify_packet_loss",
+                        )
+                        .context(
+                            "An error occurred during the execution of load_program function",
+                        )?;
 
                         load_program(tcp_bpf, "tcp_v4_connect", "tcp_v4_connect")
                             .context("An error occurred during the execution of load_and_attach_tcp_programs function")?;
@@ -90,12 +94,8 @@ async fn main() -> Result<(), anyhow::Error> {
                         load_program(tcp_v6_bpf, "tcp_v6_connect", "tcp_v6_connect")
                             .context("An error occurred during the execution of load_and_attach_tcp_programs function")?;
 
-                        load_program(
-                            tcp_rev_bpf,
-                            "tcp_rcv_state_process",
-                            "tcp_rcv_state_process",
-                        )
-                        .context(
+                        load_program(tcp_rev_bpf, "tcp_latency_monitor", "tcp_rcv_state_process")
+                            .context(
                             "An error occurred during the execution of load_program function",
                         )?;
                         load_tracepoint_program(
