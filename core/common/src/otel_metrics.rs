@@ -149,49 +149,6 @@ impl Metrics {
             .i64_gauge("cpu_idle_state")
             .with_description("Current CPU idle C-state per cpu_id, updated only on state change")
             .build();
-
-        // cpu bytes alloc total events
-        let cpu_bytes_alloc_events_total = meter
-            .u64_counter("bytes_alloc_events_total")
-            .with_description("Total bytes_alloc events occuring in the CPU")
-            .build();
-
-        // cpu bytes allocation
-        let cpu_bytes_alloc = meter
-            .i64_gauge("cpu_bytes_alloc")
-            .with_description("Cpu bytes allocation per event")
-            .build();
-
-        // memory allocation (mmap) events total
-        let mem_alloc_events_total = meter
-            .u64_counter("mem_alloc_events_total")
-            .with_description("Total number of memory allocation (mmap) events processed")
-            .build();
-
-        // bytes requested via mmap syscalls
-        let enter_mem_alloc = meter
-            .i64_gauge("enter_mem_alloc")
-            .with_description("Bytes requested via mmap syscalls")
-            .build();
-
-        // scheduler wait time in nanoseconds
-        let sched_stat_wait = meter
-            .i64_gauge("sched_stat_wait")
-            .with_description("Scheduler wait time in nanoseconds from sched_stat_wait")
-            .build();
-
-        // scheduler runtime in nanoseconds
-        let sched_stat_runtime = meter
-            .i64_gauge("sched_stat_runtime")
-            .with_description("Scheduler runtime in nanoseconds from sched_stat_runtime")
-            .build();
-
-        // current CPU idle C-state per cpu_id
-        let cpu_idle_state = meter
-            .i64_gauge("cpu_idle_state")
-            .with_description("Current CPU idle C-state per cpu_id, updated only on state change")
-            .build();
-
         Self {
             events_total,
             socket_events_total,
@@ -326,77 +283,6 @@ impl Metrics {
         let attrs = &[KeyValue::new("cpu_id", m.cpu_id as i64)];
 
         self.events_total.add(1, attrs);
-        self.cpu_idle_state.record(m.state as i64, attrs);
-    }
-
-    pub fn record_cpu_bytes_alloc(&self, m: &CpuFrequency) {
-        let bytes_allocated = m.bytes_alloc;
-        let tgid = m.pid; // percpu tracepoints expose TGID in common_pid
-        let comm = String::from_utf8_lossy(&m.command);
-        let command = comm.trim_end_matches('\0').to_string();
-        let attrs = &[
-            KeyValue::new("tgid", tgid as i64),
-            KeyValue::new("command", command),
-        ];
-        self.cpu_bytes_alloc_events_total.add(1, attrs);
-        self.cpu_bytes_alloc.record(bytes_allocated as i64, attrs);
-    }
-
-    /// Record a single [`MemAlloc`] event (mmap syscall).
-    ///
-    /// Increments the dedicated `mem_alloc_events_total` counter and records
-    /// the requested length in the `enter_mem_alloc` gauge.  The shared
-    /// `events_total` counter is intentionally **not** incremented for these
-    /// events.
-    pub fn record_enter_mem_alloc(&self, m: &MemAlloc) {
-        let comm = String::from_utf8_lossy(&m.command);
-        let command = comm.trim_end_matches('\0').to_string();
-        let attrs = &[
-            KeyValue::new("tgid", m.tgid as i64),
-            KeyValue::new("command", command),
-        ];
-
-        self.mem_alloc_events_total.add(1, attrs);
-        self.enter_mem_alloc.record(m.length as i64, attrs);
-    }
-
-    /// Record a single [`SchedStatWait`] event.
-    ///
-    /// Records `delay` in the `sched_stat_wait` gauge.  No shared or dedicated
-    /// counter is incremented, as requested.
-    pub fn record_sched_stat_wait(&self, m: &SchedStatWait) {
-        let comm = String::from_utf8_lossy(&m.command);
-        let command = comm.trim_end_matches('\0').to_string();
-        let attrs = &[
-            KeyValue::new("tgid", m.tgid as i64),
-            KeyValue::new("command", command),
-        ];
-
-        self.sched_stat_wait.record(m.delay as i64, attrs);
-    }
-
-    /// Record a single [`SchedStatRuntime`] event.
-    ///
-    /// Records `runtime` in the `sched_stat_runtime` gauge.  No shared or
-    /// dedicated counter is incremented, as requested.
-    pub fn record_sched_stat_runtime(&self, m: &SchedStatRuntime) {
-        let comm = String::from_utf8_lossy(&m.command);
-        let command = comm.trim_end_matches('\0').to_string();
-        let attrs = &[
-            KeyValue::new("tgid", m.tgid as i64),
-            KeyValue::new("command", command),
-        ];
-
-        self.sched_stat_runtime.record(m.runtime as i64, attrs);
-    }
-
-    /// Record a single [`CpuIdle`] event.
-    ///
-    /// Updates `cpu_idle_state` gauge to the latest C-state for the given
-    /// `cpu_id`. Events are only emitted by eBPF when the state changes.
-    pub fn record_cpu_idle(&self, m: &CpuIdle) {
-        let attrs = &[KeyValue::new("cpu_id", m.cpu_id as i64)];
-
         self.cpu_idle_state.record(m.state as i64, attrs);
     }
 }

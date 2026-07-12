@@ -143,51 +143,6 @@ async fn main() -> Result<(), anyhow::Error> {
                         .context(
                             "An error occurred during the execution of load_program function",
                         )?;
-                        load_tracepoint_program(
-                            cpu_frequency,
-                            "trace_cpu_frequency",
-                            "percpu",
-                            "percpu_alloc_percpu",
-                        )
-                        .context(
-                            "An error occurred during the execution of load_program function",
-                        )?;
-                        load_tracepoint_program(
-                            cpu_idle_bpf,
-                            "trace_cpu_idle",
-                            "power",
-                            "cpu_idle",
-                        )
-                        .context(
-                            "An error occurred during the execution of load_program function",
-                        )?;
-                        load_tracepoint_program(
-                            mem_alloc_bpf,
-                            "trace_enter_mmap",
-                            "syscalls",
-                            "sys_enter_mmap",
-                        )
-                        .context(
-                            "An error occurred during the execution of load_program function",
-                        )?;
-                        load_tracepoint_program(
-                            sched_stat_wait_bpf,
-                            "trace_sched_stat_wait",
-                            "sched",
-                            "sched_stat_wait",
-                        )
-                        .context(
-                            "An error occurred during the execution of load_program function",
-                        )?;
-                        load_tracepoint_program(
-                            sched_stat_runtime_bpf,
-                            "trace_sched_stat_runtime",
-                            "sched",
-                            "sched_stat_runtime",
-                        )
-                        .context(
-                            "An error occurred during the execution of load_program function",
-                        )?;
                     }
 
                     // Hand off to the async event consumer
