@@ -15,6 +15,7 @@ use crate::buffer_type::{
     CpuFrequency, CpuIdle, MemAlloc, PacketLossMetrics, SchedStatRuntime, SchedStatWait,
     TimeStampMetrics,
 };
+use crate::semantic::Semantic;
 use opentelemetry::KeyValue;
 use opentelemetry::metrics::{Counter, Gauge, Histogram, Meter};
 pub struct Metrics {
@@ -34,10 +35,6 @@ pub struct Metrics {
     /// Histogram of `delta_us` values supplied by the `time_stamp_events`
     /// perf buffer.
     pub tcp_latency_us: Histogram<u64>,
-
-    /// Histogram of `ts_us` values seen in both `net_metrics` and
-    /// `time_stamp_events`.
-    //pub tcp_ts_us: Histogram<u64>,
 
     /// Cpu bytes alloc total events
     pub cpu_bytes_alloc_events_total: Counter<u64>,
@@ -68,32 +65,32 @@ impl Metrics {
     pub fn new(meter: &Meter) -> Self {
         // total events
         let events_total = meter
-            .u64_counter("events_total")
-            .with_description("Total number of eBPF events processed")
+            .u64_counter(Semantic::TOTAL_EVENTS.title())
+            .with_description(Semantic::TOTAL_EVENTS.description())
             .build();
 
         // total socket events
         let socket_events_total = meter
-            .u64_counter("socket_events_total")
-            .with_description("Total number of socket state events processed")
+            .u64_counter(Semantic::SOCKET_TOTAL_EVENTS.title())
+            .with_description(Semantic::SOCKET_TOTAL_EVENTS.description())
             .build();
 
         // socket drops
         let sk_drops = meter
-            .i64_gauge("sk_drops")
-            .with_description("Socket drop count per event")
+            .i64_gauge(Semantic::SOCKET_DROPS.title())
+            .with_description(Semantic::SOCKET_DROPS.description())
             .build();
 
         // socket errors
         let sk_err = meter
-            .i64_gauge("sk_err")
-            .with_description("Socket error count per event")
+            .i64_gauge(Semantic::SOCKET_ERRORS_COUNT.title())
+            .with_description(Semantic::SOCKET_ERRORS_COUNT.description())
             .build();
 
         // tcp latency microseconds
         let tcp_latency_us = meter
-            .u64_histogram("latency_us")
-            .with_description("Distribution of latency values from timestamp events")
+            .u64_histogram(Semantic::LATENCY.title())
+            .with_description(Semantic::LATENCY.description())
             .build();
 
         // tcp timestamp microseconds grouped
@@ -104,50 +101,50 @@ impl Metrics {
 
         // cpu bytes alloc total events
         let cpu_bytes_alloc_events_total = meter
-            .u64_counter("bytes_alloc_events_total")
-            .with_description("Total bytes_alloc events occuring in the CPU")
+            .u64_counter(Semantic::PERCPU_TOTAL_EVENTS.title())
+            .with_description(Semantic::PERCPU_TOTAL_EVENTS.description())
             .with_unit("n")
             .build();
 
         // cpu bytes allocation
         let cpu_bytes_alloc = meter
-            .i64_gauge("cpu_bytes_alloc")
-            .with_description("Cpu bytes allocation per event")
+            .i64_gauge(Semantic::PERCPU_BYTES_ALLOCATED.title())
+            .with_description(Semantic::PERCPU_BYTES_ALLOCATED.description())
             .with_unit("bytes")
             .build();
 
         // memory allocation (mmap) events total
         let mem_alloc_events_total = meter
-            .u64_counter("mem_alloc_events_total")
-            .with_description("Total number of memory allocation (mmap) events processed")
+            .u64_counter(Semantic::TOTAL_MEMORY_ALLOCATION_EVENTS.title())
+            .with_description(Semantic::TOTAL_MEMORY_ALLOCATION_EVENTS.description())
             .with_unit("n")
             .build();
 
         // bytes requested via mmap syscalls
         let enter_mem_alloc = meter
-            .i64_gauge("enter_mem_alloc")
-            .with_description("Bytes requested via mmap syscalls")
+            .i64_gauge(Semantic::REQUESTED_MEMORY_BYTES.title())
+            .with_description(Semantic::REQUESTED_MEMORY_BYTES.description())
             .with_unit("bytes")
             .build();
 
         // scheduler wait time in nanoseconds
         let sched_stat_wait = meter
-            .i64_gauge("sched_stat_wait")
-            .with_description("Scheduler wait time in nanoseconds from sched_stat_wait")
+            .i64_gauge(Semantic::SCHEDULER_WAIT_TIME.title())
+            .with_description(Semantic::SCHEDULER_WAIT_TIME.description())
             .with_unit("ns")
             .build();
 
         // scheduler runtime in nanoseconds
         let sched_stat_runtime = meter
-            .i64_gauge("sched_stat_runtime")
-            .with_description("Scheduler runtime in nanoseconds from sched_stat_runtime")
+            .i64_gauge(Semantic::SCHEDULER_RUNTIME.title())
+            .with_description(Semantic::SCHEDULER_RUNTIME.description())
             .with_unit("ns")
             .build();
 
         // current CPU idle C-state per cpu_id
         let cpu_idle_state = meter
-            .i64_gauge("cpu_idle_state")
-            .with_description("Current CPU idle C-state per cpu_id, updated only on state change")
+            .i64_gauge(Semantic::CPU_IDLE_STATE.title())
+            .with_description(Semantic::CPU_IDLE_STATE.description())
             .build();
         Self {
             events_total,

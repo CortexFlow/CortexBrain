@@ -13,3 +13,4 @@ pub mod map_handlers;
 pub mod otel_metrics;
 #[cfg(feature = "program-handlers")]
 pub mod program_handlers;
+mod semantic;
