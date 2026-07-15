@@ -1,59 +1,59 @@
 /// semantic conventions
 
 pub enum Semantic {
-    TOTAL_EVENTS,
-    SOCKET_TOTAL_EVENTS,
-    SOCKET_DROPS,
-    SOCKET_ERRORS_COUNT,
-    LATENCY,
-    PERCPU_TOTAL_EVENTS,
-    PERCPU_BYTES_ALLOCATED,
-    SCHEDULER_RUNTIME,
-    SCHEDULER_WAIT_TIME,
-    TOTAL_MEMORY_ALLOCATION_EVENTS,
-    REQUESTED_MEMORY_BYTES,
-    CPU_IDLE_STATE,
+    TotalEvents,
+    SocketTotalEvents,
+    SocketDrops,
+    SocketErrorsCount,
+    Latency,
+    PerCpuTotalEvents,
+    PerCpuBytesAllocated,
+    SchedulerRuntime,
+    SchedulerWaitTime,
+    TotalMemoryAllocationEvents,
+    RequestedMemoryBytes,
+    CpuIdleState,
 }
 
 impl Semantic {
     pub fn title(&self) -> &'static str {
         match self {
-            Semantic::TOTAL_EVENTS => "events_total",
-            Semantic::SOCKET_TOTAL_EVENTS => "socket_events_total",
-            Semantic::SOCKET_DROPS => "sk_drops",
-            Semantic::SOCKET_ERRORS_COUNT => "sk_err",
-            Semantic::LATENCY => "latency_us",
-            Semantic::PERCPU_TOTAL_EVENTS => "bytes_alloc_events_total",
-            Semantic::PERCPU_BYTES_ALLOCATED => "cpu_bytes_alloc",
-            Semantic::SCHEDULER_RUNTIME => "sched_stat_runtime",
-            Semantic::SCHEDULER_WAIT_TIME => "sched_stat_wait",
-            Semantic::TOTAL_MEMORY_ALLOCATION_EVENTS => "mem_alloc_events_total",
-            Semantic::REQUESTED_MEMORY_BYTES => "enter_mem_alloc",
-            Semantic::CPU_IDLE_STATE => "cpu_idle_state",
+            Semantic::TotalEvents => "events_total",
+            Semantic::SocketTotalEvents => "socket_events_total",
+            Semantic::SocketDrops => "sk_drops",
+            Semantic::SocketErrorsCount => "sk_err",
+            Semantic::Latency => "latency_us",
+            Semantic::PerCpuTotalEvents => "bytes_alloc_events_total",
+            Semantic::PerCpuBytesAllocated => "cpu_bytes_alloc",
+            Semantic::SchedulerRuntime => "sched_stat_runtime",
+            Semantic::SchedulerWaitTime => "sched_stat_wait",
+            Semantic::TotalMemoryAllocationEvents => "mem_alloc_events_total",
+            Semantic::RequestedMemoryBytes => "enter_mem_alloc",
+            Semantic::CpuIdleState => "cpu_idle_state",
         }
     }
     pub fn description(&self) -> &'static str {
         match self {
-            Semantic::TOTAL_EVENTS => {
+            Semantic::TotalEvents => {
                 "Total number of eBPF events processed across all perf buffers"
             }
-            Semantic::SOCKET_TOTAL_EVENTS => "Total number of socket state events processed",
-            Semantic::SOCKET_DROPS => "Socket drop count per event",
-            Semantic::SOCKET_ERRORS_COUNT => "Socket error count per event",
-            Semantic::LATENCY => "Distribution of latency values from timestamp events",
-            Semantic::PERCPU_TOTAL_EVENTS => "Total bytes_alloc events occuring in the CPU",
-            Semantic::PERCPU_BYTES_ALLOCATED => "Cpu bytes allocation per event",
-            Semantic::SCHEDULER_RUNTIME => {
+            Semantic::SocketTotalEvents => "Total number of socket state events processed",
+            Semantic::SocketDrops => "Socket drop count per event",
+            Semantic::SocketErrorsCount => "Socket error count per event",
+            Semantic::Latency => "Distribution of latency values from timestamp events",
+            Semantic::PerCpuTotalEvents => "Total bytes_alloc events occurring in the CPU",
+            Semantic::PerCpuBytesAllocated => "CPU bytes allocation per event",
+            Semantic::SchedulerRuntime => {
                 "Scheduler runtime in nanoseconds from sched_stat_runtime"
             }
-            Semantic::SCHEDULER_WAIT_TIME => {
+            Semantic::SchedulerWaitTime => {
                 "Scheduler wait time in nanoseconds from sched_stat_wait"
             }
-            Semantic::TOTAL_MEMORY_ALLOCATION_EVENTS => {
+            Semantic::TotalMemoryAllocationEvents => {
                 "Total number of memory allocation (mmap) events processed"
             }
-            Semantic::REQUESTED_MEMORY_BYTES => "Bytes requested via mmap syscalls",
-            Semantic::CPU_IDLE_STATE => {
+            Semantic::RequestedMemoryBytes => "Bytes requested via mmap syscalls",
+            Semantic::CpuIdleState => {
                 "Current CPU idle C-state per cpu_id, updated only on state change"
             }
         }

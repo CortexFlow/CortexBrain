@@ -65,86 +65,85 @@ impl Metrics {
     pub fn new(meter: &Meter) -> Self {
         // total events
         let events_total = meter
-            .u64_counter(Semantic::TOTAL_EVENTS.title())
-            .with_description(Semantic::TOTAL_EVENTS.description())
+            .u64_counter(Semantic::TotalEvents.title())
+            .with_description(Semantic::TotalEvents.description())
+            .with_unit("1")
             .build();
 
         // total socket events
         let socket_events_total = meter
-            .u64_counter(Semantic::SOCKET_TOTAL_EVENTS.title())
-            .with_description(Semantic::SOCKET_TOTAL_EVENTS.description())
+            .u64_counter(Semantic::SocketTotalEvents.title())
+            .with_description(Semantic::SocketTotalEvents.description())
+            .with_unit("1")
             .build();
 
         // socket drops
         let sk_drops = meter
-            .i64_gauge(Semantic::SOCKET_DROPS.title())
-            .with_description(Semantic::SOCKET_DROPS.description())
+            .i64_gauge(Semantic::SocketDrops.title())
+            .with_description(Semantic::SocketDrops.description())
+            .with_unit("1")
             .build();
 
         // socket errors
         let sk_err = meter
-            .i64_gauge(Semantic::SOCKET_ERRORS_COUNT.title())
-            .with_description(Semantic::SOCKET_ERRORS_COUNT.description())
+            .i64_gauge(Semantic::SocketErrorsCount.title())
+            .with_description(Semantic::SocketErrorsCount.description())
+            .with_unit("1")
             .build();
 
         // tcp latency microseconds
         let tcp_latency_us = meter
-            .u64_histogram(Semantic::LATENCY.title())
-            .with_description(Semantic::LATENCY.description())
+            .u64_histogram(Semantic::Latency.title())
+            .with_description(Semantic::Latency.description())
+            .with_unit("us")
             .build();
-
-        // tcp timestamp microseconds grouped
-        //let tcp_ts_us = meter
-        //    .u64_histogram("ts_us")
-        //    .with_description("Distribution of timestamp values from eBPF events")
-        //    .build();
 
         // cpu bytes alloc total events
         let cpu_bytes_alloc_events_total = meter
-            .u64_counter(Semantic::PERCPU_TOTAL_EVENTS.title())
-            .with_description(Semantic::PERCPU_TOTAL_EVENTS.description())
-            .with_unit("n")
+            .u64_counter(Semantic::PerCpuTotalEvents.title())
+            .with_description(Semantic::PerCpuTotalEvents.description())
+            .with_unit("1")
             .build();
 
         // cpu bytes allocation
         let cpu_bytes_alloc = meter
-            .i64_gauge(Semantic::PERCPU_BYTES_ALLOCATED.title())
-            .with_description(Semantic::PERCPU_BYTES_ALLOCATED.description())
+            .i64_gauge(Semantic::PerCpuBytesAllocated.title())
+            .with_description(Semantic::PerCpuBytesAllocated.description())
             .with_unit("bytes")
             .build();
 
         // memory allocation (mmap) events total
         let mem_alloc_events_total = meter
-            .u64_counter(Semantic::TOTAL_MEMORY_ALLOCATION_EVENTS.title())
-            .with_description(Semantic::TOTAL_MEMORY_ALLOCATION_EVENTS.description())
-            .with_unit("n")
+            .u64_counter(Semantic::TotalMemoryAllocationEvents.title())
+            .with_description(Semantic::TotalMemoryAllocationEvents.description())
+            .with_unit("1")
             .build();
 
         // bytes requested via mmap syscalls
         let enter_mem_alloc = meter
-            .i64_gauge(Semantic::REQUESTED_MEMORY_BYTES.title())
-            .with_description(Semantic::REQUESTED_MEMORY_BYTES.description())
+            .i64_gauge(Semantic::RequestedMemoryBytes.title())
+            .with_description(Semantic::RequestedMemoryBytes.description())
             .with_unit("bytes")
             .build();
 
         // scheduler wait time in nanoseconds
         let sched_stat_wait = meter
-            .i64_gauge(Semantic::SCHEDULER_WAIT_TIME.title())
-            .with_description(Semantic::SCHEDULER_WAIT_TIME.description())
+            .i64_gauge(Semantic::SchedulerWaitTime.title())
+            .with_description(Semantic::SchedulerWaitTime.description())
             .with_unit("ns")
             .build();
 
         // scheduler runtime in nanoseconds
         let sched_stat_runtime = meter
-            .i64_gauge(Semantic::SCHEDULER_RUNTIME.title())
-            .with_description(Semantic::SCHEDULER_RUNTIME.description())
+            .i64_gauge(Semantic::SchedulerRuntime.title())
+            .with_description(Semantic::SchedulerRuntime.description())
             .with_unit("ns")
             .build();
 
         // current CPU idle C-state per cpu_id
         let cpu_idle_state = meter
-            .i64_gauge(Semantic::CPU_IDLE_STATE.title())
-            .with_description(Semantic::CPU_IDLE_STATE.description())
+            .i64_gauge(Semantic::CpuIdleState.title())
+            .with_description(Semantic::CpuIdleState.description())
             .build();
         Self {
             events_total,
@@ -152,7 +151,6 @@ impl Metrics {
             sk_drops,
             sk_err,
             tcp_latency_us,
-            //tcp_ts_us,
             cpu_bytes_alloc,
             cpu_bytes_alloc_events_total,
             mem_alloc_events_total,
@@ -163,14 +161,14 @@ impl Metrics {
         }
     }
 
-    /// Record a single [`NetworkMetrics`] event.
+    /// Record a single [`PacketLossMetrics`] event.
     ///
-    /// Increments `events_total` and `packets_total`, records `sk_drops` and
-    /// `sk_err` as gauges, and observes `ts_us` in the timestamp histogram.
+    /// Increments `events_total` and `socket_events_total`, records `sk_drops`
+    /// and `sk_err` as gauges.
     ///
     /// Every observation carries:
     ///
-    /// -`tgid` – task group ID.
+    /// - `tgid` – task group ID.
     /// - `comm` – command name (null-terminated bytes converted to a UTF-8
     ///   string and trimmed).
     pub fn record_packet_loss_metrics(&self, m: &PacketLossMetrics) {
@@ -184,17 +182,16 @@ impl Metrics {
         self.events_total.add(1, attrs);
         self.socket_events_total.add(1, attrs);
         self.sk_drops.record(m.sk_drops as i64, attrs);
-        //self.sk_err.record(m.sk_err as i64, attrs);
-        //self.tcp_ts_us.record(m.tcp_ts_us, attrs);
+        self.sk_err.record(m.sk_err as i64, attrs);
     }
 
     /// Record a single [`TimeStampMetrics`] event.
     ///
-    /// Increments `events_total`, and records `delta_us` and `ts_us` in their
-    /// respective histograms.
+    /// Increments `events_total`, and records `delta_us` in the latency
+    /// histogram.
     ///
     /// Every observation carries `tgid` and `comm` (see
-    /// [`record_network_metrics`]).
+    /// [`record_packet_loss_metrics`]).
     pub fn record_timestamp_metrics(&self, m: &TimeStampMetrics) {
         let comm = String::from_utf8_lossy(&m.comm);
         let comm_trimmed = comm.trim_end_matches('\0').to_string();
@@ -205,7 +202,6 @@ impl Metrics {
 
         self.events_total.add(1, attrs);
         self.tcp_latency_us.record(m.delta_us, attrs);
-        //self.tcp_ts_us.record(m.ts_us, attrs);
     }
 
     pub fn record_cpu_bytes_alloc(&self, m: &CpuFrequency) {
