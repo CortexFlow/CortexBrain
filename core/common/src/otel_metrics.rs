@@ -51,8 +51,14 @@ pub struct Metrics {
     /// Observed scheduler wait time in nanoseconds (sched_stat_wait).
     pub sched_stat_wait: Gauge<i64>,
 
+    /// Distribution of scheduler wait times in nanoseconds (sched_stat_wait).
+    pub sched_stat_wait_distribution: Histogram<u64>,
+
     /// Observed scheduler runtime in nanoseconds (sched_stat_runtime).
     pub sched_stat_runtime: Gauge<i64>,
+
+    /// Distribution of scheduler runtimes in nanoseconds (sched_stat_runtime).
+    pub sched_stat_runtime_distribution: Histogram<u64>,
 
     /// Current CPU idle C-state per cpu_id, updated only on state change.
     pub cpu_idle_state: Gauge<i64>,
@@ -133,10 +139,24 @@ impl Metrics {
             .with_unit("ns")
             .build();
 
+        // distribution of scheduler wait times
+        let sched_stat_wait_distribution = meter
+            .u64_histogram(Semantic::SchedulerWaitTimeDistribution.title())
+            .with_description(Semantic::SchedulerWaitTimeDistribution.description())
+            .with_unit("ns")
+            .build();
+
         // scheduler runtime in nanoseconds
         let sched_stat_runtime = meter
             .i64_gauge(Semantic::SchedulerRuntime.title())
             .with_description(Semantic::SchedulerRuntime.description())
+            .with_unit("ns")
+            .build();
+
+        // distribution of scheduler runtimes
+        let sched_stat_runtime_distribution = meter
+            .u64_histogram(Semantic::SchedulerRuntimeDistribution.title())
+            .with_description(Semantic::SchedulerRuntimeDistribution.description())
             .with_unit("ns")
             .build();
 
@@ -156,7 +176,9 @@ impl Metrics {
             mem_alloc_events_total,
             enter_mem_alloc,
             sched_stat_wait,
+            sched_stat_wait_distribution,
             sched_stat_runtime,
+            sched_stat_runtime_distribution,
             cpu_idle_state,
         }
     }
@@ -169,14 +191,14 @@ impl Metrics {
     /// Every observation carries:
     ///
     /// - `tgid` – task group ID.
-    /// - `comm` – command name (null-terminated bytes converted to a UTF-8
+    /// - `command` – command name (null-terminated bytes converted to a UTF-8
     ///   string and trimmed).
     pub fn record_packet_loss_metrics(&self, m: &PacketLossMetrics) {
         let comm = String::from_utf8_lossy(&m.comm);
         let comm_trimmed = comm.trim_end_matches('\0').to_string();
         let attrs = &[
             KeyValue::new("tgid", m.tgid as i64),
-            KeyValue::new("comm", comm_trimmed),
+            KeyValue::new("command", comm_trimmed),
         ];
 
         self.events_total.add(1, attrs);
@@ -190,14 +212,14 @@ impl Metrics {
     /// Increments `events_total`, and records `delta_us` in the latency
     /// histogram.
     ///
-    /// Every observation carries `tgid` and `comm` (see
+    /// Every observation carries `tgid` and `command` (see
     /// [`record_packet_loss_metrics`]).
     pub fn record_timestamp_metrics(&self, m: &TimeStampMetrics) {
         let comm = String::from_utf8_lossy(&m.comm);
         let comm_trimmed = comm.trim_end_matches('\0').to_string();
         let attrs = &[
             KeyValue::new("tgid", m.tgid as i64),
-            KeyValue::new("comm", comm_trimmed),
+            KeyValue::new("command", comm_trimmed),
         ];
 
         self.events_total.add(1, attrs);
@@ -238,8 +260,9 @@ impl Metrics {
 
     /// Record a single [`SchedStatWait`] event.
     ///
-    /// Records `delay` in the `sched_stat_wait` gauge.  No shared or dedicated
-    /// counter is incremented, as requested.
+    /// Increments `events_total`, records `delay` in the `sched_stat_wait`
+    /// gauge, and observes `delay` in the `sched_stat_wait_distribution`
+    /// histogram.
     pub fn record_sched_stat_wait(&self, m: &SchedStatWait) {
         let comm = String::from_utf8_lossy(&m.command);
         let command = comm.trim_end_matches('\0').to_string();
@@ -250,12 +273,14 @@ impl Metrics {
 
         self.events_total.add(1, attrs);
         self.sched_stat_wait.record(m.delay as i64, attrs);
+        self.sched_stat_wait_distribution.record(m.delay, attrs);
     }
 
     /// Record a single [`SchedStatRuntime`] event.
     ///
-    /// Records `runtime` in the `sched_stat_runtime` gauge.  No shared or
-    /// dedicated counter is incremented, as requested.
+    /// Increments `events_total`, records `runtime` in the `sched_stat_runtime`
+    /// gauge, and observes `runtime` in the `sched_stat_runtime_distribution`
+    /// histogram.
     pub fn record_sched_stat_runtime(&self, m: &SchedStatRuntime) {
         let comm = String::from_utf8_lossy(&m.command);
         let command = comm.trim_end_matches('\0').to_string();
@@ -266,6 +291,7 @@ impl Metrics {
 
         self.events_total.add(1, attrs);
         self.sched_stat_runtime.record(m.runtime as i64, attrs);
+        self.sched_stat_runtime_distribution.record(m.runtime, attrs);
     }
 
     /// Record a single [`CpuIdle`] event.

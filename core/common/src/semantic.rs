@@ -9,7 +9,9 @@ pub enum Semantic {
     PerCpuTotalEvents,
     PerCpuBytesAllocated,
     SchedulerRuntime,
+    SchedulerRuntimeDistribution,
     SchedulerWaitTime,
+    SchedulerWaitTimeDistribution,
     TotalMemoryAllocationEvents,
     RequestedMemoryBytes,
     CpuIdleState,
@@ -26,7 +28,9 @@ impl Semantic {
             Semantic::PerCpuTotalEvents => "bytes_alloc_events_total",
             Semantic::PerCpuBytesAllocated => "cpu_bytes_alloc",
             Semantic::SchedulerRuntime => "sched_stat_runtime",
+            Semantic::SchedulerRuntimeDistribution => "sched_stat_runtime_distribution",
             Semantic::SchedulerWaitTime => "sched_stat_wait",
+            Semantic::SchedulerWaitTimeDistribution => "sched_stat_wait_distribution",
             Semantic::TotalMemoryAllocationEvents => "mem_alloc_events_total",
             Semantic::RequestedMemoryBytes => "enter_mem_alloc",
             Semantic::CpuIdleState => "cpu_idle_state",
@@ -46,8 +50,14 @@ impl Semantic {
             Semantic::SchedulerRuntime => {
                 "Scheduler runtime in nanoseconds from sched_stat_runtime"
             }
+            Semantic::SchedulerRuntimeDistribution => {
+                "Distribution of scheduler runtimes in nanoseconds from sched_stat_runtime"
+            }
             Semantic::SchedulerWaitTime => {
                 "Scheduler wait time in nanoseconds from sched_stat_wait"
+            }
+            Semantic::SchedulerWaitTimeDistribution => {
+                "Distribution of scheduler wait times in nanoseconds from sched_stat_wait"
             }
             Semantic::TotalMemoryAllocationEvents => {
                 "Total number of memory allocation (mmap) events processed"
