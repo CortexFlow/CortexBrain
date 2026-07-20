@@ -7,7 +7,7 @@ use std::sync::Arc;
 use tokio::signal;
 use tracing::{error, info};
 
-use cortexbrain_common::buffer_type::{BufferType, read_perf_buffer};
+use cortexbrain_common::consumer::{Consumer, read_perf_buffer};
 use cortexbrain_common::otel_metrics::Metrics;
 
 /// Listen for eBPF perf-buffer events and record OpenTelemetry metrics.
@@ -103,7 +103,7 @@ pub async fn event_listener(bpf_maps: BpfMapsData, meter: Meter) -> Result<(), a
             read_perf_buffer(
                 array_buffers,
                 buffers,
-                BufferType::PacketLossMetrics,
+                        Consumer::PacketLossMetrics,
                 Some(metrics),
             )
             .await;
@@ -118,7 +118,7 @@ pub async fn event_listener(bpf_maps: BpfMapsData, meter: Meter) -> Result<(), a
             read_perf_buffer(
                 array_buffers,
                 buffers,
-                BufferType::TimeStampMetrics,
+                Consumer::TimeStampMetrics,
                 Some(metrics),
             )
             .await;
@@ -133,7 +133,7 @@ pub async fn event_listener(bpf_maps: BpfMapsData, meter: Meter) -> Result<(), a
             read_perf_buffer(
                 array_buffers,
                 buffers,
-                BufferType::CpuFrequency,
+                Consumer::CpuFrequency,
                 Some(metrics),
             )
             .await;
@@ -145,7 +145,7 @@ pub async fn event_listener(bpf_maps: BpfMapsData, meter: Meter) -> Result<(), a
         let mut array_buffers = cpu_idle_perf_buffer;
         let mut buffers = cpu_idle_buffers;
         tokio::spawn(async move {
-            read_perf_buffer(array_buffers, buffers, BufferType::CpuIdle, Some(metrics)).await;
+            read_perf_buffer(array_buffers, buffers, Consumer::CpuIdle, Some(metrics)).await;
         })
     };
 
@@ -154,7 +154,7 @@ pub async fn event_listener(bpf_maps: BpfMapsData, meter: Meter) -> Result<(), a
         let mut array_buffers = mem_alloc_perf_buffer;
         let mut buffers = mem_alloc_buffers;
         tokio::spawn(async move {
-            read_perf_buffer(array_buffers, buffers, BufferType::MemAlloc, Some(metrics)).await;
+            read_perf_buffer(array_buffers, buffers, Consumer::MemAlloc, Some(metrics)).await;
         })
     };
 
@@ -166,7 +166,7 @@ pub async fn event_listener(bpf_maps: BpfMapsData, meter: Meter) -> Result<(), a
             read_perf_buffer(
                 array_buffers,
                 buffers,
-                BufferType::SchedStatWait,
+                Consumer::SchedStatWait,
                 Some(metrics),
             )
             .await;
@@ -181,7 +181,7 @@ pub async fn event_listener(bpf_maps: BpfMapsData, meter: Meter) -> Result<(), a
             read_perf_buffer(
                 array_buffers,
                 buffers,
-                BufferType::SchedStatRuntime,
+                Consumer::SchedStatRuntime,
                 Some(metrics),
             )
             .await;
