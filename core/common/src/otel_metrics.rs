@@ -7,17 +7,18 @@
 //!
 //!  - An [`Arc<Metrics>`] is moved into each Tokio
 //!   task that reads a perf buffer.  All instrument operations are lock-free.
-//!  - Every observation is tagged with `tgid` and `comm`
-//!   extracted from the eBPF struct, allowing downstream collectors to group
-//!   telemetry by process.
+//!  - Every observation is tagged with process and container metadata
+//!   extracted from the eBPF struct via [`Metadata`].
 
 use crate::buffer_type::{
     CpuFrequency, CpuIdle, MemAlloc, PacketLossMetrics, SchedStatRuntime, SchedStatWait,
     TimeStampMetrics,
 };
+use crate::metadata::{ContainerRuntime, Metadata};
 use crate::semantic::Semantic;
 use opentelemetry::KeyValue;
 use opentelemetry::metrics::{Counter, Gauge, Histogram, Meter};
+
 pub struct Metrics {
     /// Total number of eBPF events processed across all perf buffers.
     pub events_total: Counter<u64>,
@@ -73,91 +74,91 @@ impl Metrics {
         let events_total = meter
             .u64_counter(Semantic::TotalEvents.title())
             .with_description(Semantic::TotalEvents.description())
-            .with_unit("1")
+            //.with_unit("1")
             .build();
 
         // total socket events
         let socket_events_total = meter
             .u64_counter(Semantic::SocketTotalEvents.title())
             .with_description(Semantic::SocketTotalEvents.description())
-            .with_unit("1")
+            //.with_unit("1")
             .build();
 
         // socket drops
         let sk_drops = meter
             .i64_gauge(Semantic::SocketDrops.title())
             .with_description(Semantic::SocketDrops.description())
-            .with_unit("1")
+            //.with_unit("1")
             .build();
 
         // socket errors
         let sk_err = meter
             .i64_gauge(Semantic::SocketErrorsCount.title())
             .with_description(Semantic::SocketErrorsCount.description())
-            .with_unit("1")
+            //.with_unit("1")
             .build();
 
         // tcp latency microseconds
         let tcp_latency_us = meter
             .u64_histogram(Semantic::Latency.title())
             .with_description(Semantic::Latency.description())
-            .with_unit("us")
+            //.with_unit("us")
             .build();
 
         // cpu bytes alloc total events
         let cpu_bytes_alloc_events_total = meter
             .u64_counter(Semantic::PerCpuTotalEvents.title())
             .with_description(Semantic::PerCpuTotalEvents.description())
-            .with_unit("1")
+            //.with_unit("1")
             .build();
 
         // cpu bytes allocation
         let cpu_bytes_alloc = meter
             .i64_gauge(Semantic::PerCpuBytesAllocated.title())
             .with_description(Semantic::PerCpuBytesAllocated.description())
-            .with_unit("bytes")
+            //.with_unit("bytes")
             .build();
 
         // memory allocation (mmap) events total
         let mem_alloc_events_total = meter
             .u64_counter(Semantic::TotalMemoryAllocationEvents.title())
             .with_description(Semantic::TotalMemoryAllocationEvents.description())
-            .with_unit("1")
+            //.with_unit("1")
             .build();
 
         // bytes requested via mmap syscalls
         let enter_mem_alloc = meter
             .i64_gauge(Semantic::RequestedMemoryBytes.title())
             .with_description(Semantic::RequestedMemoryBytes.description())
-            .with_unit("bytes")
+            //.with_unit("bytes")
             .build();
 
         // scheduler wait time in nanoseconds
         let sched_stat_wait = meter
             .i64_gauge(Semantic::SchedulerWaitTime.title())
             .with_description(Semantic::SchedulerWaitTime.description())
-            .with_unit("ns")
+            //.with_unit("ns")
             .build();
 
         // distribution of scheduler wait times
         let sched_stat_wait_distribution = meter
             .u64_histogram(Semantic::SchedulerWaitTimeDistribution.title())
             .with_description(Semantic::SchedulerWaitTimeDistribution.description())
-            .with_unit("ns")
+            //.with_unit("ns")
             .build();
 
         // scheduler runtime in nanoseconds
         let sched_stat_runtime = meter
             .i64_gauge(Semantic::SchedulerRuntime.title())
             .with_description(Semantic::SchedulerRuntime.description())
-            .with_unit("ns")
+            //.with_unit("ns")
             .build();
 
         // distribution of scheduler runtimes
         let sched_stat_runtime_distribution = meter
             .u64_histogram(Semantic::SchedulerRuntimeDistribution.title())
             .with_description(Semantic::SchedulerRuntimeDistribution.description())
-            .with_unit("ns")
+            //.with_unit("ns")
             .build();
 
         // current CPU idle C-state per cpu_id
@@ -183,23 +184,50 @@ impl Metrics {
         }
     }
 
+    /// Build OpenTelemetry attributes from [`Metadata`].
+    fn build_attrs(&self, metadata: &Metadata) -> Vec<KeyValue> {
+        let mut attrs = Vec::with_capacity(10);
+
+        // base
+        attrs.push(KeyValue::new(
+            "tgid",
+            metadata.tgid.map(|v| v as i64).unwrap_or(-1),
+        ));
+        attrs.push(KeyValue::new("command", metadata.command.clone()));
+
+        // container metadata
+        attrs.push(KeyValue::new(
+            "container.name",
+            match &metadata.container_name {
+                Some(name) => name.clone(),
+                None => "null".to_string(),
+            },
+        ));
+
+        if let Some(ref id) = metadata.container_id {
+            attrs.push(KeyValue::new("container.id", id.clone()));
+        }
+        //if let Some(ref runtime) = metadata.runtime {
+        //    attrs.push(KeyValue::new("container.runtime", runtime.clone()));
+        //}
+
+        // k8s metadata
+        if let Some(ref pod) = metadata.pod_name {
+            attrs.push(KeyValue::new("k8s.pod.name", pod.clone()));
+        }
+        if let Some(ref ns) = metadata.namespace {
+            attrs.push(KeyValue::new("k8s.namespace.name", ns.clone()));
+        }
+
+        attrs
+    }
+
     /// Record a single [`PacketLossMetrics`] event.
     ///
     /// Increments `events_total` and `socket_events_total`, records `sk_drops`
     /// and `sk_err` as gauges.
-    ///
-    /// Every observation carries:
-    ///
-    /// - `tgid` – task group ID.
-    /// - `command` – command name (null-terminated bytes converted to a UTF-8
-    ///   string and trimmed).
-    pub fn record_packet_loss_metrics(&self, m: &PacketLossMetrics) {
-        let comm = String::from_utf8_lossy(&m.comm);
-        let comm_trimmed = comm.trim_end_matches('\0').to_string();
-        let attrs = &[
-            KeyValue::new("tgid", m.tgid as i64),
-            KeyValue::new("command", comm_trimmed),
-        ];
+    pub fn record_packet_loss_metrics(&self, m: &PacketLossMetrics, metadata: &Metadata) {
+        let attrs = &self.build_attrs(metadata);
 
         self.events_total.add(1, attrs);
         self.socket_events_total.add(1, attrs);
@@ -211,30 +239,18 @@ impl Metrics {
     ///
     /// Increments `events_total`, and records `delta_us` in the latency
     /// histogram.
-    ///
-    /// Every observation carries `tgid` and `command` (see
-    /// [`record_packet_loss_metrics`]).
-    pub fn record_timestamp_metrics(&self, m: &TimeStampMetrics) {
-        let comm = String::from_utf8_lossy(&m.comm);
-        let comm_trimmed = comm.trim_end_matches('\0').to_string();
-        let attrs = &[
-            KeyValue::new("tgid", m.tgid as i64),
-            KeyValue::new("command", comm_trimmed),
-        ];
+    pub fn record_timestamp_metrics(&self, m: &TimeStampMetrics, metadata: &Metadata) {
+        let attrs = &self.build_attrs(metadata);
 
         self.events_total.add(1, attrs);
         self.tcp_latency_us.record(m.delta_us, attrs);
     }
 
-    pub fn record_cpu_bytes_alloc(&self, m: &CpuFrequency) {
+    /// Record a single [`CpuFrequency`] event.
+    pub fn record_cpu_bytes_alloc(&self, m: &CpuFrequency, metadata: &Metadata) {
         let bytes_allocated = m.bytes_alloc;
-        let tgid = m.pid; // percpu tracepoints expose TGID in common_pid
-        let comm = String::from_utf8_lossy(&m.command);
-        let command = comm.trim_end_matches('\0').to_string();
-        let attrs = &[
-            KeyValue::new("tgid", tgid as i64),
-            KeyValue::new("command", command),
-        ];
+        let attrs = &self.build_attrs(metadata);
+
         self.cpu_bytes_alloc_events_total.add(1, attrs);
         self.cpu_bytes_alloc.record(bytes_allocated as i64, attrs);
     }
@@ -245,13 +261,8 @@ impl Metrics {
     /// the requested length in the `enter_mem_alloc` gauge.  The shared
     /// `events_total` counter is intentionally **not** incremented for these
     /// events.
-    pub fn record_enter_mem_alloc(&self, m: &MemAlloc) {
-        let comm = String::from_utf8_lossy(&m.command);
-        let command = comm.trim_end_matches('\0').to_string();
-        let attrs = &[
-            KeyValue::new("tgid", m.tgid as i64),
-            KeyValue::new("command", command),
-        ];
+    pub fn record_enter_mem_alloc(&self, m: &MemAlloc, metadata: &Metadata) {
+        let attrs = &self.build_attrs(metadata);
 
         self.events_total.add(1, attrs);
         self.mem_alloc_events_total.add(1, attrs);
@@ -263,13 +274,8 @@ impl Metrics {
     /// Increments `events_total`, records `delay` in the `sched_stat_wait`
     /// gauge, and observes `delay` in the `sched_stat_wait_distribution`
     /// histogram.
-    pub fn record_sched_stat_wait(&self, m: &SchedStatWait) {
-        let comm = String::from_utf8_lossy(&m.command);
-        let command = comm.trim_end_matches('\0').to_string();
-        let attrs = &[
-            KeyValue::new("tgid", m.tgid as i64),
-            KeyValue::new("command", command),
-        ];
+    pub fn record_sched_stat_wait(&self, m: &SchedStatWait, metadata: &Metadata) {
+        let attrs = &self.build_attrs(metadata);
 
         self.events_total.add(1, attrs);
         self.sched_stat_wait.record(m.delay as i64, attrs);
@@ -281,27 +287,24 @@ impl Metrics {
     /// Increments `events_total`, records `runtime` in the `sched_stat_runtime`
     /// gauge, and observes `runtime` in the `sched_stat_runtime_distribution`
     /// histogram.
-    pub fn record_sched_stat_runtime(&self, m: &SchedStatRuntime) {
-        let comm = String::from_utf8_lossy(&m.command);
-        let command = comm.trim_end_matches('\0').to_string();
-        let attrs = &[
-            KeyValue::new("tgid", m.tgid as i64),
-            KeyValue::new("command", command),
-        ];
+    pub fn record_sched_stat_runtime(&self, m: &SchedStatRuntime, metadata: &Metadata) {
+        let attrs = &self.build_attrs(metadata);
 
         self.events_total.add(1, attrs);
         self.sched_stat_runtime.record(m.runtime as i64, attrs);
-        self.sched_stat_runtime_distribution.record(m.runtime, attrs);
+        self.sched_stat_runtime_distribution
+            .record(m.runtime, attrs);
     }
 
     /// Record a single [`CpuIdle`] event.
     ///
     /// Updates `cpu_idle_state` gauge to the latest C-state for the given
     /// `cpu_id`. Events are only emitted by eBPF when the state changes.
-    pub fn record_cpu_idle(&self, m: &CpuIdle) {
-        let attrs = &[KeyValue::new("cpu_id", m.cpu_id as i64)];
+    pub fn record_cpu_idle(&self, m: &CpuIdle, metadata: &Metadata) {
+        let mut attrs = self.build_attrs(metadata);
+        attrs.push(KeyValue::new("cpu_id", m.cpu_id as i64));
 
-        self.events_total.add(1, attrs);
-        self.cpu_idle_state.record(m.state as i64, attrs);
+        self.events_total.add(1, &attrs);
+        self.cpu_idle_state.record(m.state as i64, &attrs);
     }
 }
