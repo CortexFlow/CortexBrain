@@ -26,7 +26,7 @@ use cortexbrain_common::{
     constants,
     logger::otlp_logger_init,
     map_handlers::{init_bpf_maps, map_pinner},
-    program_handlers::{load_program, load_tracepoint_program},
+    program_handlers::{load_program, load_tracepoint_program, load_uprobe_program},
 };
 
 #[tokio::main]
@@ -51,6 +51,10 @@ async fn main() -> Result<(), anyhow::Error> {
     let mem_alloc_bpf = bpf.clone();
     let sched_stat_wait_bpf = bpf.clone();
     let sched_stat_runtime_bpf = bpf.clone();
+    let ssl_read_bpf = bpf.clone();
+    let ssl_read_ret_bpf = bpf.clone();
+    let ssl_write_bpf = bpf.clone();
+    let ssl_write_ret_bpf = bpf.clone();
 
     info!("Running Ebpf logger");
     info!("loading programs");
@@ -66,6 +70,7 @@ async fn main() -> Result<(), anyhow::Error> {
         "mem_alloc".to_string(),
         "sched_stat_wait".to_string(),
         "sched_stat_runtime".to_string(),
+        "ssl_events".to_string(),
     ];
 
     match init_bpf_maps(bpf.clone(), map_data) {
@@ -143,6 +148,41 @@ async fn main() -> Result<(), anyhow::Error> {
                         .context(
                             "An error occurred during the execution of load_program function",
                         )?;
+                        load_uprobe_program(
+                            ssl_read_bpf,
+                            "ssl_read",
+                            "SSL_read",
+                            "/usr/lib/x86_64-linux-gnu/libssl.so",
+                            None,
+                        )
+                        .expect("An error occured during the execution of load_uprobe_program");
+
+                        load_uprobe_program(
+                            ssl_read_ret_bpf,
+                            "ssl_read_ret",
+                            "SSL_read",
+                            "/usr/lib/x86_64-linux-gnu/libssl.so",
+                            None,
+                        )
+                        .expect("An error occured during the execution of load_uprobe_program");
+
+                        load_uprobe_program(
+                            ssl_write_bpf,
+                            "ssl_write",
+                            "SSL_write",
+                            "/usr/lib/x86_64-linux-gnu/libssl.so",
+                            None,
+                        )
+                        .expect("An error occured during the execution of load_uprobe_program");
+
+                        load_uprobe_program(
+                            ssl_write_ret_bpf,
+                            "ssl_write_ret",
+                            "SSL_write",
+                            "/usr/lib/x86_64-linux-gnu/libssl.so",
+                            None,
+                        )
+                        .expect("An error occured during the execution of load_uprobe_program");
                     }
 
                     // Hand off to the async event consumer
