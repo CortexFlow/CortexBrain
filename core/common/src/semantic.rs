@@ -15,6 +15,8 @@ pub enum Semantic {
     TotalMemoryAllocationEvents,
     RequestedMemoryBytes,
     CpuIdleState,
+    SslReadBytes,
+    SslWriteBytes,
 }
 
 impl Semantic {
@@ -34,6 +36,8 @@ impl Semantic {
             Semantic::TotalMemoryAllocationEvents => "mem_alloc_events_total",
             Semantic::RequestedMemoryBytes => "enter_mem_alloc",
             Semantic::CpuIdleState => "cpu_idle_state",
+            Semantic::SslReadBytes => "ssl_read_bytes",
+            Semantic::SslWriteBytes => "ssl_write_bytes",
         }
     }
     pub fn description(&self) -> &'static str {
@@ -66,6 +70,8 @@ impl Semantic {
             Semantic::CpuIdleState => {
                 "Current CPU idle C-state per cpu_id, updated only on state change"
             }
+            Semantic::SslReadBytes => "Total bytes requested by the ssl_read function",
+            Semantic::SslWriteBytes => "Total bytes requested by the ssl_write function",
         }
     }
 }

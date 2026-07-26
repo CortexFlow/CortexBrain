@@ -53,6 +53,8 @@ pub enum Consumer {
     SchedStatRuntime,
     #[cfg(feature = "monitoring-structs")]
     CpuIdle,
+    #[cfg(feature = "monitoring-structs")]
+    SslEvents,
 }
 
 #[cfg(feature = "buffer-reader")]
@@ -636,6 +638,78 @@ impl Consumer {
             }
         }
     }
+
+    pub async fn read_ssl_events(
+        buffers: &mut [BytesMut],
+        tot_events: i32,
+        offset: i32,
+        exporter: &str,
+        metrics: Arc<Metrics>,
+    ) {
+        for i in offset..tot_events {
+            use crate::buffer_type::SslEvent;
+
+            let vec_bytes = &buffers[i as usize];
+            if vec_bytes.len() < std::mem::size_of::<SslEvent>() {
+                error!(
+                    "Corrupted SslEvent data. Raw data: {}. Readed {} bytes expected {} bytes",
+                    vec_bytes
+                        .iter()
+                        .map(|b| format!("{:02x}", b))
+                        .collect::<Vec<_>>()
+                        .join(" "),
+                    vec_bytes.len(),
+                    std::mem::size_of::<SslEvent>()
+                );
+                continue;
+            }
+            if vec_bytes.len() >= std::mem::size_of::<SslEvent>() {
+                let ssl_event: SslEvent =
+                    unsafe { std::ptr::read_unaligned(vec_bytes.as_ptr() as *const _) };
+
+                let direction = ssl_event.direction;
+
+                match direction {
+                    // 0 = read // 1= write
+                    0 => match exporter {
+                        "otlp" => {
+                            let mut metadata = Metadata::from_ebpf(None, &[]);
+                            metadata.enrich();
+                            metrics.record_ssl_read_bytes(&ssl_event, &metadata);
+                            let tgid = ssl_event.tgid;
+                            let command = String::from_utf8_lossy(&ssl_event.comm);
+                            let size = ssl_event.size;
+                            let requested = ssl_event.requested;
+
+                            info!(
+                                "SSL event: - tgid: {},- command : {}, - direction: {}, - size: {} , - requested : {}",
+                                tgid, command, direction, size, requested
+                            );
+                        }
+                        _ => continue,
+                    },
+                    1 => match exporter {
+                        "otlp" => {
+                            let mut metadata = Metadata::from_ebpf(None, &[]);
+                            metadata.enrich();
+                            metrics.record_ssl_write_bytes(&ssl_event, &metadata);
+                            let tgid = ssl_event.tgid;
+                            let command = String::from_utf8_lossy(&ssl_event.comm);
+                            let size = ssl_event.size;
+                            let requested = ssl_event.requested;
+
+                            info!(
+                                "SSL event: - tgid: {},- command : {}, - direction: {}, - size: {} , - requested : {}",
+                                tgid, command, direction, size, requested
+                            );
+                        }
+                        _ => continue,
+                    },
+                    _ => continue, // direction data not logged or recorded
+                }
+            }
+        }
+    }
 }
 
 /// Read perf-buffer events in a loop and dispatch to the appropriate [`Consumer`] handler.
@@ -763,6 +837,17 @@ pub async fn read_perf_buffer<T: std::borrow::BorrowMut<aya::maps::MapData>>(
                                     offset,
                                     "otlp",
                                     metrics.clone().expect("Metric required for CpuIdle"),
+                                )
+                                .await
+                            }
+                            #[cfg(feature = "monitoring-structs")]
+                            Consumer::SslEvents => {
+                                Consumer::read_ssl_events(
+                                    &mut buffers,
+                                    tot_events,
+                                    offset,
+                                    "otlp",
+                                    metrics.clone().expect("Metric required for SslEvents"),
                                 )
                                 .await
                             }

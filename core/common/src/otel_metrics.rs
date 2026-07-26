@@ -11,7 +11,7 @@
 //!   extracted from the eBPF struct via [`Metadata`].
 
 use crate::buffer_type::{
-    CpuFrequency, CpuIdle, MemAlloc, PacketLossMetrics, SchedStatRuntime, SchedStatWait,
+    CpuFrequency, CpuIdle, MemAlloc, PacketLossMetrics, SchedStatRuntime, SchedStatWait, SslEvent,
     TimeStampMetrics,
 };
 use crate::metadata::{ContainerRuntime, Metadata};
@@ -63,6 +63,9 @@ pub struct Metrics {
 
     /// Current CPU idle C-state per cpu_id, updated only on state change.
     pub cpu_idle_state: Gauge<i64>,
+
+    pub ssl_read_bytes: Gauge<i64>,
+    pub ssl_write_bytes: Gauge<i64>,
 }
 
 // TODO: add identity metrics with TC classifier packet counts
@@ -166,6 +169,17 @@ impl Metrics {
             .i64_gauge(Semantic::CpuIdleState.title())
             .with_description(Semantic::CpuIdleState.description())
             .build();
+
+        let ssl_read_bytes = meter
+            .i64_gauge(Semantic::SslReadBytes.title())
+            .with_description(Semantic::SslReadBytes.description())
+            .build();
+
+        let ssl_write_bytes = meter
+            .i64_gauge(Semantic::SslWriteBytes.title())
+            .with_description(Semantic::SslWriteBytes.description())
+            .build();
+
         Self {
             events_total,
             socket_events_total,
@@ -181,6 +195,8 @@ impl Metrics {
             sched_stat_runtime,
             sched_stat_runtime_distribution,
             cpu_idle_state,
+            ssl_read_bytes,
+            ssl_write_bytes,
         }
     }
 
@@ -306,5 +322,18 @@ impl Metrics {
 
         self.events_total.add(1, &attrs);
         self.cpu_idle_state.record(m.state as i64, &attrs);
+    }
+
+    pub fn record_ssl_read_bytes(&self, m: &SslEvent, metadata: &Metadata) {
+        let attrs = self.build_attrs(metadata);
+
+        self.events_total.add(1, &attrs);
+        self.ssl_read_bytes.record(m.size as i64, &attrs);
+    }
+    pub fn record_ssl_write_bytes(&self, m: &SslEvent, metadata: &Metadata) {
+        let attrs = self.build_attrs(metadata);
+
+        self.events_total.add(1, &attrs);
+        self.ssl_write_bytes.record(m.size as i64, &attrs);
     }
 }

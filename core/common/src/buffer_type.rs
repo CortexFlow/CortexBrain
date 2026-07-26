@@ -14,7 +14,6 @@ use aya::util::online_cpus;
 use bytemuck_derive::Zeroable;
 use bytes::BytesMut;
 use std::net::Ipv4Addr;
-use tracing::{error, info, warn};
 
 ///
 /// IpProtocols enum to reconstruct the packet protocol based on the
@@ -188,6 +187,19 @@ pub struct CpuIdle {
 #[cfg(feature = "monitoring-structs")]
 unsafe impl aya::Pod for CpuIdle {}
 
+#[cfg(feature = "monitoring-structs")]
+#[repr(C, packed)]
+#[derive(Copy, Clone, Zeroable)]
+pub struct SslEvent {
+    pub tgid: u32,
+    pub comm: [u8; TASK_COMM_LEN],
+    pub ts_us: u64,
+    pub direction: u8,  // 0 = read, 1 = write
+    pub size: i32,      // return value (bytes transferred or <0 on error)
+    pub requested: i32, // num argument passed to SSL_read/SSL_write
+}
+unsafe impl aya::Pod for SslEvent {}
+
 /// Perform a byte swap from little-endian to big-endian.
 ///
 /// Used to reconstruct the correct IPv4 address from the u32 representation.
@@ -225,6 +237,8 @@ pub enum BufferSize {
     SchedStatRuntime,
     #[cfg(feature = "monitoring-structs")]
     CpuIdle,
+    #[cfg(feature = "monitoring-structs")]
+    SslEvents,
 }
 
 #[cfg(feature = "buffer-reader")]
@@ -252,6 +266,8 @@ impl BufferSize {
             BufferSize::SchedStatRuntime => std::mem::size_of::<SchedStatRuntime>(),
             #[cfg(feature = "monitoring-structs")]
             BufferSize::CpuIdle => std::mem::size_of::<CpuIdle>(),
+            #[cfg(feature = "monitoring-structs")]
+            BufferSize::SslEvents => std::mem::size_of::<SslEvent>(),
         }
     }
 
@@ -310,6 +326,11 @@ impl BufferSize {
             }
             #[cfg(feature = "monitoring-structs")]
             BufferSize::CpuIdle => {
+                let capacity = self.get_size() * 1024;
+                return vec![BytesMut::with_capacity(capacity); tot_cpu];
+            }
+            #[cfg(feature = "monitoring-structs")]
+            BufferSize::SslEvents => {
                 let capacity = self.get_size() * 1024;
                 return vec![BytesMut::with_capacity(capacity); tot_cpu];
             }
