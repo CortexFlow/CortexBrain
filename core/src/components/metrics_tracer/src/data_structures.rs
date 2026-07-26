@@ -98,14 +98,6 @@ pub struct SslEvent {
     pub requested: i32, // num argument passed to SSL_read/SSL_write
 }
 
-#[repr(C, packed)]
-#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct SslCtxInfo {
-    pub ssl: u64, // SSL* pointer
-    pub requested: i32,
-    pub ts_ns: u64,
-}
-
 // Map: connect-start timestamp by socket pointer
 #[map(name = "time_stamp_start")]
 pub static mut TIME_STAMP_START: HashMap<*mut core::ffi::c_void, TimeStampStartInfo> =
@@ -139,8 +131,8 @@ pub static mut CPU_IDLE_LAST_STATE: HashMap<u32, u32> =
     HashMap::<u32, u32>::with_max_entries(256, 0);
 
 #[map(name = "ssl_ctx_map")]
-pub static mut SSL_CTX_MAP: HashMap<u64, SslCtxInfo> =
-    HashMap::<u64, SslCtxInfo>::with_max_entries(4096, 0);
+pub static mut SSL_CTX_MAP: HashMap<u64, i32> =
+    HashMap::<u64, i32>::with_max_entries(4096, 0);
 
 #[map(name = "ssl_events")]
 pub static SSL_EVENTS: PerfEventArray<SslEvent> = PerfEventArray::new(0);

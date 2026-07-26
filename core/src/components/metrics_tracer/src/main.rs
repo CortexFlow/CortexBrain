@@ -7,6 +7,7 @@ mod cpu;
 mod data_structures;
 mod memory;
 mod network;
+mod ssl;
 
 use crate::bindings::net_device;
 use crate::cpu::{cpu_idle, per_cpu_bytes_alloc, sched_stat_runtime, sched_stat_wait};
@@ -21,15 +22,16 @@ use crate::data_structures::{MEM_ALLOC, SCHED_STAT_RUNTIME, SCHED_STAT_WAIT};
 use crate::data_structures::{MemAlloc, SchedStatRuntime};
 use crate::memory::enter_mmap;
 use crate::network::{detect_packet_loss, on_connect, on_rcv_state_process};
+use crate::ssl::{try_ssl_event_end, try_ssl_start};
 use aya_ebpf::EbpfContext;
 use aya_ebpf::helpers::bpf_get_current_pid_tgid;
 use aya_ebpf::helpers::generated::{bpf_ktime_get_ns, bpf_perf_event_output};
 use aya_ebpf::helpers::{
     bpf_get_current_comm, bpf_probe_read_kernel, bpf_probe_read_kernel_str_bytes,
 };
-use aya_ebpf::macros::{kprobe, map, tracepoint};
+use aya_ebpf::macros::{kprobe, map, tracepoint, uprobe, uretprobe};
 use aya_ebpf::maps::{HashMap, PerfEventArray};
-use aya_ebpf::programs::{ProbeContext, TracePointContext};
+use aya_ebpf::programs::{ProbeContext, RetProbeContext, TracePointContext};
 use core::{mem, ptr};
 
 const AF_INET: u16 = 2;
@@ -183,6 +185,43 @@ fn sched_stat_runtime_tracer(ctx: &TracePointContext) -> Result<(), i64> {
     Ok(())
 }
 
+const SSL_READ_DIR: u8 = 0;
+const SSL_WRITE_DIR: u8 = 1;
+
+#[uprobe]
+fn ssl_read(ctx: ProbeContext) -> u32 {
+    match try_ssl_start(&ctx) {
+        Ok(_) => 0,
+        Err(_) => 0, // fail silently to avoid perturbing the application
+    }
+}
+
+#[uretprobe]
+fn ssl_read_ret(ctx: RetProbeContext) -> u32 {
+    match try_ssl_event_end(&ctx, SSL_READ_DIR) {
+        Ok(_) => 0,
+        Err(_) => 0,
+    }
+}
+
+// ssl write
+#[uprobe]
+//uprobe reads input data from the userspace
+fn ssl_write(ctx: ProbeContext) -> u32 {
+    match try_ssl_start(&ctx) {
+        Ok(_) => 0,
+        Err(_) => 0,
+    }
+}
+
+#[uretprobe]
+//uretprobe best fits for measuring returning data
+fn ssl_write_ret(ctx: RetProbeContext) -> u32 {
+    match try_ssl_event_end(&ctx, SSL_WRITE_DIR) {
+        Ok(_) => 0,
+        Err(_) => 0,
+    }
+}
 // panic handler
 #[panic_handler]
 fn panic(_info: &core::panic::PanicInfo) -> ! {
