@@ -13,7 +13,11 @@ if ! command -v bindgen &> /dev/null; then
     export PATH="$HOME/.cargo/bin:$PATH" #add the ./cargo/bin directory to the PATH env variable
 fi
 
-bindgen vmlinux.h -o src/bindings.rs --use-core --allowlist-type 'sk_buff' 'sock_common' 'in6_addr'
+bindgen --use-core --no-layout-tests \
+    --allowlist-type 'sk_buff' \
+    --allowlist-type 'sock_common' \
+    --allowlist-type 'in6_addr' \
+    vmlinux.h -o src/bindings.rs
 
 cargo +nightly build -Z build-std=core --target bpfel-unknown-none --release --bin metrics_tracer
 
