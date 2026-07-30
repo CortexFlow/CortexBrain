@@ -2,7 +2,11 @@
 //tracepoint:power:cpu_frequency_limits
 //tracepoint:power:cpu_idle
 //tracepoint:power:cpu_idle_miss
-use aya_ebpf::{EbpfContext, helpers::bpf_get_current_pid_tgid, programs::TracePointContext};
+use aya_ebpf::{
+    EbpfContext,
+    helpers::{bpf_get_current_pid_tgid, generated::bpf_get_current_cgroup_id},
+    programs::TracePointContext,
+};
 use aya_log_ebpf::info;
 
 use crate::data_structures::{CPU_FREQUENCY, CPU_IDLE, CPU_IDLE_LAST_STATE, CpuFrequency, CpuIdle};
@@ -12,6 +16,7 @@ pub fn cpu_idle(ctx: TracePointContext) -> Result<(), i64> {
     let cpu_id_offset = 12;
     let state: u32 = unsafe { ctx.read_at(state_offset) }?;
     let cpu_id: u32 = unsafe { ctx.read_at(cpu_id_offset) }?;
+    let cgroup_id = unsafe { bpf_get_current_cgroup_id() };
 
     let map_ptr = unsafe { &raw mut CPU_IDLE_LAST_STATE };
 
@@ -34,6 +39,7 @@ pub fn cpu_idle(ctx: TracePointContext) -> Result<(), i64> {
 }
 
 pub fn per_cpu_bytes_alloc(ctx: &TracePointContext) -> Result<((u32, u32, [u8; 16])), i64> {
+    // TODO: this tracepoint needs debug since it's not triggering
     let bytes_alloc_offset = 64;
     let pid_offset = 4;
     let bytes_alloc = unsafe { ctx.read_at(bytes_alloc_offset) }?;
@@ -53,7 +59,6 @@ pub fn per_cpu_bytes_alloc(ctx: &TracePointContext) -> Result<((u32, u32, [u8; 1
 }
 
 pub fn sched_stat_wait(ctx: &TracePointContext) -> Result<((u32, u64, [u8; 16])), i64> {
-    let pid_offset = 4;
     let delay_offset = 16;
 
     //let tgid: u32 = unsafe { ctx.read_at(tgid_offset) }?;
@@ -67,7 +72,6 @@ pub fn sched_stat_wait(ctx: &TracePointContext) -> Result<((u32, u64, [u8; 16]))
 }
 
 pub fn sched_stat_runtime(ctx: &TracePointContext) -> Result<((u32, u64, [u8; 16])), i64> {
-    let pid_offset = 4;
     let runtime_offset = 16;
 
     //let tgid: u32 = unsafe { ctx.read_at(tgid_offset) }?;
