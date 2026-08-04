@@ -1,6 +1,6 @@
 use aya::{
     Ebpf,
-    programs::{KProbe, TracePoint},
+    programs::{KProbe, TracePoint, UProbe},
 };
 use std::convert::TryInto;
 use std::sync::{Arc, Mutex};
@@ -91,6 +91,54 @@ pub fn load_tracepoint_program(
                 "Failed to attach program {} to tracepoint  {}. Reason {:?}",
                 &program_name,
                 &tracepoint_symbol,
+                e
+            ));
+        }
+    };
+
+    Ok(())
+}
+
+#[cfg(feature = "program-handlers")]
+pub fn load_uprobe_program(
+    bpf: Arc<Mutex<Ebpf>>,
+    program_name: &str,
+    uspace_fn: &str,
+    target: &str,
+    pid: Option<i32>,
+) -> Result<(), anyhow::Error> {
+    let mut bpf_new = bpf
+        .lock()
+        .map_err(|e| anyhow::anyhow!("Cannot get value from lock. Reason: {}", e))?;
+
+    // Load and attach the eBPF program
+    let program: &mut UProbe = bpf_new
+        .program_mut(program_name)
+        .ok_or_else(|| anyhow::anyhow!("Program {} not found", program_name))?
+        .try_into()
+        .map_err(|e| anyhow::anyhow!("Failed to convert program: {:?}", e))?;
+
+    // STEP 1: load program
+
+    program
+        .load()
+        .map_err(|e| anyhow::anyhow!("Cannot load program: {}. Error: {}", &program_name, e))?;
+
+    // STEP 2: Attach the loaded program to userspace function
+    match program.attach(Some(uspace_fn), 0, target, pid) {
+        Ok(_) => info!(
+            "{} program attached successfully to user space function {}",
+            &program_name, &target
+        ),
+        Err(e) => {
+            error!(
+                "Error attaching {} program to userspace function {}. Reason: {:?}",
+                &program_name, &target, e
+            );
+            return Err(anyhow::anyhow!(
+                "Failed to attach program {} to userspace function {}. Reason {:?}",
+                &program_name,
+                &target,
                 e
             ));
         }

@@ -3,7 +3,7 @@
 # Building identity files
 echo "Building the metrics-tracer files"
 pushd ../metrics_tracer
-./build-metrics-tracer.sh
+./build-local-metrics-tracer.sh
 popd
 
 echo "Copying metrics_tracer binaries"

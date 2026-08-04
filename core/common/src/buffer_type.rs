@@ -1,20 +1,24 @@
-#[cfg(feature = "monitoring-structs")]
-use crate::otel_metrics::Metrics;
+//! eBPF data structures and buffer size definitions.
+//!
+//! This module contains:
+//! - C-compatible structs emitted by the eBPF programs (`PacketLossMetrics`, `SchedStatWait`, etc.).
+//! - [`BufferSize`] for pre-allocating per-CPU byte buffers.
+//! - [`IpProtocols`] for L4 protocol reconstruction.
+//!
+//! The consumer logic has been moved to [`crate::consumer`].
+
+use aya::maps::perf::PerfEventArrayBuffer;
 #[cfg(feature = "buffer-reader")]
 use aya::maps::{MapData, PerfEventArray};
-use aya::{maps::perf::PerfEventArrayBuffer, util::online_cpus};
+use aya::util::online_cpus;
 use bytemuck_derive::Zeroable;
 use bytes::BytesMut;
 use std::net::Ipv4Addr;
-#[cfg(feature = "buffer-reader")]
-#[cfg(feature = "monitoring-structs")]
-use std::sync::Arc;
-use tracing::{error, info, warn};
 
-//
-// IpProtocols enum to reconstruct the packet protocol based on the
-// IPV4 Header Protocol code
-//
+///
+/// IpProtocols enum to reconstruct the packet protocol based on the
+/// IPV4 Header Protocol code
+///
 
 #[derive(Debug)]
 #[repr(u8)]
@@ -24,11 +28,11 @@ pub enum IpProtocols {
     UDP = 17,
 }
 
-//
-// TryFrom Trait implementation for IpProtocols enum
-// This is used to reconstruct the packet protocol based on the
-// IPV4 Header Protocol code
-//
+///
+/// TryFrom Trait implementation for IpProtocols enum
+/// This is used to reconstruct the packet protocol based on the
+/// IPV4 Header Protocol code
+///
 
 impl TryFrom<u8> for IpProtocols {
     type Error = ();
@@ -42,10 +46,10 @@ impl TryFrom<u8> for IpProtocols {
     }
 }
 
-//
-// Structure PacketLog
-//This structure is used to store the packet information
-//
+///
+/// Structure PacketLog
+/// This structure is used to store the packet information
+///
 #[cfg(feature = "network-structs")]
 #[repr(C)]
 #[derive(Clone, Copy, Zeroable)]
@@ -91,11 +95,11 @@ pub struct TcpPacketRegistry {
 unsafe impl aya::Pod for TcpPacketRegistry {}
 
 #[cfg(feature = "monitoring-structs")]
-pub const TASK_COMM_LEN: usize = 16; // linux/sched.h
+pub const TASK_COMM_LEN: usize = 16;
 #[cfg(feature = "monitoring-structs")]
 #[repr(C, packed)]
 #[derive(Clone, Copy, Zeroable)]
-pub struct NetworkMetrics {
+pub struct PacketLossMetrics {
     pub tgid: u32,
     pub comm: [u8; TASK_COMM_LEN],
     pub ts_us: u64,
@@ -108,7 +112,7 @@ pub struct NetworkMetrics {
     pub sk_drops: i32,               // Offset 136
 }
 #[cfg(feature = "monitoring-structs")]
-unsafe impl aya::Pod for NetworkMetrics {}
+unsafe impl aya::Pod for PacketLossMetrics {}
 
 #[cfg(feature = "monitoring-structs")]
 #[repr(C, packed)]
@@ -132,12 +136,11 @@ unsafe impl aya::Pod for TimeStampMetrics {}
 #[repr(C, packed)]
 #[derive(Clone, Copy, Zeroable)]
 pub struct CpuFrequency {
-    //pub cpu_id: u32,
-    //pub cpu_freq: u32,
     pub bytes_alloc: u32,
     pub pid: u32,
     pub command: [u8; 16],
 }
+#[cfg(feature = "monitoring-structs")]
 unsafe impl aya::Pod for CpuFrequency {}
 
 #[cfg(feature = "monitoring-structs")]
@@ -184,727 +187,34 @@ pub struct CpuIdle {
 #[cfg(feature = "monitoring-structs")]
 unsafe impl aya::Pod for CpuIdle {}
 
-// docs:
-// This function perform a byte swap from little-endian to big-endian
-// It's used to reconstruct the correct IPv4 address from the u32 representation
-//
-// Takes a u32 address in big-endian format and returns a Ipv4Addr with reversed octets
-//
+#[cfg(feature = "monitoring-structs")]
+#[repr(C, packed)]
+#[derive(Copy, Clone, Zeroable)]
+pub struct SslEvent {
+    pub tgid: u32,
+    pub comm: [u8; TASK_COMM_LEN],
+    pub ts_us: u64,
+    pub direction: u8,  // 0 = read, 1 = write
+    pub size: i32,      // return value (bytes transferred or <0 on error)
+    pub requested: i32, // num argument passed to SSL_read/SSL_write
+}
+unsafe impl aya::Pod for SslEvent {}
+
+/// Perform a byte swap from little-endian to big-endian.
+///
+/// Used to reconstruct the correct IPv4 address from the u32 representation.
+/// Takes a `u32` address in big-endian format and returns an [`Ipv4Addr`] with reversed octets.
 #[inline(always)]
 pub fn reverse_be_addr(addr: u32) -> Ipv4Addr {
     let octects = addr.to_be_bytes();
     let [a, b, c, d] = [octects[3], octects[2], octects[1], octects[0]];
-    let reversed_ip = Ipv4Addr::new(a, b, c, d);
-    reversed_ip
+    Ipv4Addr::new(a, b, c, d)
 }
 
-// enum BuffersType
-#[cfg(feature = "buffer-reader")]
-pub enum BufferType {
-    #[cfg(feature = "network-structs")]
-    PacketLog,
-    #[cfg(feature = "network-structs")]
-    TcpPacketRegistry,
-    #[cfg(feature = "network-structs")]
-    VethLog,
-    #[cfg(feature = "monitoring-structs")]
-    NetworkMetrics,
-    #[cfg(feature = "monitoring-structs")]
-    TimeStampMetrics,
-    #[cfg(feature = "monitoring-structs")]
-    CpuFrequency,
-    #[cfg(feature = "monitoring-structs")]
-    MemAlloc,
-    #[cfg(feature = "monitoring-structs")]
-    SchedStatWait,
-    #[cfg(feature = "monitoring-structs")]
-    SchedStatRuntime,
-    #[cfg(feature = "monitoring-structs")]
-    CpuIdle,
-}
-
-#[cfg(feature = "buffer-reader")]
-impl BufferType {
-    #[cfg(feature = "network-structs")]
-    pub async fn read_packet_log(buffers: &mut [BytesMut], tot_events: i32, offset: i32) {
-        for i in offset..tot_events {
-            let vec_bytes = &buffers[i as usize];
-            if vec_bytes.len() < std::mem::size_of::<PacketLog>() {
-                error!(
-                    "Corrupted Packet log data. Raw data: {}. Readed {} bytes expected {} bytes",
-                    vec_bytes
-                        .iter()
-                        .map(|b| format!("{:02x}", b))
-                        .collect::<Vec<_>>()
-                        .join(" "),
-                    vec_bytes.len(),
-                    std::mem::size_of::<PacketLog>()
-                );
-                continue;
-            }
-            if vec_bytes.len() >= std::mem::size_of::<PacketLog>() {
-                let pl: PacketLog =
-                    unsafe { std::ptr::read_unaligned(vec_bytes.as_ptr() as *const _) }; // reading raw bytes
-
-                // extracting struct info from bytes
-                let src_ip = reverse_be_addr(pl.src_ip);
-                let dst_ip = reverse_be_addr(pl.dst_ip);
-                let src_port = u16::from_be(pl.src_port);
-                let dst_port = u16::from_be(pl.dst_port);
-                let event_id = pl.pid;
-                let protocol = pl.proto;
-
-                // protocol extraction
-                match IpProtocols::try_from(protocol) {
-                    Ok(proto) => {
-                        info!(
-                            "Event Id: {} Protocol: {:?} SRC: {}:{} -> DST: {}:{}",
-                            event_id, proto, src_ip, src_port, dst_ip, dst_port
-                        );
-                    }
-                    Err(e) => {
-                        error!("Unknown protocol. Data maybe corrupted. Reason:{:?}", e);
-                    }
-                }
-            }
-        }
-    }
-    #[cfg(feature = "network-structs")]
-    pub async fn read_tcp_registry_log(buffers: &mut [BytesMut], tot_events: i32, offset: i32) {
-        for i in offset..tot_events {
-            let vec_bytes = &buffers[i as usize];
-            if vec_bytes.len() < std::mem::size_of::<TcpPacketRegistry>() {
-                error!(
-                    "Corrupted data Tcp Registry data. Raw data: {}. Readed {} bytes expected {} bytes",
-                    vec_bytes
-                        .iter()
-                        .map(|b| format!("{:02x}", b))
-                        .collect::<Vec<_>>()
-                        .join(" "),
-                    vec_bytes.len(),
-                    std::mem::size_of::<TcpPacketRegistry>()
-                );
-                continue;
-            }
-            if vec_bytes.len() >= std::mem::size_of::<TcpPacketRegistry>() {
-                let pl: TcpPacketRegistry =
-                    unsafe { std::ptr::read_unaligned(vec_bytes.as_ptr() as *const _) }; // reading raw bytes
-
-                // extracting struct info from bytes
-                let src = reverse_be_addr(pl.src_ip);
-                let dst = reverse_be_addr(pl.dst_ip);
-                let src_port = u16::from_be(pl.src_port);
-                let dst_port = u16::from_be(pl.dst_port);
-                let event_id = pl.pid;
-                let command = pl.command.to_vec();
-                let end = command
-                    .iter()
-                    .position(|&x| x == 0)
-                    .unwrap_or(command.len());
-                let command_str = String::from_utf8_lossy(&command[..end]).to_string();
-                let cgroup_id = pl.cgroup_id;
-                let protocol = pl.proto;
-
-                // protocol extraction
-                match IpProtocols::try_from(protocol) {
-                    Ok(proto) => {
-                        info!(
-                            "Event Id: {} Protocol: {:?} SRC: {}:{} -> DST: {}:{} Command: {} Cgroup_id: {}",
-                            event_id,
-                            proto,
-                            src,
-                            src_port,
-                            dst,
-                            dst_port,
-                            command_str,
-                            cgroup_id //proc_content
-                        );
-                    }
-                    Err(e) => {
-                        error!("Unknown protocol. Data maybe corrupted. Reason:{:?}", e);
-                    }
-                }
-            }
-        }
-    }
-    #[cfg(feature = "network-structs")]
-    pub async fn read_and_handle_veth_log(buffers: &mut [BytesMut], tot_events: i32, offset: i32) {
-        for i in offset..tot_events {
-            let vec_bytes = &buffers[i as usize];
-            if vec_bytes.len() < std::mem::size_of::<VethLog>() {
-                error!(
-                    "Corrupted data VethLog data. Raw data: {}. Readed {} bytes expected {} bytes",
-                    vec_bytes
-                        .iter()
-                        .map(|b| format!("{:02x}", b))
-                        .collect::<Vec<_>>()
-                        .join(" "),
-                    vec_bytes.len(),
-                    std::mem::size_of::<VethLog>()
-                );
-                continue;
-            }
-            if vec_bytes.len() >= std::mem::size_of::<VethLog>() {
-                let vthl: VethLog =
-                    unsafe { std::ptr::read_unaligned(vec_bytes.as_ptr() as *const _) }; // reading raw bytes
-
-                // extracting struct info from bytes
-                let name_bytes = vthl.name;
-                let dev_addr_bytes = vthl.dev_addr;
-                let name = std::str::from_utf8(&name_bytes);
-                let state = vthl.state;
-
-                let dev_addr = dev_addr_bytes;
-                let netns = vthl.netns;
-                let mut event_type = String::new();
-
-                // event_type extraction
-                match vthl.event_type {
-                    1 => {
-                        event_type = "creation".to_string();
-                        match name {
-                            Ok(veth_name) => {
-                                info!(
-                                    "[{}] Veth Event: Type: {} Name: {} Dev_addr: {:x?} State: {}",
-                                    netns,
-                                    event_type,
-                                    veth_name.trim_end_matches("\0"),
-                                    dev_addr,
-                                    state
-                                );
-                            }
-                            Err(e) => {
-                                error!(
-                                    "Failed to extract veth name during event_type = creation (1).Reason:{}",
-                                    e
-                                );
-                            }
-                        }
-                    }
-                    2 => {
-                        event_type = "deletion".to_string();
-                        match name {
-                            Ok(veth_name) => {
-                                info!(
-                                    "[{}] Veth Event: Type: {} Name: {} Dev_addr: {:x?} State: {}",
-                                    netns,
-                                    event_type,
-                                    veth_name.trim_end_matches("\0"),
-                                    dev_addr,
-                                    state
-                                );
-                            }
-                            Err(e) => {
-                                error!(
-                                    "Failed to extract veth name during event_type = deletion (2).Reason:{}",
-                                    e
-                                );
-                            }
-                        }
-                    }
-                    _ => {
-                        warn!("Unknown event type")
-                    }
-                }
-            }
-        }
-    }
-    #[cfg(feature = "monitoring-structs")]
-    /// Continuously read [`NetworkMetrics`] events and record OpenTelemetry
-    /// observations.
-    ///
-    /// This helper mirrors the core behaviour of
-    /// [`cortexbrain_common::buffer_type::read_perf_buffer`] but adds the OTel
-    /// instrumentation layer.
-    ///
-    /// # Loop
-    ///
-    /// 1. For every CPU buffer call `read_events`.
-    /// 2. Parse each raw [`BytesMut`] into [`NetworkMetrics`] using an
-    ///    unaligned read (the struct is `#[repr(C, packed)]` and `Pod`).
-    /// 3. Call [`Metrics::record_network_metrics`].
-    /// 4. Retain the legacy `tracing::info!` log for human-readable local output.
-    /// 5. Sleep 100 ms between polls.
-    ///
-    /// # Safety
-    ///
-    /// `std::ptr::read_unaligned` is safe here because the eBPF program writes
-    /// exactly the `NetworkMetrics` layout into the ring buffer and the struct
-    /// implements [`aya::Pod`].
-    /// Continuously read [`TimeStampMetrics`] events and record OpenTelemetry
-    /// observations.
-    ///
-    /// Counterpart to [`read_network_buffer`] for the `time_stamp_events` map.
-
-    pub async fn read_network_metrics(
-        buffers: &mut [BytesMut],
-        tot_events: i32,
-        offset: i32,
-        exporter: &str,
-        metrics: Arc<Metrics>,
-    ) {
-        for i in offset..tot_events {
-            let vec_bytes = &buffers[i as usize];
-            if vec_bytes.len() < std::mem::size_of::<NetworkMetrics>() {
-                error!(
-                    "Corrupted Network Metrics data. Raw data: {}. Readed {} bytes expected {} bytes",
-                    vec_bytes
-                        .iter()
-                        .map(|b| format!("{:02x}", b))
-                        .collect::<Vec<_>>()
-                        .join(" "),
-                    vec_bytes.len(),
-                    std::mem::size_of::<NetworkMetrics>()
-                );
-                continue;
-            }
-            if vec_bytes.len() >= std::mem::size_of::<NetworkMetrics>() {
-                let net_metrics: NetworkMetrics =
-                    unsafe { std::ptr::read_unaligned(vec_bytes.as_ptr() as *const _) };
-
-                match exporter {
-                    "otlp" => metrics.record_network_metrics(&net_metrics),
-                    _ => continue, // skip
-                }
-                let tgid = net_metrics.tgid;
-                let comm = String::from_utf8_lossy(&net_metrics.comm);
-                let ts_us = net_metrics.ts_us;
-                let sk_drop_count = net_metrics.sk_drops;
-                let sk_err = net_metrics.sk_err;
-                let sk_err_soft = net_metrics.sk_err_soft;
-                let sk_backlog_len = net_metrics.sk_backlog_len;
-                let sk_write_memory_queued = net_metrics.sk_write_memory_queued;
-                let sk_ack_backlog = net_metrics.sk_ack_backlog;
-                let sk_receive_buffer_size = net_metrics.sk_receive_buffer_size;
-
-                info!(
-                    "tgid: {}, comm: {}, ts_us: {}, sk_drops: {}, sk_err: {}, sk_err_soft: {}, sk_backlog_len: {}, sk_write_memory_queued: {}, sk_ack_backlog: {}, sk_receive_buffer_size: {}",
-                    tgid,
-                    comm,
-                    ts_us,
-                    sk_drop_count,
-                    sk_err,
-                    sk_err_soft,
-                    sk_backlog_len,
-                    sk_write_memory_queued,
-                    sk_ack_backlog,
-                    sk_receive_buffer_size
-                );
-            }
-        }
-    }
-    #[cfg(feature = "monitoring-structs")]
-    pub async fn read_timestamp_metrics(
-        buffers: &mut [BytesMut],
-        tot_events: i32,
-        offset: i32,
-        exporter: &str,
-        metrics: Arc<Metrics>,
-    ) {
-        for i in offset..tot_events {
-            let vec_bytes = &buffers[i as usize];
-            if vec_bytes.len() < std::mem::size_of::<TimeStampMetrics>() {
-                error!(
-                    "Corrupted Network Metrics data. Raw data: {}. Readed {} bytes expected {} bytes",
-                    vec_bytes
-                        .iter()
-                        .map(|b| format!("{:02x}", b))
-                        .collect::<Vec<_>>()
-                        .join(" "),
-                    vec_bytes.len(),
-                    std::mem::size_of::<TimeStampMetrics>()
-                );
-                continue;
-            }
-            if vec_bytes.len() >= std::mem::size_of::<TimeStampMetrics>() {
-                let time_stamp_event: TimeStampMetrics =
-                    unsafe { std::ptr::read_unaligned(vec_bytes.as_ptr() as *const _) };
-
-                match exporter {
-                    "otlp" => metrics.record_timestamp_metrics(&time_stamp_event),
-                    _ => continue,
-                }
-
-                let delta_us = time_stamp_event.delta_us;
-                let ts_us = time_stamp_event.ts_us;
-                let tgid = time_stamp_event.tgid;
-                let comm = String::from_utf8_lossy(&time_stamp_event.comm);
-                let lport = time_stamp_event.lport;
-                let dport_be = time_stamp_event.dport_be;
-                let af = time_stamp_event.af;
-                info!(
-                    "TimeStampEvent - delta_us: {}, ts_us: {}, tgid: {}, comm: {}, lport: {}, dport_be: {}, af: {}",
-                    delta_us, ts_us, tgid, comm, lport, dport_be, af
-                );
-            }
-        }
-    }
-
-    #[cfg(feature = "monitoring-structs")]
-    pub async fn read_cpu_frequency(
-        buffers: &mut [BytesMut],
-        tot_events: i32,
-        offset: i32,
-        exporter: &str,
-        metrics: Arc<Metrics>,
-    ) {
-        for i in offset..tot_events {
-            let vec_bytes = &buffers[i as usize];
-            if vec_bytes.len() < std::mem::size_of::<CpuFrequency>() {
-                error!(
-                    "Corrupted Cpu Frequency Metrics data. Raw data: {}. Readed {} bytes expected {} bytes",
-                    vec_bytes
-                        .iter()
-                        .map(|b| format!("{:02x}", b))
-                        .collect::<Vec<_>>()
-                        .join(" "),
-                    vec_bytes.len(),
-                    std::mem::size_of::<CpuFrequency>()
-                );
-                continue;
-            }
-            if vec_bytes.len() >= std::mem::size_of::<CpuFrequency>() {
-                let cpu_freq_metrics: CpuFrequency =
-                    unsafe { std::ptr::read_unaligned(vec_bytes.as_ptr() as *const _) };
-
-                match exporter {
-                    "otlp" => metrics.record_cpu_bytes_alloc(&cpu_freq_metrics),
-                    _ => continue,
-                }
-
-                //let cpu_id = cpu_freq_metrics.cpu_id;
-                //let cpu_freq = cpu_freq_metrics.cpu_freq;
-                let bytes_alloc = cpu_freq_metrics.bytes_alloc;
-                //info!(
-                //    "Cpu id: {} Cpu frequency: {} Bytes alloc: {}",
-                //    cpu_id, cpu_freq, bytes_alloc
-                //);
-                let pid = cpu_freq_metrics.pid;
-                let command = cpu_freq_metrics.command;
-                info!(
-                    "Cpu Bytes alloc: {} pid : {} command: {:?}",
-                    bytes_alloc, pid, command
-                );
-            }
-        }
-    }
-
-    #[cfg(feature = "monitoring-structs")]
-    pub async fn read_mem_alloc(
-        buffers: &mut [BytesMut],
-        tot_events: i32,
-        offset: i32,
-        exporter: &str,
-        metrics: Arc<Metrics>,
-    ) {
-        for i in offset..tot_events {
-            let vec_bytes = &buffers[i as usize];
-            if vec_bytes.len() < std::mem::size_of::<MemAlloc>() {
-                error!(
-                    "Corrupted MemAlloc data. Raw data: {}. Readed {} bytes expected {} bytes",
-                    vec_bytes
-                        .iter()
-                        .map(|b| format!("{:02x}", b))
-                        .collect::<Vec<_>>()
-                        .join(" "),
-                    vec_bytes.len(),
-                    std::mem::size_of::<MemAlloc>()
-                );
-                continue;
-            }
-            if vec_bytes.len() >= std::mem::size_of::<MemAlloc>() {
-                let mem_alloc: MemAlloc =
-                    unsafe { std::ptr::read_unaligned(vec_bytes.as_ptr() as *const _) };
-
-                match exporter {
-                    "otlp" => metrics.record_enter_mem_alloc(&mem_alloc),
-                    _ => continue,
-                }
-
-                let tgid = mem_alloc.tgid;
-                let command = String::from_utf8_lossy(&mem_alloc.command);
-                let addr = mem_alloc.addr;
-                let length = mem_alloc.length;
-
-                info!(
-                    "MemAlloc - tgid: {}, command: {}, addr: {}, length: {}",
-                    tgid, command, addr, length
-                );
-            }
-        }
-    }
-
-    #[cfg(feature = "monitoring-structs")]
-    pub async fn read_sched_stat_wait(
-        buffers: &mut [BytesMut],
-        tot_events: i32,
-        offset: i32,
-        exporter: &str,
-        metrics: Arc<Metrics>,
-    ) {
-        for i in offset..tot_events {
-            let vec_bytes = &buffers[i as usize];
-            if vec_bytes.len() < std::mem::size_of::<SchedStatWait>() {
-                error!(
-                    "Corrupted SchedStatWait data. Raw data: {}. Readed {} bytes expected {} bytes",
-                    vec_bytes
-                        .iter()
-                        .map(|b| format!("{:02x}", b))
-                        .collect::<Vec<_>>()
-                        .join(" "),
-                    vec_bytes.len(),
-                    std::mem::size_of::<SchedStatWait>()
-                );
-                continue;
-            }
-            if vec_bytes.len() >= std::mem::size_of::<SchedStatWait>() {
-                let sched_stat_wait: SchedStatWait =
-                    unsafe { std::ptr::read_unaligned(vec_bytes.as_ptr() as *const _) };
-
-                match exporter {
-                    "otlp" => metrics.record_sched_stat_wait(&sched_stat_wait),
-                    _ => continue,
-                }
-
-                let tgid = sched_stat_wait.tgid;
-                let command = String::from_utf8_lossy(&sched_stat_wait.command);
-                let delay = sched_stat_wait.delay;
-
-                info!(
-                    "SchedStatWait - tgid: {}, command: {}, delay: {}",
-                    tgid, command, delay
-                );
-            }
-        }
-    }
-
-    #[cfg(feature = "monitoring-structs")]
-    pub async fn read_sched_stat_runtime(
-        buffers: &mut [BytesMut],
-        tot_events: i32,
-        offset: i32,
-        exporter: &str,
-        metrics: Arc<Metrics>,
-    ) {
-        for i in offset..tot_events {
-            let vec_bytes = &buffers[i as usize];
-            if vec_bytes.len() < std::mem::size_of::<SchedStatRuntime>() {
-                error!(
-                    "Corrupted SchedStatRuntime data. Raw data: {}. Readed {} bytes expected {} bytes",
-                    vec_bytes
-                        .iter()
-                        .map(|b| format!("{:02x}", b))
-                        .collect::<Vec<_>>()
-                        .join(" "),
-                    vec_bytes.len(),
-                    std::mem::size_of::<SchedStatRuntime>()
-                );
-                continue;
-            }
-            if vec_bytes.len() >= std::mem::size_of::<SchedStatRuntime>() {
-                let sched_stat_runtime: SchedStatRuntime =
-                    unsafe { std::ptr::read_unaligned(vec_bytes.as_ptr() as *const _) };
-
-                match exporter {
-                    "otlp" => metrics.record_sched_stat_runtime(&sched_stat_runtime),
-                    _ => continue,
-                }
-
-                let tgid = sched_stat_runtime.tgid;
-                let command = String::from_utf8_lossy(&sched_stat_runtime.command);
-                let runtime = sched_stat_runtime.runtime;
-
-                info!(
-                    "SchedStatRuntime - tgid: {}, command: {}, runtime: {}",
-                    tgid, command, runtime
-                );
-            }
-        }
-    }
-
-    #[cfg(feature = "monitoring-structs")]
-    pub async fn read_cpu_idle(
-        buffers: &mut [BytesMut],
-        tot_events: i32,
-        offset: i32,
-        exporter: &str,
-        metrics: Arc<Metrics>,
-    ) {
-        for i in offset..tot_events {
-            let vec_bytes = &buffers[i as usize];
-            if vec_bytes.len() < std::mem::size_of::<CpuIdle>() {
-                error!(
-                    "Corrupted CpuIdle data. Raw data: {}. Readed {} bytes expected {} bytes",
-                    vec_bytes
-                        .iter()
-                        .map(|b| format!("{:02x}", b))
-                        .collect::<Vec<_>>()
-                        .join(" "),
-                    vec_bytes.len(),
-                    std::mem::size_of::<CpuIdle>()
-                );
-                continue;
-            }
-            if vec_bytes.len() >= std::mem::size_of::<CpuIdle>() {
-                let cpu_idle: CpuIdle =
-                    unsafe { std::ptr::read_unaligned(vec_bytes.as_ptr() as *const _) };
-
-                match exporter {
-                    "otlp" => metrics.record_cpu_idle(&cpu_idle),
-                    _ => continue,
-                }
-
-                let cpu_id = cpu_idle.cpu_id;
-                let state = cpu_idle.state;
-
-                info!(
-                    "CpuIdle state changed - cpu_id: {}, state: {}",
-                    cpu_id, state
-                );
-            }
-        }
-    }
-}
-
-// docs: read buffer function:
-// template function that take a mut perf_event_array_buffer of type T and a mutable buffer of Vec<BytesMut>
-#[cfg(feature = "buffer-reader")]
-pub async fn read_perf_buffer<T: std::borrow::BorrowMut<aya::maps::MapData>>(
-    mut array_buffers: Vec<PerfEventArrayBuffer<T>>,
-    mut buffers: Vec<bytes::BytesMut>,
-    buffer_type: BufferType,
-    #[cfg(feature = "monitoring-structs")] metrics: Option<Arc<Metrics>>,
-) {
-    // loop over the buffers
-    loop {
-        for buf in array_buffers.iter_mut() {
-            match buf.read_events(&mut buffers) {
-                Ok(events) => {
-                    // triggered if some events are lost
-                    if events.lost > 0 {
-                        tracing::debug!("Lost events: {} ", events.lost);
-                    }
-                    // triggered if some events are readed
-                    if events.read > 0 {
-                        tracing::debug!("Readed events: {}", events.read);
-                        let offset = 0;
-                        let tot_events = events.read as i32;
-
-                        //read the events in the buffer
-                        match buffer_type {
-                            #[cfg(feature = "network-structs")]
-                            BufferType::PacketLog => {
-                                BufferType::read_packet_log(&mut buffers, tot_events, offset).await
-                            }
-                            #[cfg(feature = "network-structs")]
-                            BufferType::TcpPacketRegistry => {
-                                BufferType::read_tcp_registry_log(&mut buffers, tot_events, offset)
-                                    .await
-                            }
-                            #[cfg(feature = "network-structs")]
-                            BufferType::VethLog => {
-                                BufferType::read_and_handle_veth_log(
-                                    &mut buffers,
-                                    tot_events,
-                                    offset,
-                                )
-                                .await
-                            }
-                            #[cfg(feature = "monitoring-structs")]
-                            BufferType::NetworkMetrics => {
-                                BufferType::read_network_metrics(
-                                    &mut buffers,
-                                    tot_events,
-                                    offset,
-                                    "otlp",
-                                    metrics
-                                        .clone()
-                                        .expect("Metrics required for NetworkMetrics"),
-                                )
-                                .await
-                            }
-                            #[cfg(feature = "monitoring-structs")]
-                            BufferType::TimeStampMetrics => {
-                                BufferType::read_timestamp_metrics(
-                                    &mut buffers,
-                                    tot_events,
-                                    offset,
-                                    "otlp",
-                                    metrics
-                                        .clone()
-                                        .expect("Metric required for TimeStampMetrics"),
-                                )
-                                .await
-                            }
-                            #[cfg(feature = "monitoring-structs")]
-                            BufferType::CpuFrequency => {
-                                BufferType::read_cpu_frequency(
-                                    &mut buffers,
-                                    tot_events,
-                                    offset,
-                                    "otlp",
-                                    metrics.clone().expect("Metric required for CpuFrequency"),
-                                )
-                                .await
-                            }
-                            #[cfg(feature = "monitoring-structs")]
-                            BufferType::MemAlloc => {
-                                BufferType::read_mem_alloc(
-                                    &mut buffers,
-                                    tot_events,
-                                    offset,
-                                    "otlp",
-                                    metrics.clone().expect("Metric required for MemAlloc"),
-                                )
-                                .await
-                            }
-                            #[cfg(feature = "monitoring-structs")]
-                            BufferType::SchedStatWait => {
-                                BufferType::read_sched_stat_wait(
-                                    &mut buffers,
-                                    tot_events,
-                                    offset,
-                                    "otlp",
-                                    metrics.clone().expect("Metric required for SchedStatWait"),
-                                )
-                                .await
-                            }
-                            #[cfg(feature = "monitoring-structs")]
-                            BufferType::SchedStatRuntime => {
-                                BufferType::read_sched_stat_runtime(
-                                    &mut buffers,
-                                    tot_events,
-                                    offset,
-                                    "otlp",
-                                    metrics
-                                        .clone()
-                                        .expect("Metric required for SchedStatRuntime"),
-                                )
-                                .await
-                            }
-                            #[cfg(feature = "monitoring-structs")]
-                            BufferType::CpuIdle => {
-                                BufferType::read_cpu_idle(
-                                    &mut buffers,
-                                    tot_events,
-                                    offset,
-                                    "otlp",
-                                    metrics.clone().expect("Metric required for CpuIdle"),
-                                )
-                                .await
-                            }
-                        }
-                    }
-                }
-                Err(e) => {
-                    error!("Cannot read events from buffer. Reason: {} ", e);
-                }
-            }
-        }
-        tokio::time::sleep(std::time::Duration::from_millis(100)).await; // small sleep 
-    }
-}
-
+/// Buffer size presets for per-CPU perf-buffer allocation.
+///
+/// Each variant carries a multiplier that determines how many struct-sized
+/// slots are pre-allocated per CPU in [`BufferSize::set_buffer`].
 #[cfg(feature = "buffer-reader")]
 pub enum BufferSize {
     #[cfg(feature = "network-structs")]
@@ -927,9 +237,13 @@ pub enum BufferSize {
     SchedStatRuntime,
     #[cfg(feature = "monitoring-structs")]
     CpuIdle,
+    #[cfg(feature = "monitoring-structs")]
+    SslEvents,
 }
+
 #[cfg(feature = "buffer-reader")]
 impl BufferSize {
+    /// Return the size in bytes of the struct associated with this variant.
     pub fn get_size(&self) -> usize {
         match self {
             #[cfg(feature = "network-structs")]
@@ -939,7 +253,7 @@ impl BufferSize {
             #[cfg(feature = "network-structs")]
             BufferSize::TcpEvents => std::mem::size_of::<TcpPacketRegistry>(),
             #[cfg(feature = "monitoring-structs")]
-            BufferSize::NetworkMetricsEvents => std::mem::size_of::<NetworkMetrics>(),
+            BufferSize::NetworkMetricsEvents => std::mem::size_of::<PacketLossMetrics>(),
             #[cfg(feature = "monitoring-structs")]
             BufferSize::TimeMetricsEvents => std::mem::size_of::<TimeStampMetrics>(),
             #[cfg(feature = "monitoring-structs")]
@@ -952,23 +266,18 @@ impl BufferSize {
             BufferSize::SchedStatRuntime => std::mem::size_of::<SchedStatRuntime>(),
             #[cfg(feature = "monitoring-structs")]
             BufferSize::CpuIdle => std::mem::size_of::<CpuIdle>(),
+            #[cfg(feature = "monitoring-structs")]
+            BufferSize::SslEvents => std::mem::size_of::<SslEvent>(),
         }
     }
+
+    /// Allocate one `BytesMut` per CPU with capacity tuned to the event type.
     pub fn set_buffer(&self) -> Vec<BytesMut> {
-        // iter returns and iterator of cpu ids,
-        // we need only the total number of cpus to set the buffer size so we use .len() to get
-        // the count of total cpus and then we allocate a buffer for each cpu with a capacity
-        // based on the structure size * a factor to have a bigger buffer to avoid overflows and lost events
+        use aya::util::online_cpus;
 
-        // Old buffers where 1024 bytes long. Now we set different buffer size based on
-        // the frequence of the events.
-        // ClassifierNetEvents are triggered by the TC classifier program, events has high frequency
-        // VethEvents are triggered by the creation and deletion of veth interfaces, events has small frequency compared to classifier events
-        // TcpEvents are triggered by TCP events and connections. Events has similar frequency to ClassifierNetEvents.
+        let tot_cpu = online_cpus().iter().len();
 
-        let tot_cpu = online_cpus().iter().len(); // total number of cpus
-
-        // TODO: finish to do all the calculations for the buffer sizes
+        // TODO: finish buffer size calculations
         match self {
             #[cfg(feature = "network-structs")]
             BufferSize::ClassifierNetEvents => {
@@ -977,7 +286,7 @@ impl BufferSize {
             }
             #[cfg(feature = "network-structs")]
             BufferSize::VethEvents => {
-                let capacity = self.get_size() * 100; // Allocates 4Kb of memory for the buffers
+                let capacity = self.get_size() * 100;
                 return vec![BytesMut::with_capacity(capacity); tot_cpu];
             }
             #[cfg(feature = "network-structs")]
@@ -1020,15 +329,19 @@ impl BufferSize {
                 let capacity = self.get_size() * 1024;
                 return vec![BytesMut::with_capacity(capacity); tot_cpu];
             }
+            #[cfg(feature = "monitoring-structs")]
+            BufferSize::SslEvents => {
+                let capacity = self.get_size() * 1024;
+                return vec![BytesMut::with_capacity(capacity); tot_cpu];
+            }
         }
     }
 }
 
+/// Open a [`PerfEventArrayBuffer`] for every online CPU and append them to `vec_of_buffers`.
 #[cfg(feature = "buffer-reader")]
 pub fn fill_buffers(
-    //buf: PerfEventArrayBuffer<MapData>,
     mut vec_of_buffers: Vec<PerfEventArrayBuffer<MapData>>,
-    //buffers: Vec<BytesMut>,
     mut events_array: PerfEventArray<MapData>,
 ) -> Vec<PerfEventArrayBuffer<MapData>> {
     for cpu_id in online_cpus()

@@ -6,7 +6,7 @@ use aya_ebpf::{
 pub const TASK_COMM_LEN: usize = 16;
 
 #[repr(C, packed)]
-pub struct NetworkMetrics {
+pub struct PacketLossMetrics {
     pub tgid: u32,
     pub comm: [u8; TASK_COMM_LEN],
     pub ts_us: u64,
@@ -27,7 +27,8 @@ pub struct TimeStampStartInfo {
     pub tgid: u32,
 }
 
-// Event we send to userspace when latency is computed
+/// Event we send to userspace when latency is computed
+/// used to compute tcp_delta_us, tcp_ts_us metrics
 #[repr(C, packed)]
 #[derive(Copy, Clone)]
 pub struct TimeStampEvent {
@@ -50,7 +51,7 @@ pub struct CpuFrequency {
     //pub(crate) cpu_id: u32,
     //pub(crate) cpu_freq: u32,
     pub(crate) bytes_alloc: u32,
-    pub(crate) pid: u32,
+    pub(crate) tgid: u32,
     pub(crate) command: [u8; 16],
 }
 
@@ -86,6 +87,17 @@ pub struct CpuIdle {
     pub(crate) state: u32,
 }
 
+#[repr(C, packed)]
+#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct SslEvent {
+    pub tgid: u32,
+    pub comm: [u8; TASK_COMM_LEN],
+    pub ts_us: u64,
+    pub direction: u8,  // 0 = read, 1 = write
+    pub size: i32,      // return value (bytes transferred or <0 on error)
+    pub requested: i32, // num argument passed to SSL_read/SSL_write
+}
+
 // Map: connect-start timestamp by socket pointer
 #[map(name = "time_stamp_start")]
 pub static mut TIME_STAMP_START: HashMap<*mut core::ffi::c_void, TimeStampStartInfo> =
@@ -97,7 +109,7 @@ pub static mut TIME_STAMP_EVENTS: PerfEventArray<TimeStampEvent> =
     PerfEventArray::<TimeStampEvent>::new(0);
 
 #[map(name = "net_metrics")]
-pub static NET_METRICS: PerfEventArray<NetworkMetrics> = PerfEventArray::new(0);
+pub static NET_METRICS: PerfEventArray<PacketLossMetrics> = PerfEventArray::new(0);
 
 #[map(name = "cpu_frequency")]
 pub static CPU_FREQUENCY: PerfEventArray<CpuFrequency> = PerfEventArray::new(0);
@@ -117,3 +129,10 @@ pub static CPU_IDLE: PerfEventArray<CpuIdle> = PerfEventArray::new(0);
 #[map(name = "cpu_idle_last_state")]
 pub static mut CPU_IDLE_LAST_STATE: HashMap<u32, u32> =
     HashMap::<u32, u32>::with_max_entries(256, 0);
+
+#[map(name = "ssl_ctx_map")]
+pub static mut SSL_CTX_MAP: HashMap<u64, i32> =
+    HashMap::<u64, i32>::with_max_entries(4096, 0);
+
+#[map(name = "ssl_events")]
+pub static SSL_EVENTS: PerfEventArray<SslEvent> = PerfEventArray::new(0);

@@ -1,4 +1,4 @@
-use aya_ebpf::{EbpfContext, programs::TracePointContext};
+use aya_ebpf::{EbpfContext, helpers::bpf_get_current_pid_tgid, programs::TracePointContext};
 
 /// Read the fields of the `syscalls:sys_enter_mmap` tracepoint.
 pub fn enter_mmap(ctx: &TracePointContext) -> Result<((u32, u64, u64, [u8; 16])), i64> {
@@ -7,7 +7,9 @@ pub fn enter_mmap(ctx: &TracePointContext) -> Result<((u32, u64, u64, [u8; 16]))
     let addr_offset = 16;
     let len_offset = 24;
 
-    let tgid: u32 = unsafe { ctx.read_at(tgid_offset) }?;
+    //let tgid: u32 = unsafe { ctx.read_at(tgid_offset) }?;
+    let pid_tgid: u64 = bpf_get_current_pid_tgid();
+    let tgid: u32 = (pid_tgid >> 32) as u32;
     let addr: u64 = unsafe { ctx.read_at(addr_offset) }?;
     let len: u64 = unsafe { ctx.read_at(len_offset) }?;
     let command = ctx.command()?;

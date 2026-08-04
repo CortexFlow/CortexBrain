@@ -7,7 +7,7 @@ use std::sync::Arc;
 use tokio::signal;
 use tracing::{error, info};
 
-use cortexbrain_common::buffer_type::{BufferType, read_perf_buffer};
+use cortexbrain_common::consumer::{Consumer, read_perf_buffer};
 use cortexbrain_common::otel_metrics::Metrics;
 
 /// Listen for eBPF perf-buffer events and record OpenTelemetry metrics.
@@ -82,6 +82,10 @@ pub async fn event_listener(bpf_maps: BpfMapsData, meter: Meter) -> Result<(), a
         .remove("sched_stat_runtime")
         .expect("Cannot create sched_stat_runtime perf buffer");
 
+    let (_ssl_events, ssl_events_perf_buffer) = maps
+        .remove("ssl_events")
+        .expect("Cannot create ssl_events perf buffer");
+
     // Allocate byte-buffers sized for each structure type
     let net_metrics_buffers = BufferSize::NetworkMetricsEvents.set_buffer();
     let time_stamp_events_buffers = BufferSize::TimeMetricsEvents.set_buffer();
@@ -90,6 +94,7 @@ pub async fn event_listener(bpf_maps: BpfMapsData, meter: Meter) -> Result<(), a
     let mem_alloc_buffers = BufferSize::MemAlloc.set_buffer();
     let sched_stat_wait_buffers = BufferSize::SchedStatWait.set_buffer();
     let sched_stat_runtime_buffers = BufferSize::SchedStatRuntime.set_buffer();
+    let ssl_events_buffers = BufferSize::SslEvents.set_buffer();
 
     let metrics = Arc::new(Metrics::new(&meter));
 
@@ -103,7 +108,7 @@ pub async fn event_listener(bpf_maps: BpfMapsData, meter: Meter) -> Result<(), a
             read_perf_buffer(
                 array_buffers,
                 buffers,
-                BufferType::NetworkMetrics,
+                Consumer::PacketLossMetrics,
                 Some(metrics),
             )
             .await;
@@ -118,7 +123,7 @@ pub async fn event_listener(bpf_maps: BpfMapsData, meter: Meter) -> Result<(), a
             read_perf_buffer(
                 array_buffers,
                 buffers,
-                BufferType::TimeStampMetrics,
+                Consumer::TimeStampMetrics,
                 Some(metrics),
             )
             .await;
@@ -133,7 +138,7 @@ pub async fn event_listener(bpf_maps: BpfMapsData, meter: Meter) -> Result<(), a
             read_perf_buffer(
                 array_buffers,
                 buffers,
-                BufferType::CpuFrequency,
+                Consumer::CpuFrequency,
                 Some(metrics),
             )
             .await;
@@ -145,7 +150,7 @@ pub async fn event_listener(bpf_maps: BpfMapsData, meter: Meter) -> Result<(), a
         let mut array_buffers = cpu_idle_perf_buffer;
         let mut buffers = cpu_idle_buffers;
         tokio::spawn(async move {
-            read_perf_buffer(array_buffers, buffers, BufferType::CpuIdle, Some(metrics)).await;
+            read_perf_buffer(array_buffers, buffers, Consumer::CpuIdle, Some(metrics)).await;
         })
     };
 
@@ -154,7 +159,7 @@ pub async fn event_listener(bpf_maps: BpfMapsData, meter: Meter) -> Result<(), a
         let mut array_buffers = mem_alloc_perf_buffer;
         let mut buffers = mem_alloc_buffers;
         tokio::spawn(async move {
-            read_perf_buffer(array_buffers, buffers, BufferType::MemAlloc, Some(metrics)).await;
+            read_perf_buffer(array_buffers, buffers, Consumer::MemAlloc, Some(metrics)).await;
         })
     };
 
@@ -166,7 +171,7 @@ pub async fn event_listener(bpf_maps: BpfMapsData, meter: Meter) -> Result<(), a
             read_perf_buffer(
                 array_buffers,
                 buffers,
-                BufferType::SchedStatWait,
+                Consumer::SchedStatWait,
                 Some(metrics),
             )
             .await;
@@ -181,10 +186,19 @@ pub async fn event_listener(bpf_maps: BpfMapsData, meter: Meter) -> Result<(), a
             read_perf_buffer(
                 array_buffers,
                 buffers,
-                BufferType::SchedStatRuntime,
+                Consumer::SchedStatRuntime,
                 Some(metrics),
             )
             .await;
+        })
+    };
+
+    let ssl_events_metrics = {
+        let metrics = Arc::clone(&metrics);
+        let mut array_buffers = ssl_events_perf_buffer;
+        let mut buffers = ssl_events_buffers;
+        tokio::spawn(async move {
+            read_perf_buffer(array_buffers, buffers, Consumer::SslEvents, Some(metrics)).await;
         })
     };
 
@@ -230,6 +244,12 @@ pub async fn event_listener(bpf_maps: BpfMapsData, meter: Meter) -> Result<(), a
         result = sched_stat_runtime_metrics => {
             if let Err(e) = result {
                 error!("SchedStatRuntime events task failed: {:?}", e);
+            }
+        }
+
+        result = ssl_events_metrics => {
+            if let Err(e) = result {
+                error!("Ssl events task failed: {:?}", e);
             }
         }
 

@@ -1,6 +1,6 @@
 services:
   cortexflow-metrics:
-    image: lorenzotettamanti/cortexflow-metrics:otel-test-15
+    image: lorenzotettamanti/cortexflow-metrics:otel-metrics-23
     container_name: cortexflow-metrics
     stop_signal: SIGINT
     restart: unless-stopped
@@ -20,6 +20,8 @@ services:
       - /lib/modules:/lib/modules:ro
       - /sys/kernel/debug:/sys/kernel/debug
       - /proc:/host/proc:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/lib/docker:/var/lib/docker:ro
     networks:
       - cortexflow
 
@@ -57,6 +59,7 @@ services:
       - GOMEMLIMIT=1600MiB
     volumes:
       - ./otel-collector-config.yaml:/conf/otel-collector-config.yaml:ro
+      - /var/run/docker.sock:/var/run/docker.sock
     networks:
       - cortexflow
     depends_on:
@@ -76,13 +79,14 @@ services:
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus-data:/prometheus
+      - /var/run/docker.sock:/var/run/docker.sock
     networks:
       - cortexflow
     depends_on:
       - otel-collector
 
   grafana:
-    image: grafana/grafana:11.6.16
+    image: grafana/grafana:13.1.0
     container_name: grafana
     user: "472:472"
     ports:
@@ -96,6 +100,7 @@ services:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
       - grafana-data:/var/lib/grafana
+      - /var/run/docker.sock:/var/run/docker.sock
     networks:
       - cortexflow
     depends_on:

@@ -1,0 +1,16 @@
+[package]
+name = "mcp"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0.104"
+dotenv = "0.15.0"
+genai = "0.6.5"
+rmcp = { version = "0.8.0", features = ["server", "client", "transport-io", "transport-child-process"] }
+tokio = { version = "1.47.1", features = ["full"] }
+serde_json = "1.0.151"
+reqwest = {version="0.13.4",features=["json","query"]}
+schemars = "1.2.1"
+serde = "1.0.229"
+cortexbrain-common={path="../core/common"}

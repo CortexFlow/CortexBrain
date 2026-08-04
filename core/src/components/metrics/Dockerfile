@@ -22,12 +22,12 @@ WORKDIR /usr/src/app
 COPY . .
 
 RUN bpftool btf dump file /sys/kernel/btf/vmlinux format c > src/components/metrics_tracer/vmlinux.h \
-    && bindgen src/components/metrics_tracer/vmlinux.h \
-        -o src/components/metrics_tracer/src/bindings.rs \
-        --use-core \
+    && bindgen --use-core --no-layout-tests \
         --allowlist-type 'sk_buff' \
         --allowlist-type 'sock_common' \
-        --allowlist-type 'in6_addr'
+        --allowlist-type 'in6_addr' \
+        src/components/metrics_tracer/vmlinux.h \
+        -o src/components/metrics_tracer/src/bindings.rs
 
 RUN cargo +nightly build -Z build-std=core --target bpfel-unknown-none --release -p metrics_tracer
 
