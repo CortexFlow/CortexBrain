@@ -88,18 +88,27 @@ markdown_extensions:
 plugins:
   - tags:
   - search:
-  - rss:
-        match_path: test-report/reports/.*
-        date_from_meta:
-          as_creation: date
 
 nav:
   - Home: index.md
   - Getting Started: getting-started/installation.md
+  - Quickstart: getting-started/quickstart.md
+  - Developer Guide:
+    - developer-guide/index.md
+    - developer-guide/architecture.md
+    - developer-guide/dev-workflow.md
+    - developer-guide/agent-api.md
+    - developer-guide/metrics.md
+    - developer-guide/gpu-metrics.md
+    - developer-guide/troubleshooting.md
+    - developer-guide/security.md
+    - developer-guide/glossary.md
+    - developer-guide/discussions.md
   - CLI: 
     - cfcli/overview.md
     - cfcli/quick-start-guide.md
     - cfcli/Agent-API-Overview.md
+  - MCP Server: developer-guide/mcp-server-guide.md
     
   - Test Report: 
     - test-report/test-report.md

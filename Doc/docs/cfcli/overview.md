@@ -55,17 +55,47 @@ This document describes the available commands and provides a quick reference ta
     - Reads data from `events_map`.  
     - Shows the most recent detected events.  
 
+- **`cfcli monitoring latencymetrics`**  
+  Displays TCP connection latency metrics collected by the **Metrics** service.  
+    - Reads latency events from `time_stamp_events`.  
+    - Returns per-event latency (`delta_us`) plus aggregate stats (average, min, max).  
+
+- **`cfcli monitoring droppedpackets`**  
+  Displays socket-level dropped packet metrics collected by the **Metrics** service.  
+    - Reads drop/error events from `net_metrics`.  
+    - Only entries where `sk_drops > 0` are returned.  
+    - Returns the total drop count (`total_drops`).  
+
+
+## Policy Commands
+
+- **`cfcli policy create-blocklist --flags <IP>`**  
+  Adds an IPv4 address to the `Blocklist` BPF map via the **Agent** gRPC API.  
+    - Also mirrors the IP into the `cortexbrain-client-config` ConfigMap.  
+
+- **`cfcli policy check-blocklist`**  
+  Reads and prints the current contents of the `Blocklist` BPF map.  
+
+- **`cfcli policy remove-ip --flags <IP>`**  
+  Removes an IPv4 address from the `Blocklist` BPF map.  
+    - Also updates the `cortexbrain-client-config` ConfigMap.  
+
 
 ## Command Reference Table
 
 | Command                        | Category             | Description                                                                 |
 |--------------------------------|----------------------|-----------------------------------------------------------------------------|
 | `cfcli install cortexflow`     | Installation         | Installs all CortexBrain core components                                    |
-| `cfcli install simple-example` | Installation         | Installs a demo example from `deploy-test-pod.yaml`                         |
+| `cfcli install simple-example` | Installation        | Installs a demo example from `deploy-test-pod.yaml`                         |
 | `cfcli uninstall`              | Installation         | Uninstalls all CortexBrain components                                       |
 | `cfcli update`                 | CLI Management       | Checks if the CLI version is up to date                                     |
 | `cfcli info`                   | CLI Management       | Displays version, authors, description, and environment metadata            |
 | `cfcli logs`                   | Logging              | Retrieves logs for a specified pod                                          |
 | `cfcli status`                 | Monitoring / Status  | Runs a health check and validates the `cortexflow` namespace                |
-| `cfcli monitoring list`        | Monitoring / Status  | Lists CortexFlow agent endpoints                                            |
+| `cfcli monitoring list`        | Monitoring / Status  | Lists CortexFlow agent endpoints via server reflection                     |
 | `cfcli monitoring connections` | Monitoring / Status  | Displays logged connections from the Identity service                       |
+| `cfcli monitoring latencymetrics` | Monitoring / Status | Displays TCP connection latency metrics from the Metrics service         |
+| `cfcli monitoring droppedpackets` | Monitoring / Status | Displays socket-level dropped packet metrics from the Metrics service    |
+| `cfcli policy create-blocklist` | Policy              | Adds an IPv4 to the Blocklist BPF map                                       |
+| `cfcli policy check-blocklist`  | Policy              | Reads the current Blocklist BPF map                                        |
+| `cfcli policy remove-ip`         | Policy              | Removes an IPv4 from the Blocklist BPF map                                  |
