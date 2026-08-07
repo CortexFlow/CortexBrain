@@ -36,9 +36,6 @@ The CortexFlow architecture is designed to ensure a robust, scalable, and fault-
 
 ![Architecture](./cf_architecture.svg "Cortexflow architecture")
 
-!!! tip
-    The diagram above is a conceptual overview. For the implementation-accurate pipeline - from the eBPF kernel programs, through the pinned BPF maps, to the `agent.Agent` gRPC service and `cfcli` - see the [Architecture Overview](developer-guide/architecture.md) in the Developer Guide.
-
 ## What's eBPF?
 Extended Berkeley Packet Filter (eBPF) presents a transformative approach to building service meshes by eliminating the need for the traditional sidecar model, which often introduces significant complexity and overhead in microservices architecture. eBPF allows for the implementation of service mesh functionalities directly in the kernel, resulting in a more efficient and streamlined data plane. This native integration minimizes the number of proxies required, reduces additional network connections, and simplifies redirection logic for network traffic, thereby enhancing performance.
 

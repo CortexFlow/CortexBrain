@@ -33,7 +33,8 @@ CortexBrain sits at the intersection of Rust and eBPF no single resource covers 
 
 - **eBPF** - [ebpf.io](https://ebpf.io/what-is-ebpf/) (concept overview), the [Cilium eBPF documentation](https://docs.cilium.io/) (practical kernel hook reference), and the [BPF and XDP reference guide](https://docs.kernel.org/networking/filter.html) in the Linux kernel docs.
 - **Aya (Rust eBPF)** - [aya-rs.dev](https://aya-rs.dev/) (the framework CortexBrain uses to load and pin BPF maps), the [Aya book](https://aya-rs.dev/book/), and the [Aya examples](https://github.com/aya-rs/aya/tree/main/examples).
-- **Kubernetes networking** - the [Kubernetes CNI documentation](https://kubernetes.io/docs/concepts/extend-kubernetes/compute-storage-network/network-plugins/)
+- **gRPC / tonic** - the [tonic](https://docs.rs/tonic/) Rust gRPC stack documentation, which powers the `agent.Agent` service.
+- **Kubernetes networking** - the [Kubernetes CNI documentation](https://kubernetes.io/docs/concepts/extend-kubernetes/compute-storage-network/network-plugins/) and the [Calico docs](https://docs.tigera.io/calico/latest/about), since CortexBrain attaches eBPF programs to veth interfaces created by Calico.
 - **Docker docs** - [Docker docs](https://docs.docker.com/)
 
 ## Contributing
