@@ -13,11 +13,11 @@ This section consolidates the architecture, the Agent API surface, the integrate
 |------|----------------|
 | [Glossary](glossary.md) | Definitions for eBPF, kernel, Kubernetes, networking, observability, GPU, and MCP terms used across the docs |
 | [Architecture Overview](architecture.md) | Covers kernel instrumentation, maps pinning, aggregation and consumption |
-| [Development Workflow](dev-workflow.md) | Covers the complete developer workflow: Fork, development branch and PR flow, CI pipeline, commit and branch conventions |
+| [Development Workflow](../developer-guide/development-workflow.md) | Covers the complete developer workflow: Fork, development branch and PR flow, CI pipeline, commit and branch conventions |
 | [Agent API Overview](agent-api.md) | The Cortexflow agent service. Covers the RPC methods, the BPF maps the agent reads, and the data flow from eBPF kernel programs to `cfcli` |
 | [Integrated Metrics](metrics.md) | Covers the live metrics and the OpenTelemetry metric format from `metrics-patch` |
 | [MCP Server](mcp-server.md) | The MCP server that exposes CortexBrain metrics to AI assistants via Prometheus queries |
-| [GPU Metrics (Upcoming)](gpu-metrics.md) | The complete CUDA observability roadmap |
+| [GPU Metrics (Upcoming)](../gpu-metrics/gpu-metrics.md) | The complete CUDA observability roadmap |
 | [Troubleshooting](troubleshooting.md) | Common issues (BPF fs not mounted, pinned map path mismatch, port-forward, permissions) and their fixes |
 | [Development Goals & Discussions](discussions.md) | Milestones, roadmap, GitHub Discussions, labels, and how to propose new features |
 

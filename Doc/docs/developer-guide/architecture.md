@@ -57,7 +57,7 @@ All CortexBrain components run in the `cortexflow` namespace. The core deploymen
 **Manifests**: `core/src/testing/agent.yaml`, `core/src/testing/identity.yaml`, `core/src/testing/metrics.yaml`
 ## Where to go next
 
-- **[Agent API Overview](agent-api.md)** - the gRPC RPCs and the BPF maps behind them, in detail.
-- **[Integrated Metrics](metrics.md)** - the field schemas for `ConnectionEvent`, `LatencyMetric`, `DroppedPacketMetric`, and the incoming OpenTelemetry instruments.
-- **[Development Workflow](dev-workflow.md)** - how to build the components locally and submit changes.
-- **[Development Goals & Discussions](discussions.md)** - milestones, roadmap, and how to propose new features.
+- **[Agent API Overview](../developer-guide/agent-api.md)** - the gRPC RPCs and the BPF maps behind them, in detail.
+- **[Integrated Metrics](../developer-guide/metrics.md)** - the field schemas for `ConnectionEvent`, `LatencyMetric`, `DroppedPacketMetric`, and the incoming OpenTelemetry instruments.
+- **[Development Workflow](../developer-guide/development-workflow.md)** - how to build the components locally and submit changes.
+- **[Development Goals & Discussions](../developer-guide/discussions.md)** - milestones, roadmap, and how to propose new features.

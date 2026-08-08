@@ -78,8 +78,7 @@ cargo build --release -p mcp
 
 ## See also
 
-- [Architecture Overview](architecture.md) - the four-stage pipeline and where Prometheus sits.
-- [Integrated Metrics](metrics.md) - the OpenTelemetry instruments that feed Prometheus.
-- [Agent API Overview](agent-api.md) - the gRPC service the MCP server currently does *not* call (planned for the roadmap).
-- [Security](security.md) - the plaintext Prometheus connection and the hardening roadmap.
-- [Troubleshooting](troubleshooting.md) - "MCP server cannot reach Prometheus".
+- [Architecture Overview](../developer-guide/architecture.md) - the four-stage pipeline and where Prometheus sits.
+- [Integrated Metrics](../developer-guide/metrics.md) - the OpenTelemetry instruments that feed Prometheus.
+- [Agent API Overview](../developer-guide/agent-api.md) - the gRPC service the MCP server currently does *not* call (planned for the roadmap).
+- [Troubleshooting](../developer-guide/troubleshooting.md) - "MCP server cannot reach Prometheus".

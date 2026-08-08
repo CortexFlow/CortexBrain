@@ -136,7 +136,7 @@ The MCP server (see [MCP Server](mcp-server.md)) queries Prometheus at the hardc
 
 ## See also
 
-- [Architecture Overview](architecture.md) - the four-stage pipeline and the BPF map paths.
-- [Agent API Overview](agent-api.md) - the gRPC service and the BPF maps behind each RPC.
-- [MCP Server](mcp-server.md) - the Prometheus-backed MCP server.
+- [Architecture Overview](../developer-guide/architecture.md) - the four-stage pipeline and the BPF map paths.
+- [Agent API Overview](../developer-guide/agent-api.md) - the gRPC service and the BPF maps behind each RPC.
+- [MCP Server](../developer-guide/mcp-server.md) - the Prometheus-backed MCP server.
 - [Quickstart](../getting-started/quickstart.md) - the 5-minute end-to-end flow.

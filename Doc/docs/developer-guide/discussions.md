@@ -28,7 +28,7 @@ New features and significant changes **must** be discussed before a pull request
 
 1. Open a [GitHub Discussion](https://github.com/CortexFlow/CortexBrain/discussions) describing the feature and how it aligns with the roadmap above.
 2. Once there is rough agreement, open a [GitHub Issue](https://github.com/CortexFlow/CortexBrain/issues/new/choose) to track the work.
-3. Reference the discussion/issue in your commits and PR (see the [Development Workflow](dev-workflow.md) page for the conventions).
+3. Reference the discussion/issue in your commits and PR (see the [Development Workflow](../developer-guide/development-workflow.md) page for the conventions).
 
 Pull requests without a related issue or discussion are not accepted.
 

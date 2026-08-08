@@ -4,6 +4,6 @@ We're actively working to add GPU metrics support in the next updates. Nowadays 
 
 ## See also
 
-- [Integrated Metrics](metrics.md) - the live eBPF/gRPC metrics and the incoming OpenTelemetry suite
-- [Architecture Overview](architecture.md) - the four-stage pipeline (kernel → maps → agent → consumption)
-- [Development Goals & Discussions](discussions.md) - the "GPU observability" roadmap track
+- [Integrated Metrics](../developer-guide/metrics.md) - the live eBPF/gRPC metrics and the incoming OpenTelemetry suite
+- [Architecture Overview](../developer-guide/architecture.md) - the four-stage pipeline (kernel → maps → agent → consumption)
+- [Development Goals & Discussions](../developer-guide/discussions.md) - the "GPU observability" roadmap track

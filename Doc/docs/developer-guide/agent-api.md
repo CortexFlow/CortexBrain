@@ -1,4 +1,4 @@
-# Agent API Overview
+# Agent API Architecture Overview
 
 The CortexBrain **Agent** is the user-space gRPC server that exposes the data collected by the eBPF kernel programs to clients such as [`cfcli`](../cfcli/overview.md). This page gives an overview of the service surface and the data flow behind it. The full message schema lives in [`core/api/protos/agent.proto`](https://github.com/CortexFlow/CortexBrain/blob/main/core/api/protos/agent.proto) in the repository.
 
@@ -78,5 +78,3 @@ The gRPC channel is currently **plaintext** HTTP/2:
 
 - The server binds to `0.0.0.0:9090` (`core/api/src/main.rs`, flagged with a `FIXME`).
 - The client connects to `http://127.0.0.1:9090` (`core/api/src/client.rs`, also flagged with a `FIXME`).
-
-Both are known limitations to be addressed before production use. See the [Security](security.md) page for the hardening roadmap. The `RequestActiveConnections.pod_ip` field is also currently read but unused by the server - all events are returned regardless of the requested pod IP.
