@@ -31,6 +31,7 @@ The core build requirements (kernel `>= 5.15`, `bpftool`, `bcc`, `clang`, `llvm`
 
 CortexBrain sits at the intersection of Rust and eBPF no single resource covers everything at the same time, in the same repository. The following are the best starting points beyond this guide:
 
+- **Linux Kernel docs** - [Linux Kernel](https://elixir.bootlin.com/linux/v7.2-rc6/source/kernel) the complete linux kernel reference divided by version
 - **eBPF** - [ebpf.io](https://ebpf.io/what-is-ebpf/) (concept overview), the [Cilium eBPF documentation](https://docs.cilium.io/) (practical kernel hook reference), and the [BPF and XDP reference guide](https://docs.kernel.org/networking/filter.html) in the Linux kernel docs.
 - **Aya (Rust eBPF)** - [aya-rs.dev](https://aya-rs.dev/) (the framework CortexBrain uses to load and pin BPF maps), the [Aya book](https://aya-rs.dev/book/), and the [Aya examples](https://github.com/aya-rs/aya/tree/main/examples).
 - **gRPC / tonic** - the [tonic](https://docs.rs/tonic/) Rust gRPC stack documentation, which powers the `agent.Agent` service.
