@@ -3,7 +3,9 @@
 
 **CortexBrain** is an ambitious open-source project designed to build an intelligent, lightweight, and highly efficient monitoring platform for distributed cloud and hybrid (cloud–edge) workflows.  
 
-# v0.1.5 Changelog
+---
+
+## v0.1.5 Changelog
 - Added memory, cpu and SSL (experimental) metrics
 - Introduced OpenTelemetry protocol to aggregate the exported metrics
 - Added metadata injection
@@ -12,6 +14,7 @@
 - Introduced MCP server (experimental)
 - minor bug fixes
 
+---
 
 ## **Current Development Stage**
 
@@ -51,7 +54,7 @@ eBPF is a powerful technology that allows for high-performance networking and se
 # **Architecture**
 The CortexFlow architecture is designed to ensure a robust, scalable, and fault-tolerant system that can operate seamlessly without interruptions. It is composed of several key components that work together to provide a continuous and reliable infrastructure. These components are orchestrated within a Kubernetes cluster, ensuring efficient resource management, high availability, and scalability. Below is a GIF that visually represents the architecture and illustrates how the components interact within the cluster.
 
-![Architecture](./assets/cf-architecture-0.1.5.png "Cortexflow architecture")
+![Architecture](./assets/cf-new-architecture-readme.png "Cortexflow architecture")
 
 !!! note
     Since **v0.1.5** the metrics service can be deployed standalone using Docker like in this [example](https://github.com/CortexFlow/CortexBrain/tree/0.1.5/Examples/run-with-docker)
