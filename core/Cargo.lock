@@ -403,7 +403,7 @@ checksum = "773648b94d0e5d620f64f280777445740e61fe701025087ec8b57f45c791888b"
 
 [[package]]
 name = "cortexbrain-common"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "aya",
@@ -426,9 +426,9 @@ dependencies = [
 
 [[package]]
 name = "cortexbrain-common"
-version = "0.1.1"
+version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bf05bf6a362fb588fe0191ce086ea3b1ee2579cde7d82798153df02138adb47a"
+checksum = "607ae90d919de9c35d6bf3a1b0a958a7b4b4578337b88351c2699cb8c37be8e9"
 dependencies = [
  "anyhow",
  "aya",
@@ -458,7 +458,7 @@ dependencies = [
  "aya-log",
  "bytemuck",
  "bytes",
- "cortexbrain-common 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "cortexbrain-common 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "libc",
  "nix",
  "opentelemetry",
@@ -478,7 +478,7 @@ dependencies = [
  "bytemuck",
  "bytemuck_derive",
  "chrono",
- "cortexbrain-common 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "cortexbrain-common 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "prost",
  "tokio",
  "tokio-stream",
@@ -500,7 +500,7 @@ dependencies = [
  "bytemuck",
  "bytemuck_derive",
  "bytes",
- "cortexbrain-common 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "cortexbrain-common 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "k8s-openapi",
  "kube",
  "nix",
