@@ -62,6 +62,13 @@ Our current development efforts are dedicated to the following key features:
 
 ![Architecture](Doc/docs/assets/cf-new-architecture-readme.png "Cortexflow architecture")
 
+# Latest version
+|Component|Version|Image|Status|
+|---------|-------|------|-----|
+|cortexflow-agent|0.1.2/latest|[ghcr.io/cortexflow/agent:0.1.2](https://github.com/CortexFlow/CortexBrain/pkgs/container/agent)| Unstable|
+|cortexflow-identity| 0.1.2/latest|[ghcr.io/cortexflow/identity:0.1.2](https://github.com/CortexFlow/CortexBrain/pkgs/container/identity)| Unstable|
+|cortexflow-metrics|0.1.0/latest|[ghcr.io/cortexflow/metrics:0.1.0](https://github.com/CortexFlow/CortexBrain/pkgs/container/metrics)| Unstable|
+
 # Documentation
 ## Table of Contents
 - [Architecture](http://docs.cortexflow.org/developer-guide/architecture/#kernel-hooks): Latest version architecture overview
