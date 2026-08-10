@@ -3,7 +3,7 @@ use anyhow::anyhow;
 use aya::maps::perf::PerfEventArrayBuffer;
 use chrono::Local;
 use cortexbrain_common::buffer_type::IpProtocols;
-use cortexbrain_common::buffer_type::NetworkMetrics;
+use cortexbrain_common::buffer_type::PacketLossMetrics;
 use cortexbrain_common::buffer_type::PacketLog;
 use cortexbrain_common::buffer_type::TimeStampMetrics;
 use cortexbrain_common::formatters::{format_ipv4, format_ipv6};
@@ -207,8 +207,8 @@ impl Default for AgentApi {
                             if events.read > 0 {
                                 for i in 0..events.read {
                                     let data = &net_metrics_buffers[i];
-                                    if data.len() >= std::mem::size_of::<NetworkMetrics>() {
-                                        let nm: NetworkMetrics =
+                                    if data.len() >= std::mem::size_of::<PacketLossMetrics>() {
+                                        let nm: PacketLossMetrics =
                                             unsafe { std::ptr::read(data.as_ptr() as *const _) };
 
                                         let dropped_packet_metrics = DroppedPacketMetric {
