@@ -33,7 +33,8 @@ cortexbrain-common = { version="0.1.1", features = [
     "map-handlers",
     "network-structs",
     "buffer-reader",
-    "monitoring-structs"
+    "monitoring-structs",
+    "experimental"
 ] }
 tonic-reflection = "0.14.0"
 tonic-build = "0.14.0"

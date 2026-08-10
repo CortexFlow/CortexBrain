@@ -28,11 +28,13 @@ tokio = { version = "1.48.0", features = [
 ] }
 tracing = "0.1.41"
 bytemuck = { version = "1.23.0", features = ["derive"] }
-cortexbrain-common = { path = "../../../common/", features = [
+cortexbrain-common = { version="0.1.1", features = [
     "map-handlers",
     "program-handlers",
     "network-structs",
+    "monitoring-structs",
     "buffer-reader",
+    "experimental"
 ] }
 nix = { version = "0.30.1", features = ["net"] }
 kube = { version = "2.0.1", features = ["client"] }

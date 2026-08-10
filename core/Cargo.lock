@@ -500,7 +500,7 @@ dependencies = [
  "bytemuck",
  "bytemuck_derive",
  "bytes",
- "cortexbrain-common 0.1.1",
+ "cortexbrain-common 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "k8s-openapi",
  "kube",
  "nix",
