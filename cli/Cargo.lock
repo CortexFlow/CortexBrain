@@ -395,6 +395,8 @@ dependencies = [
 [[package]]
 name = "cortexflow_agent_api"
 version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0f7e25a564a3ffdca446e5250103daacd4887b97bc180655b3555675fd80d079"
 dependencies = [
  "anyhow",
  "aya",
