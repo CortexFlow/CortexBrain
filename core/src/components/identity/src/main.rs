@@ -23,8 +23,11 @@ use aya::{
 use crate::helpers::scan_cgroup_cronjob;
 
 use cortexbrain_common::{
-    buffer_type::{BufferSize, BufferType, read_perf_buffer},
-    constants, logger,
+    buffer_type::BufferSize,
+    constants,
+    consumer::Consumer,
+    consumer::read_perf_buffer,
+    logger,
     map_handlers::BpfMapsData,
     map_handlers::{init_bpf_maps, map_manager, map_pinner, populate_blocklist},
     program_handlers::load_program,
@@ -291,14 +294,15 @@ async fn event_listener(bpf_maps: BpfMapsData) -> Result<(), anyhow::Error> {
 
     // spawn async tasks
     let veth_events_displayer = tokio::spawn(async move {
-        read_perf_buffer(perf_veth_buffers, veth_buffers, BufferType::VethLog).await;
+        read_perf_buffer(perf_veth_buffers, veth_buffers, Consumer::VethLog, None).await;
     });
 
     let net_events_displayer = tokio::spawn(async move {
         read_perf_buffer(
             perf_net_events_buffers,
             events_buffers,
-            BufferType::PacketLog,
+            Consumer::PacketLog,
+            None,
         )
         .await;
     });
@@ -307,7 +311,8 @@ async fn event_listener(bpf_maps: BpfMapsData) -> Result<(), anyhow::Error> {
         read_perf_buffer(
             tcp_registry_buffers,
             tcp_buffers,
-            BufferType::TcpPacketRegistry,
+            Consumer::TcpPacketRegistry,
+            None,
         )
         .await;
     });
