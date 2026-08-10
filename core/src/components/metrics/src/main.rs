@@ -19,7 +19,7 @@ use std::{
 use tracing::{error, info};
 mod helpers;
 mod otel_init;
-use crate::helpers::event_listener;
+use crate::helpers::{event_listener, resolve_libssl_path};
 use crate::otel_init::{init_opentelemetry, shutdown_opentelemetry};
 
 use cortexbrain_common::{
@@ -148,41 +148,57 @@ async fn main() -> Result<(), anyhow::Error> {
                         .context(
                             "An error occurred during the execution of load_program function",
                         )?;
-                        load_uprobe_program(
-                            ssl_read_bpf,
-                            "ssl_read",
-                            "SSL_read",
-                            "/usr/lib/x86_64-linux-gnu/libssl.so",
-                            None,
-                        )
-                        .expect("An error occured during the execution of load_uprobe_program");
+                        match resolve_libssl_path()? {
+                            Some(ssl_lib_path) => {
+                                load_uprobe_program(
+                                    ssl_read_bpf,
+                                    "ssl_read",
+                                    "SSL_read",
+                                    &ssl_lib_path,
+                                    None,
+                                )
+                                .context(
+                                    "An error occurred while attaching the ssl_read uprobe",
+                                )?;
 
-                        load_uprobe_program(
-                            ssl_read_ret_bpf,
-                            "ssl_read_ret",
-                            "SSL_read",
-                            "/usr/lib/x86_64-linux-gnu/libssl.so",
-                            None,
-                        )
-                        .expect("An error occured during the execution of load_uprobe_program");
+                                load_uprobe_program(
+                                    ssl_read_ret_bpf,
+                                    "ssl_read_ret",
+                                    "SSL_read",
+                                    &ssl_lib_path,
+                                    None,
+                                )
+                                .context(
+                                    "An error occurred while attaching the ssl_read_ret uprobe",
+                                )?;
 
-                        load_uprobe_program(
-                            ssl_write_bpf,
-                            "ssl_write",
-                            "SSL_write",
-                            "/usr/lib/x86_64-linux-gnu/libssl.so",
-                            None,
-                        )
-                        .expect("An error occured during the execution of load_uprobe_program");
+                                load_uprobe_program(
+                                    ssl_write_bpf,
+                                    "ssl_write",
+                                    "SSL_write",
+                                    &ssl_lib_path,
+                                    None,
+                                )
+                                .context(
+                                    "An error occurred while attaching the ssl_write uprobe",
+                                )?;
 
-                        load_uprobe_program(
-                            ssl_write_ret_bpf,
-                            "ssl_write_ret",
-                            "SSL_write",
-                            "/usr/lib/x86_64-linux-gnu/libssl.so",
-                            None,
-                        )
-                        .expect("An error occured during the execution of load_uprobe_program");
+                                load_uprobe_program(
+                                    ssl_write_ret_bpf,
+                                    "ssl_write_ret",
+                                    "SSL_write",
+                                    &ssl_lib_path,
+                                    None,
+                                )
+                                .context(
+                                    "An error occurred while attaching the ssl_write_ret uprobe",
+                                )?;
+                            }
+                            None => {
+                                info!("OpenSSL library not found; skipping SSL uprobe tracing");
+                            }
+                        }
+
                     }
 
                     // Hand off to the async event consumer

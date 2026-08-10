@@ -3,12 +3,61 @@ use aya::util::online_cpus;
 use cortexbrain_common::map_handlers::map_manager;
 use cortexbrain_common::{buffer_type::BufferSize, map_handlers::BpfMapsData};
 use opentelemetry::metrics::Meter;
+use std::env;
+use std::path::Path;
 use std::sync::Arc;
 use tokio::signal;
 use tracing::{error, info};
 
+use cortexbrain_common::constants;
 use cortexbrain_common::consumer::{Consumer, read_perf_buffer};
 use cortexbrain_common::otel_metrics::Metrics;
+
+/// Locate the OpenSSL shared library used for the SSL uprobes.
+///
+/// Resolution order:
+///   1. The `LIBSSL_PATH` environment variable, if set. An explicit path that
+///      does not exist is treated as an error so misconfiguration is surfaced.
+///   2. The default system library directory, checking each candidate in turn.
+///
+/// Returns `Ok(None)` when no usable library can be found so the caller can
+/// skip SSL tracing gracefully.
+pub fn resolve_libssl_path() -> anyhow::Result<Option<String>> {
+    let candidates = [
+        "libssl.so.3",
+        "libssl.so",
+        "libssl.so.1.1",
+        "libssl.so.1.0.0",
+    ];
+
+    if let Ok(path) = env::var(constants::LIBSSL_PATH) {
+        if !path.is_empty() && Path::new(&path).is_file() {
+            return Ok(Some(path));
+        }
+        return Err(anyhow!(
+            "LIBSSL_PATH is set but does not point to an existing file: {}",
+            path
+        ));
+    }
+
+    const LIB_DIRS: [&str; 4] = [
+        "/usr/lib/x86_64-linux-gnu",
+        "/usr/lib64",
+        "/usr/lib/aarch64-linux-gnu",
+        "/lib/x86_64-linux-gnu",
+    ];
+
+    for dir in LIB_DIRS {
+        for name in candidates {
+            let path = format!("{}/{}", dir, name);
+            if Path::new(&path).is_file() {
+                return Ok(Some(path));
+            }
+        }
+    }
+
+    Ok(None)
+}
 
 /// Listen for eBPF perf-buffer events and record OpenTelemetry metrics.
 ///
