@@ -3,7 +3,7 @@
 This project is an experimental core build developed using the Rust programming language. The core functions are currently in an early development stage, aiming to enhance the current system capabilities to run in limited-resource environments such as edge devices.
 
 >⚠️ Note:  
-A pre-alpha version is expected to be released by the **end of 2025**.
+A pre-alpha version is expected to be released by the **end of 2026**.
 
 The core leverages the power of EBPF to directly interact with the Linux kernel. This is extremely important to reduce overhead and latency, especially in limited-resource environments. In an EBPF-based architecture, many tasks can be done in the **Kernel Space**, such as Networking, Security, and Observability, leaving the **User Space** to only load and manage the BPF programs.
 
