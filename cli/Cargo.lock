@@ -350,6 +350,8 @@ checksum = "773648b94d0e5d620f64f280777445740e61fe701025087ec8b57f45c791888b"
 [[package]]
 name = "cortexbrain-common"
 version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bf05bf6a362fb588fe0191ce086ea3b1ee2579cde7d82798153df02138adb47a"
 dependencies = [
  "anyhow",
  "aya",
@@ -392,7 +394,7 @@ dependencies = [
 
 [[package]]
 name = "cortexflow_agent_api"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "aya",

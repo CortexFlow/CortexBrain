@@ -1,6 +1,6 @@
 [package]
 name = "cortexflow_agent_api"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2024"
 description = "CortexFlow agent API"
 authors = [
@@ -29,7 +29,7 @@ tonic = "0.14.0"
 tonic-prost = "0.14.0"
 tracing = "0.1.41"
 aya = "0.13.1"
-cortexbrain-common = { path = "../common", features = [
+cortexbrain-common = { version="0.1.1", features = [
     "map-handlers",
     "network-structs",
     "buffer-reader",

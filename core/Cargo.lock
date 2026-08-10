@@ -471,14 +471,14 @@ dependencies = [
 
 [[package]]
 name = "cortexflow_agent_api"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "aya",
  "bytemuck",
  "bytemuck_derive",
  "chrono",
- "cortexbrain-common 0.1.1",
+ "cortexbrain-common 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "prost",
  "tokio",
  "tokio-stream",
