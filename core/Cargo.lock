@@ -403,7 +403,7 @@ checksum = "773648b94d0e5d620f64f280777445740e61fe701025087ec8b57f45c791888b"
 
 [[package]]
 name = "cortexbrain-common"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "aya",
@@ -425,6 +425,51 @@ dependencies = [
 ]
 
 [[package]]
+name = "cortexbrain-common"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bf05bf6a362fb588fe0191ce086ea3b1ee2579cde7d82798153df02138adb47a"
+dependencies = [
+ "anyhow",
+ "aya",
+ "bytemuck",
+ "bytemuck_derive",
+ "bytes",
+ "k8s-openapi",
+ "kube",
+ "opentelemetry",
+ "opentelemetry-appender-tracing",
+ "opentelemetry-otlp",
+ "opentelemetry-stdout",
+ "opentelemetry_sdk",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "cortexflow-metrics"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "aya",
+ "aya-log",
+ "bytemuck",
+ "bytes",
+ "cortexbrain-common 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "libc",
+ "nix",
+ "opentelemetry",
+ "opentelemetry-otlp",
+ "opentelemetry_sdk",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "cortexflow_agent_api"
 version = "0.1.1"
 dependencies = [
@@ -433,7 +478,7 @@ dependencies = [
  "bytemuck",
  "bytemuck_derive",
  "chrono",
- "cortexbrain-common",
+ "cortexbrain-common 0.1.1",
  "prost",
  "tokio",
  "tokio-stream",
@@ -455,7 +500,7 @@ dependencies = [
  "bytemuck",
  "bytemuck_derive",
  "bytes",
- "cortexbrain-common",
+ "cortexbrain-common 0.1.1",
  "k8s-openapi",
  "kube",
  "nix",
@@ -1218,26 +1263,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "488016bfae457b036d996092f6cb448677611ce4449e970ceaf42695203f218a"
 dependencies = [
  "autocfg",
-]
-
-[[package]]
-name = "metrics"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "aya",
- "aya-log",
- "bytemuck",
- "bytes",
- "cortexbrain-common",
- "libc",
- "nix",
- "opentelemetry",
- "opentelemetry-otlp",
- "opentelemetry_sdk",
- "tokio",
- "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]
