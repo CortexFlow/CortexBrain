@@ -1,8 +1,8 @@
 [package]
 name = "cortexbrain-common"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
-description = "CortexFlow common packages"
+description = "CortexFlow core packages"
 license = "Apache-2.0"
 readme = "../../README.md"
 documentation = "https://docs.cortexflow.org"
