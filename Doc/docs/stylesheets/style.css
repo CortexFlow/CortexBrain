@@ -1,6 +1,12 @@
 html {
   width: 100%;
 }
+[dir="ltr"] .md-header__title{
+  margin-top: 30px;
+}
+.md-ellipsis{
+  line-height: 0.9rem;
+}
 .md-content {
   width: 800px;  
   margin: auto auto;     

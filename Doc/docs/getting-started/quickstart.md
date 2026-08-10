@@ -1,5 +1,5 @@
 
-## CortexFlow Agent: Quick Start Guide
+## Quickstart
 !!! warning 
     Up to now the only supported cluster environment is Kubernetes
 

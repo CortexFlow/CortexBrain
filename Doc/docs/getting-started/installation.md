@@ -85,16 +85,3 @@ For RedHat/CentOS/Fedora based distributions you can copy and paste the followin
    ```bash
       cfcli install 
    ```
-
-### **Dashboard Development**  
-
-1.  Install [Node.js](https://nodejs.org/en/download)
-2.  Open the dashboard folder and install the required packages 
-   ```bash
-      cd dashboard
-      npm install 
-   ```  
-3.  Run the local development server
-   ```bash
-      npm start 
-   ```
