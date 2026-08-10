@@ -22,7 +22,8 @@ RUN bpftool btf dump file /sys/kernel/btf/vmlinux format c > src/components/conn
     && bindgen src/components/conntracker/vmlinux.h \
         -o src/components/conntracker/src/bindings.rs \
         --use-core \
-        --allowlist-type 'sk_buff'
+        --allowlist-type 'sk_buff' \
+        --opaque-type 'ieee80211_sband_iftype_data'
 
 # Compile the raw eBPF connection tracker target
 RUN cargo +nightly build -Z build-std=core --target bpfel-unknown-none --release -p conntracker

@@ -39,7 +39,7 @@ FROM rust:1.90 AS app-builder
 WORKDIR /usr/src/app
 COPY . .
 
-RUN cargo build --release -p metrics
+RUN cargo build --release -p cortexflow-metrics
 
 
 # ==============================================================================
@@ -53,7 +53,7 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /usr/src/cortexbrain-metrics
 
-COPY --from=app-builder /usr/src/app/target/release/metrics /usr/local/bin/cortexflow-metrics
+COPY --from=app-builder /usr/src/app/target/release/cortexflow-metrics /usr/local/bin/cortexflow-metrics
 COPY --from=ebpf-builder /usr/src/app/target/bpfel-unknown-none/release/metrics_tracer /usr/src/cortexbrain-metrics/metrics_tracer
 
 ENV BPF_PATH="/usr/src/cortexbrain-metrics/metrics_tracer"
