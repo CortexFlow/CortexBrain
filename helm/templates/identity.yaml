@@ -1,0 +1,120 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: cortexflow-identity
+  labels:
+    app: cortexflow-identity
+spec:
+  selector:
+    matchLabels:
+      app: cortexflow-identity
+  template:
+    metadata:
+      labels:
+        app: cortexflow-identity
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+    spec:
+      serviceAccountName: {{ .Values.serviceAccountName }}
+      hostPID: true
+      hostNetwork: true
+      {{- include "common.tolerations" (dict "context" . "component" "identity") | indent 6 }}
+      {{- include "common.priorityClassName" (dict "context" . "component" "identity") | indent 6 }}
+      initContainers:
+        - name: bpf-map-permissions
+          image: "{{ .Values.bpfMapPermissions.image.repository }}:{{ .Values.bpfMapPermissions.image.version }}"
+          command: ["/bin/bash","-c"]
+          args: 
+            - |
+              echo "mounting the bpf path "
+              mount -t bpf bpf /sys/fs/bpf
+              
+              echo "checking permissions"
+              ls -ld /sys/fs/bpf
+          volumeMounts:
+            - name: bpf
+              mountPath: /sys/fs/bpf
+              mountPropagation: Bidirectional
+              readOnly: false
+            - name: kernel-dev
+              mountPath: /lib/modules
+              readOnly: false
+            - name: cgroup
+              mountPath: /sys/fs/cgroup
+              readOnly: true
+          securityContext:
+            {{- .Values.bpfMapPermissions.securityContext | toYaml | nindent 12}}
+      containers:
+        - name: identity
+          image: "{{ .Values.identity.image.repository }}:{{ .Values.identity.image.version }}"
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              echo "Running on kernel $(uname -r)"
+              if [ ! -d "/sys/fs/bpf" ]; then
+                echo "ERROR: BPF filesystem not mounted"
+                exit 1
+              else
+                echo "Checking ebpf path..."
+                ls -l /sys/fs/bpf
+              fi
+              echo "checking privileges"
+              ls -ld /sys/fs/bpf
+
+              echo "Running application..."
+              exec /usr/local/bin/cortexflow-identity-service || echo "Application exited with code $?"
+          env:
+            - name: OTEL_SERVICE_NAME
+              value: cortexflow-identity
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: {{ .Values.global.otel.endpoint }}
+            - name: OTEL_EXPORTER_OTLP_PROTOCOL
+              value: {{ .Values.global.otel.protocol }}
+            - name: OTEL_RESOURCE_ATTRIBUTES
+              value: service.namespace=cortexflow,service.version=0.1.5
+          resources:
+            {{- .Values.identity.resources | toYaml | nindent 12 }}
+          volumeMounts:
+            - name: bpf
+              mountPath: /sys/fs/bpf
+              mountPropagation: Bidirectional
+              readOnly: false
+            - name: kernel-dev
+              mountPath: /lib/modules
+              readOnly: false
+            - name: cgroup
+              mountPath: /sys/fs/cgroup
+              readOnly: true
+          securityContext:
+            {{- .Values.identity.securityContext | toYaml | nindent 12 }}
+        - name: bpftool-control-manager
+          image: "{{ .Values.bpfTool.image.repository }}:{{ .Values.bpfTool.image.version }}"
+          command: ["/bin/bash", "-c","sleep infinity"]
+          volumeMounts:
+            - name: bpf
+              mountPath: /sys/fs/bpf
+              mountPropagation: Bidirectional
+              readOnly: false
+            - name: kernel-dev
+              mountPath: /lib/modules
+              readOnly: false
+            - name: cgroup
+              mountPath: /sys/fs/cgroup
+              readOnly: true
+          resources:
+            {{- .Values.bpfTool.resources | toYaml | nindent 12 }}
+          securityContext:
+            {{- .Values.bpfTool.securityContext | toYaml | nindent 12 }}
+      volumes:
+        - name: bpf
+          hostPath:
+            path: /sys/fs/bpf
+            type: Directory
+        - name: kernel-dev
+          hostPath:
+            path: /lib/modules
+            type: Directory
+        - name: cgroup
+          hostPath:
+            path: /sys/fs/cgroup
+            type: Directory
