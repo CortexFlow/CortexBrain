@@ -1,0 +1,106 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: cortexflow-agent
+  labels:
+    app: cortexflow-agent
+spec:
+  selector:
+    matchLabels:
+      app: cortexflow-agent
+  template:
+    metadata:
+      labels:
+        app: cortexflow-agent
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+    spec:
+      serviceAccountName: {{ .Values.serviceAccountName }}
+      hostPID: true
+      hostNetwork: true
+      {{- include "common.tolerations" (dict "context" . "component" "agent") | indent 6 }}
+      {{- include "common.priorityClassName" (dict "context" . "component" "agent") | indent 6 }}
+      containers:
+        - name: agent
+          image: "{{ .Values.agent.image.repository }}:{{ .Values.agent.image.version }}"
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              echo "Running on kernel $(uname -r)"
+              if [ ! -d "/sys/fs/bpf" ]; then
+                echo "ERROR: BPF filesystem not mounted"
+                exit 1
+              else
+                echo "Checking ebpf path..."
+                ls -l /sys/fs/bpf
+              fi
+              echo "checking privileges"
+              ls -ld /sys/fs/bpf
+
+              echo "checking if conntracker path"
+              ls -l /usr/src/cortexbrain-agent/conntracker
+
+              echo "checking if the bpf maps are reachable"
+              ls -l /sys/fs/bpf/maps
+
+              echo "Running application..."
+              exec /usr/local/bin/agent-api || echo "Application exited with code $?"
+          env:
+            - name: OTEL_SERVICE_NAME
+              value: cortexflow-agent
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: {{ .Values.global.otel.endpoint }}
+            - name: OTEL_EXPORTER_OTLP_PROTOCOL
+              value: {{ .Values.global.otel.protocol }}
+            - name: OTEL_RESOURCE_ATTRIBUTES
+              value: service.namespace=cortexflow,service.version=0.1.5
+            - name: AGENT_API_ENABLE_REFLECTION
+              value: "true"
+          volumeMounts:
+            - name: bpf
+              mountPath: /sys/fs/bpf
+              mountPropagation: Bidirectional
+              readOnly: false
+            - name: proc
+              mountPath: /host/proc
+              readOnly: false
+            - name: kernel-dev
+              mountPath: /lib/modules
+              readOnly: false
+          resources:
+            {{- .Values.identity.resources | toYaml | nindent 12 }}
+          securityContext:
+            {{- .Values.agent.securityContext | toYaml | nindent 12 }}
+      volumes:
+        - name: bpf
+          hostPath:
+            path: /sys/fs/bpf
+            type: Directory
+        - name: proc
+          hostPath:
+            path: /proc
+            type: Directory
+        - name: kernel-dev
+          hostPath:
+            path: /lib/modules
+            type: Directory
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: cortexflow-agent
+  namespace: cortexflow
+spec:
+  selector:
+    app: cortexflow-agent
+  ports:
+  - protocol: TCP
+    name: agent-server-port
+    port: 9090
+    targetPort: 9090
+    appProtocol: grpc
+  type: ClusterIP
+
+---
