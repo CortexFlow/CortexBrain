@@ -10,8 +10,8 @@ homepage = "https://docs.cortexflow.org"
 repository = "https://github.com/CortexFlow/CortexBrain"
 
 [dependencies]
-aya = "0.13.1"
-aya-log = "0.2.1"
+aya = "0.14.0"
+aya-log = "0.3.0"
 bytes = "1.4"
 tokio = { version = "1.48.0", features = [
     "rt",
@@ -33,7 +33,7 @@ cortexbrain-common = { version = "0.1.2", features = [
     "monitoring-structs",
     "network-structs"
 ] }
-nix = { version = "0.30.1", features = ["net"] }
+nix = { version = "0.31.3", features = ["net"] }
 opentelemetry = "0.32.0"
 opentelemetry_sdk = "0.32.0"
 opentelemetry-otlp = { version = "0.32.0", features = ["grpc-tonic"] }
