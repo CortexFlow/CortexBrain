@@ -1,0 +1,5 @@
+apiVersion: v2
+name: CortexBrain
+version: 0.1.0
+description: |
+  This chart installs CortexFlow to a kubernetes cluster, instead of using the cli installation method.
