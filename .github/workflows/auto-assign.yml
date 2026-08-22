@@ -31,16 +31,3 @@ jobs:
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           assignees: LorenzoTettamanti
-
-  cli-issue-assigner:
-    if: github.event_name == 'issues' && github.event.action == 'labeled' && github.event.issue.labels.name == 'cortexflow cli'
-    runs-on: ubuntu-latest
-    permissions:
-      issues: write
-    steps:
-      - name: "Cli issue assigner"
-        uses: pozil/auto-assign-issue@v1
-
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-          assignees: LorenzoTettamanti,PranavVerma-droid

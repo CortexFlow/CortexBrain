@@ -1,12 +1,4 @@
----
-name: Pull Request
-about: Submit a Pull Request
-title: '[Feature/Fix] Short description'
-labels: ''
-assignees: ''
-
----
-
+# Changes
 ## Description
 
 <!-- Provide a clear and concise description of the change. -->
@@ -29,6 +21,8 @@ assignees: ''
 ## Related Issues
 
 <!-- Mention related issues with `Closes #issue_number` or `Fixes #issue_number`. -->
+
+# Tests
 
 ## Screenshots (if applicable)
 

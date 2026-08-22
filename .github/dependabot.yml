@@ -4,9 +4,18 @@
 # https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
 
 version: 2
-updates:
-  - package-ecosystem: "npm"
-    directory: "/frontend" # Location of package manifests
+updates:      
+  - package-ecosystem: "cargo"
+    directory: "/core" # Location of package manifests
+    schedule:
+      interval: "weekly"
+    groups:
+      all-updates:
+        patterns:
+          - "*"
+
+  - package-ecosystem: "cargo"
+    directory: "/cli" # Location of package manifests
     schedule:
       interval: "weekly"
     groups:
@@ -15,7 +24,7 @@ updates:
           - "*"
           
   - package-ecosystem: "cargo"
-    directory: "/core" # Location of package manifests
+    directory: "/mcp" # Location of package manifests
     schedule:
       interval: "weekly"
     groups:
