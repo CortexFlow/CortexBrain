@@ -15,7 +15,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 RUN cargo install --locked bindgen-cli
-RUN cargo install --locked bpf-linker
+RUN cargo install --locked bpf-linker@0.10.4
 RUN rustup toolchain install nightly --component rust-src
 
 WORKDIR /usr/src/app
