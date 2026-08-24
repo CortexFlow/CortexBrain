@@ -26,7 +26,7 @@ tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
 libc = "0.2.172"
 bytemuck = "1.23.0"
-cortexbrain-common = { version = "0.1.2", features = [
+cortexbrain-common = { path = "../../../common/", features = [
     "map-handlers",
     "program-handlers",
     "buffer-reader",

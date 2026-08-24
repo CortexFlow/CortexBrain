@@ -14,7 +14,7 @@ use crate::buffer_type::{
     CpuFrequency, CpuIdle, MemAlloc, PacketLossMetrics, SchedStatRuntime, SchedStatWait, SslEvent,
     TimeStampMetrics,
 };
-use crate::metadata::{ContainerRuntime, Metadata};
+use crate::metadata::{Metadata};
 use crate::semantic::Semantic;
 use opentelemetry::KeyValue;
 use opentelemetry::metrics::{Counter, Gauge, Histogram, Meter};
@@ -212,13 +212,11 @@ impl Metrics {
         attrs.push(KeyValue::new("command", metadata.command.clone()));
 
         // container metadata
-        attrs.push(KeyValue::new(
-            "container.name",
-            match &metadata.container_name {
-                Some(name) => name.clone(),
-                None => "null".to_string(),
-            },
-        ));
+
+        match &metadata.container_name {
+            Some(name) => attrs.push(KeyValue::new("container.name", name.clone())),
+            None => (), // process is not associated with a container, the cgroup path does not contain an container id
+        }
 
         if let Some(ref id) = metadata.container_id {
             attrs.push(KeyValue::new("container.id", id.clone()));
