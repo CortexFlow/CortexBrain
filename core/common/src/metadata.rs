@@ -1,4 +1,11 @@
+use std::collections::HashMap;
 use std::fs;
+use anyhow::Error;
+use k8s_openapi::api::core::v1::Pod;
+use kube::api::ObjectList;
+use kube::{Api, Client};
+use tracing::debug;
+
 
 /// Detected container runtime.
 #[derive(Debug, Clone, PartialEq)]
@@ -47,11 +54,11 @@ impl Metadata {
     /// 4. If Docker is not found, attempts K8s lookup.
     pub fn enrich(&mut self) {
         self.try_resolve_docker();
-        // K8s lookup will be enabled later with an LRU cache.
+        self.try_resolve_k8s();
     }
 
     /// Docker resolution via local filesystem.
-    ///
+    /// This part is triggered when the container is already detected
     // TODO: this is working for Linux, can anyone check if this works on macOs systems ?
     fn try_resolve_docker(&mut self) {
         let Some(tgid) = self.tgid else { return };
@@ -84,17 +91,62 @@ impl Metadata {
             // Step 3: resolve container name from Docker metadata JSON
             match resolve_docker_name(&id) {
                 Some(name) => self.container_name = Some(name),
-                None => self.container_name = Some("null".to_string()),
+                None => {
+                    self.container_name =
+                        Some(self.container_id.clone()).expect("Cannot resolve container name")
+                } // fallback to the container_id if the system cannot resolve the name after the 2 steps
             }
         }
     }
 
-    /// Manual enrichment from Kubernetes (for external use, e.g. identity service).
-    pub fn enrich_from_k8s(&mut self, pod_name: impl Into<String>, namespace: impl Into<String>) {
-        self.runtime = ContainerRuntime::Kubernetes;
-        self.pod_name = Some(pod_name.into());
-        self.namespace = Some(namespace.into());
+    fn try_resolve_k8s(&mut self){
+        let Some(tgid) = self.tgid else { return };
+
+        // Step 1: read the cgroup path from procfs
+        let cgroup_info = match fs::read_to_string(format!("/proc/{}/cgroup", tgid)) {
+            Ok(s) => s,
+            Err(e) => {
+                tracing::debug!("Cannot read /proc/{}/cgroup: {}", tgid, e);
+                return;
+            }
+        };
+
+        // Extract the actual path from the cgroup file (format: hierarchy:id:path)
+        let cgroup_path = cgroup_info
+            .lines()
+            .filter_map(|line| line.split(':').nth(2))
+            .next()
+            .unwrap_or("");
+
+        if cgroup_path.is_empty() {
+            return;
+        }
+
+        // Step 2: extract container ID from the path
+        if let Some(id) = extract_container_id_from_path(cgroup_path) {
+            self.container_id = Some(id.clone());
+            self.runtime = ContainerRuntime::Kubernetes;
+
+            // Step 3: resolve container name from Docker metadata JSON
+            match resolve_k8s_name(&id) {
+                Some(name) => self.container_name = Some(name),
+                None => {
+                    self.container_name =
+                        Some(self.container_id.clone()).expect("Cannot resolve container name from k8s api ")
+                } // fallback to the container_id if the system cannot resolve the name after the 2 steps
+            }
+        }
+
+        //Step 3: call the k8s API to solve the container nam e
     }
+
+    // TODO: dead code 
+    // Enrichment from Kubernetes (for external use, e.g. identity service).
+    //pub fn enrich_from_k8s(&mut self, pod_name: impl Into<String>, namespace: impl Into<String>) {
+    //    self.runtime = ContainerRuntime::Kubernetes;
+    //    self.pod_name = Some(pod_name.into());
+    //    self.namespace = Some(namespace.into());
+    //}
 }
 
 /// Extract the container ID from a cgroup path, supporting multiple prefixes.
@@ -134,13 +186,115 @@ fn resolve_docker_name(container_id: &str) -> Option<String> {
     let path = format!("/var/lib/docker/containers/{}/config.v2.json", container_id);
     let json_str = fs::read_to_string(&path).ok()?;
     let parsed: serde_json::Value = serde_json::from_str(&json_str).ok()?;
-    let image_name = parsed
+    let mut image_name = parsed
         .get("Config")?
         .get("Image")?
         .as_str()?
         .trim_start_matches('/');
+    if image_name.is_empty() {
+        image_name = parsed
+            .get("Config")?
+            .get("WorkingDir")?
+            .as_str()?
+            .trim_start_matches('/'); // fallback if the image_name is empty
+    }
+
     Some(image_name.to_string())
 }
+
+
+fn resolve_k8s_name(container_id: &str) -> Option<String> {
+    // pass a container_id and returns the object meta infos:
+    /* pub struct ObjectMeta {
+
+        pub annotations: Option<BTreeMap<String, String>>,
+        pub creation_timestamp: Option<Time>,
+        pub deletion_grace_period_seconds: Option<i64>,
+        pub deletion_timestamp: Option<Time>,
+        pub finalizers: Option<Vec<String>>,
+        pub generate_name: Option<String>,
+        pub generation: Option<i64>,
+        pub labels: Option<BTreeMap<String, String>>,
+        pub managed_fields: Option<Vec<ManagedFieldsEntry>>,
+        pub name: Option<String>,
+        pub namespace: Option<String>,
+        pub owner_references: Option<Vec<OwnerReference>>,
+        pub resource_version: Option<String>,
+        pub self_link: Option<String>,
+        pub uid: Option<String>,
+    } */
+
+    todo!()
+}
+
+
+async fn query_all_pods() -> Result<ObjectList<Pod>, Error> {
+    let client = Client::try_default()
+        .await
+        .expect("Cannot connect to kubernetes client");
+    let pods: Api<Pod> = Api::all(client);
+    let lp = kube::api::ListParams::default(); // default list params
+    let pod_list = pods
+        .list(&lp)
+        .await
+        .expect("An error occured during the pod list extraction");
+
+    Ok(pod_list)
+}
+
+async fn get_pod_info() -> Result<HashMap<String, String>, Error> {
+    let all_pods = query_all_pods().await?;
+
+    let mut service_map = HashMap::<String, String>::new();
+
+    for pod in all_pods {
+        if let (Some(name), Some(uid)) = (pod.metadata.name, pod.metadata.uid) {
+            service_map.insert(uid, name);
+        }
+    } // insert the pod name and uid from the KubeAPI
+
+    Ok(service_map)
+}
+
+fn extract_target_from_splits(splits: Vec<&str>, target: &str) -> Result<usize, Error> {
+    for (index, split) in splits.iter().enumerate() {
+        // find the split that contains the word 'pod'
+        if split.contains(target) {
+            debug!("Target index; {}", index);
+            return Ok(index);
+        }
+    }
+    Err(Error::msg("'-pod' word not found in split"))
+}
+
+
+fn extract_pod_uid(cgroup_path: String) -> Result<String, Error> {
+    // example of cgroup path:
+    // /sys/fs/cgroup/kubelet.slice/kubelet-kubepods.slice/kubelet-kubepods-besteffort.slice/kubelet-kubepods-besteffort-pod93580201_87d5_44e6_9779_f6153ca17637.slice
+    // or
+    // /sys/fs/cgroup/kubelet.slice/kubelet-kubepods.slice/kubelet-kubepods-burstable.slice/kubelet-kubepods-burstable-poddd3a1c6b_af40_41b1_8e1c_9e31fe8d96cb.slice
+
+    // split the path by "/"
+    let splits: Vec<&str> = cgroup_path.split("/").collect();
+    debug!("Debugging splits: {:?}", &splits);
+
+    let index = extract_target_from_splits(splits.clone(), "-pod")?;
+
+    let pod_split = splits[index]
+        .trim_start_matches("kubelet-kubepods-besteffort-")
+        .trim_start_matches("kubelet-kubepods-burstable-")
+        .trim_start_matches("kubepods-besteffort-")
+        .trim_start_matches("kubepods-burstable-");
+
+    let uid_ = pod_split
+        .trim_start_matches("pod")
+        .trim_end_matches(".slice"); //return uids with underscore (_) [ex.dd3a1c6b_af40_41b1_8e1c_9e31fe8d96cb]
+
+    let uid = uid_.replace("_", "-");
+    Ok(uid.to_string())
+}
+
+
 
 #[cfg(test)]
 mod tests {
@@ -194,7 +348,7 @@ mod tests {
         println!("{}", &container_id);
         let docker_container_name = match resolve_docker_name(&container_id) {
             Some(name) => Some(name),
-            None => Some("null".to_string()),
+            None => None,
         };
 
         assert_eq!(docker_container_name, Some("busybox:latest".to_string()))
