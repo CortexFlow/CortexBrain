@@ -167,3 +167,4 @@ CLAUDE.md
 
 bindings.rs
 site/
+*.jsonc
