@@ -127,13 +127,14 @@ fn trace_enter_mmap(ctx: TracePointContext) -> u32 {
 }
 
 fn trace_memory_allocation(ctx: &TracePointContext) -> Result<(), i64> {
-    let (tgid, addr, length, command) = enter_mmap(ctx)?;
+    let (tgid, addr, length, command, cgroup_id) = enter_mmap(ctx)?;
 
     let memory_alloc_metrics = MemAlloc {
         tgid,
         addr,
         length,
         command,
+        cgroup_id,
     };
 
     unsafe { MEM_ALLOC.output(ctx, &memory_alloc_metrics, 0) };
@@ -150,12 +151,13 @@ fn trace_sched_stat_wait(ctx: TracePointContext) -> u32 {
 }
 
 fn sched_stat_wait_tracer(ctx: &TracePointContext) -> Result<(), i64> {
-    let (tgid, delay, command) = sched_stat_wait(ctx)?;
+    let (tgid, delay, command, cgroup_id) = sched_stat_wait(ctx)?;
 
     let sched_stat_wait_data = SchedStatWait {
         tgid,
         delay,
         command,
+        cgroup_id,
     };
 
     unsafe { SCHED_STAT_WAIT.output(ctx, &sched_stat_wait_data, 0) };
@@ -172,12 +174,13 @@ fn trace_sched_stat_runtime(ctx: TracePointContext) -> u32 {
 }
 
 fn sched_stat_runtime_tracer(ctx: &TracePointContext) -> Result<(), i64> {
-    let (tgid, runtime, command) = sched_stat_runtime(ctx)?;
+    let (tgid, runtime, command, cgroup_id) = sched_stat_runtime(ctx)?;
 
     let sched_stat_runtime_data = SchedStatRuntime {
         tgid,
         runtime,
         command,
+        cgroup_id,
     };
 
     unsafe { SCHED_STAT_RUNTIME.output(ctx, &sched_stat_runtime_data, 0) };
