@@ -110,6 +110,7 @@ pub struct PacketLossMetrics {
     pub sk_receive_buffer_size: i32, // Offset 244
     pub sk_ack_backlog: u32,         // Offset 604
     pub sk_drops: i32,               // Offset 136
+    pub cgroup_id: u64,
 }
 #[cfg(feature = "monitoring-structs")]
 unsafe impl aya::Pod for PacketLossMetrics {}
@@ -129,6 +130,7 @@ pub struct TimeStampMetrics {
     pub daddr_v4: u32,
     pub saddr_v6: [u32; 4],
     pub daddr_v6: [u32; 4],
+    pub cgroup_id: u64,
 }
 #[cfg(feature = "monitoring-structs")]
 unsafe impl aya::Pod for TimeStampMetrics {}
@@ -151,6 +153,7 @@ pub struct MemAlloc {
     pub length: u64,
     pub addr: u64,
     pub command: [u8; TASK_COMM_LEN],
+    pub cgroup_id: u64,
 }
 #[cfg(feature = "monitoring-structs")]
 unsafe impl aya::Pod for MemAlloc {}
@@ -162,6 +165,7 @@ pub struct SchedStatWait {
     pub tgid: u32,
     pub delay: u64,
     pub command: [u8; TASK_COMM_LEN],
+    pub cgroup_id: u64,
 }
 #[cfg(feature = "monitoring-structs")]
 unsafe impl aya::Pod for SchedStatWait {}
@@ -173,6 +177,7 @@ pub struct SchedStatRuntime {
     pub tgid: u32,
     pub runtime: u64,
     pub command: [u8; TASK_COMM_LEN],
+    pub cgroup_id: u64,
 }
 #[cfg(feature = "monitoring-structs")]
 unsafe impl aya::Pod for SchedStatRuntime {}
@@ -197,6 +202,7 @@ pub struct SslEvent {
     pub direction: u8,  // 0 = read, 1 = write
     pub size: i32,      // return value (bytes transferred or <0 on error)
     pub requested: i32, // num argument passed to SSL_read/SSL_write
+    pub cgroup_id: u64,
 }
 unsafe impl aya::Pod for SslEvent {}
 
