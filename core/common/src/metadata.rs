@@ -1,11 +1,14 @@
-use std::collections::HashMap;
-use std::fs;
 use anyhow::Error;
-use k8s_openapi::api::core::v1::Pod;
-use kube::api::ObjectList;
-use kube::{Api, Client};
-use tracing::debug;
+use std::fs;
+use std::os::unix::fs::MetadataExt;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use tokio::sync::RwLock;
+use tracing::{debug, info};
 
+use crate::service_cache::ServiceCache;
+
+// TODO: add containerd tracing and mutual exclusion for docker environments
 
 /// Detected container runtime.
 #[derive(Debug, Clone, PartialEq)]
@@ -16,27 +19,28 @@ pub enum ContainerRuntime {
 }
 
 /// Process / container metadata enriched by service discovery.
-///
 /// Built from raw eBPF data and enriched with a cgroup -> Docker -> K8s lookup.
 #[derive(Debug, Clone)]
 pub struct Metadata {
     pub tgid: Option<u32>,
+    pub cgroup_id: Option<u64>,
     pub command: String,
     pub runtime: ContainerRuntime,
     pub container_name: Option<String>,
     pub container_id: Option<String>,
     pub pod_name: Option<String>,
-    pub namespace: Option<String>,
+    pub namespace: Option<String>, // TODO: implement this one
 }
 
 impl Metadata {
     /// Build base metadata from eBPF data.
-    pub fn from_ebpf(tgid: Option<u32>, command: &[u8]) -> Self {
+    pub fn from_ebpf(tgid: Option<u32>, cgroup_id: Option<u64>, command: &[u8]) -> Self {
         let command = String::from_utf8_lossy(command)
             .trim_end_matches('\0')
             .to_string();
         Self {
             tgid,
+            cgroup_id,
             command,
             runtime: ContainerRuntime::Unknown,
             container_name: None,
@@ -46,15 +50,69 @@ impl Metadata {
         }
     }
 
-    /// Lookup rules: first Docker (filesystem), then Kubernetes (API).
+    /// Lookup rules: prefer cgroup_id (v2), fall back to /proc/<tgid>/cgroup (v1).
     ///
-    /// 1. Reads `/proc/<tgid>/cgroup`.
-    /// 2. Extracts the container ID from the cgroup path.
-    /// 3. Tries to resolve the container name from `/var/lib/docker/containers/<id>/config.v2.json`.
-    /// 4. If Docker is not found, attempts K8s lookup.
-    pub fn enrich(&mut self) {
-        self.try_resolve_docker();
-        self.try_resolve_k8s();
+    /// 1. If cgroup_id is set and non-zero, resolve it via /sys/fs/cgroup (cgroup v2).
+    /// 2. Otherwise (cgroup v1, or eBPF didn't provide cgroup_id), fall back to reading
+    ///    /host/proc/<tgid>/cgroup.
+    pub async fn enrich(&mut self, cache: &Arc<RwLock<ServiceCache>>) {
+        if let Some(cgid) = self.cgroup_id
+            && cgid != 0
+            && detect_cgroup_v2()
+            && self.try_resolve_from_cgroup_id(cgid, cache).await
+        {
+            return;
+        } else {
+            debug!("cgroup_v2 not detected. Using cgroup v1");
+            self.try_resolve_docker();
+        }
+        self.try_resolve_k8s(cache).await;
+    }
+
+    /// Resolve pod/container from a kernel cgroup_id by walking /sys/fs/cgroup (v2).
+    /// Returns true if resolution succeeded (pod_uid extracted), false to allow caller fallback.
+    async fn try_resolve_from_cgroup_id(
+        &mut self,
+        cgroup_id: u64,
+        cache: &Arc<RwLock<ServiceCache>>,
+    ) -> bool {
+        let Some(cgroup_path) = find_cgroup_path_by_id(cgroup_id) else {
+            debug!(
+                "cgroup_id {} not found under {}",
+                cgroup_id, "/host/sys/fs/cgroup"
+            );
+            return false;
+        };
+
+        if let Some(id) = extract_pod_uid(cgroup_path.to_string_lossy().to_string()) {
+            self.container_id = Some(id.clone());
+            self.runtime = ContainerRuntime::Kubernetes;
+
+            // get pod from cache
+            // acquire cache lock
+            let cache_lock = cache.read().await;
+            match cache_lock.get_from_cache(&id).await {
+                Some(name) => self.pod_name = Some(name),
+                None => {
+                    // fallback to the container_id if the k8s API cannot resolve the name
+                    self.pod_name = Some(id.clone());
+                }
+            }
+            return true;
+        }
+
+        // not a k8s pod cgroup — try docker/containerd/crio container id
+        if let Some(id) = extract_container_id_from_path(&cgroup_path.to_string_lossy()) {
+            self.container_id = Some(id.clone());
+            self.runtime = ContainerRuntime::Docker;
+            match resolve_docker_name(&id) {
+                Some(name) => self.container_name = Some(name),
+                None => self.container_name = self.container_id.clone(),
+            }
+            return true;
+        }
+
+        false
     }
 
     /// Docker resolution via local filesystem.
@@ -64,92 +122,79 @@ impl Metadata {
         let Some(tgid) = self.tgid else { return };
 
         // Step 1: read the cgroup path from procfs
-        let cgroup_info = match fs::read_to_string(format!("/proc/{}/cgroup", tgid)) {
-            Ok(s) => s,
-            Err(e) => {
-                tracing::debug!("Cannot read /proc/{}/cgroup: {}", tgid, e);
+        if let Some(cgroup_info) = get_cgroup_info(tgid) {
+            // Extract the actual path from the cgroup file (format: hierarchy:id:path)
+            let cgroup_path = cgroup_info
+                .lines()
+                .filter_map(|line| line.split(':').nth(2))
+                .next()
+                .unwrap_or("");
+
+            if cgroup_path.is_empty() {
+                info!("cgroup_path is empty");
                 return;
             }
-        };
 
-        // Extract the actual path from the cgroup file (format: hierarchy:id:path)
-        let cgroup_path = cgroup_info
-            .lines()
-            .filter_map(|line| line.split(':').nth(2))
-            .next()
-            .unwrap_or("");
+            // Step 2: extract container ID from the path
+            if let Some(id) = extract_container_id_from_path(cgroup_path) {
+                self.container_id = Some(id.clone());
+                self.runtime = ContainerRuntime::Docker;
 
-        if cgroup_path.is_empty() {
-            return;
-        }
-
-        // Step 2: extract container ID from the path
-        if let Some(id) = extract_container_id_from_path(cgroup_path) {
-            self.container_id = Some(id.clone());
-            self.runtime = ContainerRuntime::Docker;
-
-            // Step 3: resolve container name from Docker metadata JSON
-            match resolve_docker_name(&id) {
-                Some(name) => self.container_name = Some(name),
-                None => {
-                    self.container_name =
-                        Some(self.container_id.clone()).expect("Cannot resolve container name")
-                } // fallback to the container_id if the system cannot resolve the name after the 2 steps
+                // Step 3: resolve container name from Docker metadata JSON
+                match resolve_docker_name(&id) {
+                    Some(name) => self.container_name = Some(name),
+                    None => {
+                        self.container_name = self.container_id.clone(); // fallback to the container_id if the system cannot resolve the name after the 2 steps
+                    }
+                }
             }
-        }
+        };
     }
 
-    fn try_resolve_k8s(&mut self){
+    async fn try_resolve_k8s(&mut self, cache: &Arc<RwLock<ServiceCache>>) {
         let Some(tgid) = self.tgid else { return };
 
         // Step 1: read the cgroup path from procfs
-        let cgroup_info = match fs::read_to_string(format!("/proc/{}/cgroup", tgid)) {
-            Ok(s) => s,
-            Err(e) => {
-                tracing::debug!("Cannot read /proc/{}/cgroup: {}", tgid, e);
+        if let Some(cgroup_info) = get_cgroup_info(tgid) {
+            // Extract the actual path from the cgroup file (format: hierarchy:id:path)
+            let cgroup_path = cgroup_info
+                .lines()
+                .filter_map(|line| line.split(':').nth(2))
+                .next()
+                .unwrap_or("");
+
+            if cgroup_path.is_empty() {
+                info!("cgroup_path is empty");
                 return;
             }
-        };
 
-        // Extract the actual path from the cgroup file (format: hierarchy:id:path)
-        let cgroup_path = cgroup_info
-            .lines()
-            .filter_map(|line| line.split(':').nth(2))
-            .next()
-            .unwrap_or("");
+            // Step 2: extract container ID from the path
+            if let Some(id) = extract_pod_uid(cgroup_path.to_string()) {
+                self.container_id = Some(id.clone());
+                self.runtime = ContainerRuntime::Kubernetes;
 
-        if cgroup_path.is_empty() {
-            return;
-        }
+                // Step 3: resolve container name from the k8s API
 
-        // Step 2: extract container ID from the path
-        if let Some(id) = extract_container_id_from_path(cgroup_path) {
-            self.container_id = Some(id.clone());
-            self.runtime = ContainerRuntime::Kubernetes;
+                //acquire cache lock
+                let cache_lock = cache.read().await;
 
-            // Step 3: resolve container name from Docker metadata JSON
-            match resolve_k8s_name(&id) {
-                Some(name) => self.container_name = Some(name),
-                None => {
-                    self.container_name =
-                        Some(self.container_id.clone()).expect("Cannot resolve container name from k8s api ")
-                } // fallback to the container_id if the system cannot resolve the name after the 2 steps
+                match cache_lock.get_from_cache(&id).await {
+                    Some(name) => self.pod_name = Some(name),
+                    None => {
+                        // fallback to the container_id if the k8s API cannot resolve the name
+                        self.pod_name = Some(id.clone());
+                    }
+                }
             }
         }
-
-        //Step 3: call the k8s API to solve the container nam e
     }
-
-    // TODO: dead code 
-    // Enrichment from Kubernetes (for external use, e.g. identity service).
-    //pub fn enrich_from_k8s(&mut self, pod_name: impl Into<String>, namespace: impl Into<String>) {
-    //    self.runtime = ContainerRuntime::Kubernetes;
-    //    self.pod_name = Some(pod_name.into());
-    //    self.namespace = Some(namespace.into());
-    //}
 }
 
-/// Extract the container ID from a cgroup path, supporting multiple prefixes.
+/// Helpers
+
+/// Helper function to extract the container ID from a cgroup path, supporting multiple prefixes.
+/// Supports Docker, Containerd, CRI-O, Docker cgroup V1.
+/// Used in try_resolve_docker function
 fn extract_container_id_from_path(cgroup_path: &str) -> Option<String> {
     let parts: Vec<&str> = cgroup_path.split('/').collect();
 
@@ -179,83 +224,25 @@ fn extract_container_id_from_path(cgroup_path: &str) -> Option<String> {
     None
 }
 
-/// Resolve a Docker container name by reading `config.v2.json`.
-///
-// TODO: Does this work on macOs?
+/// Resolve a Docker container name by reading config.v2.json.
 fn resolve_docker_name(container_id: &str) -> Option<String> {
+    // TODO: Does this work on macOs?
     let path = format!("/var/lib/docker/containers/{}/config.v2.json", container_id);
     let json_str = fs::read_to_string(&path).ok()?;
     let parsed: serde_json::Value = serde_json::from_str(&json_str).ok()?;
-    let mut image_name = parsed
+    let image_name = parsed
         .get("Config")?
         .get("Image")?
         .as_str()?
         .trim_start_matches('/');
     if image_name.is_empty() {
-        image_name = parsed
-            .get("Config")?
-            .get("WorkingDir")?
-            .as_str()?
-            .trim_start_matches('/'); // fallback if the image_name is empty
+        return None; // if images is empty returns None
     }
 
     Some(image_name.to_string())
 }
 
-
-fn resolve_k8s_name(container_id: &str) -> Option<String> {
-    // pass a container_id and returns the object meta infos:
-    /* pub struct ObjectMeta {
-
-        pub annotations: Option<BTreeMap<String, String>>,
-        pub creation_timestamp: Option<Time>,
-        pub deletion_grace_period_seconds: Option<i64>,
-        pub deletion_timestamp: Option<Time>,
-        pub finalizers: Option<Vec<String>>,
-        pub generate_name: Option<String>,
-        pub generation: Option<i64>,
-        pub labels: Option<BTreeMap<String, String>>,
-        pub managed_fields: Option<Vec<ManagedFieldsEntry>>,
-        pub name: Option<String>,
-        pub namespace: Option<String>,
-        pub owner_references: Option<Vec<OwnerReference>>,
-        pub resource_version: Option<String>,
-        pub self_link: Option<String>,
-        pub uid: Option<String>,
-    } */
-
-    todo!()
-}
-
-
-async fn query_all_pods() -> Result<ObjectList<Pod>, Error> {
-    let client = Client::try_default()
-        .await
-        .expect("Cannot connect to kubernetes client");
-    let pods: Api<Pod> = Api::all(client);
-    let lp = kube::api::ListParams::default(); // default list params
-    let pod_list = pods
-        .list(&lp)
-        .await
-        .expect("An error occured during the pod list extraction");
-
-    Ok(pod_list)
-}
-
-async fn get_pod_info() -> Result<HashMap<String, String>, Error> {
-    let all_pods = query_all_pods().await?;
-
-    let mut service_map = HashMap::<String, String>::new();
-
-    for pod in all_pods {
-        if let (Some(name), Some(uid)) = (pod.metadata.name, pod.metadata.uid) {
-            service_map.insert(uid, name);
-        }
-    } // insert the pod name and uid from the KubeAPI
-
-    Ok(service_map)
-}
-
+/// Helper function to extract the pod name, called 'target' from a vector of splits ['','','']
 fn extract_target_from_splits(splits: Vec<&str>, target: &str) -> Result<usize, Error> {
     for (index, split) in splits.iter().enumerate() {
         // find the split that contains the word 'pod'
@@ -267,8 +254,7 @@ fn extract_target_from_splits(splits: Vec<&str>, target: &str) -> Result<usize, 
     Err(Error::msg("'-pod' word not found in split"))
 }
 
-
-fn extract_pod_uid(cgroup_path: String) -> Result<String, Error> {
+fn extract_pod_uid(cgroup_path: String) -> Option<String> {
     // example of cgroup path:
     // /sys/fs/cgroup/kubelet.slice/kubelet-kubepods.slice/kubelet-kubepods-besteffort.slice/kubelet-kubepods-besteffort-pod93580201_87d5_44e6_9779_f6153ca17637.slice
     // or
@@ -278,23 +264,78 @@ fn extract_pod_uid(cgroup_path: String) -> Result<String, Error> {
     let splits: Vec<&str> = cgroup_path.split("/").collect();
     debug!("Debugging splits: {:?}", &splits);
 
-    let index = extract_target_from_splits(splits.clone(), "-pod")?;
+    let index = extract_target_from_splits(splits.clone(), "-pod").ok();
 
-    let pod_split = splits[index]
-        .trim_start_matches("kubelet-kubepods-besteffort-")
-        .trim_start_matches("kubelet-kubepods-burstable-")
-        .trim_start_matches("kubepods-besteffort-")
-        .trim_start_matches("kubepods-burstable-");
+    match index {
+        Some(idx) => {
+            let pod_split = splits[idx]
+                .trim_start_matches("kubelet-kubepods-besteffort-")
+                .trim_start_matches("kubelet-kubepods-burstable-")
+                .trim_start_matches("kubepods-besteffort-")
+                .trim_start_matches("kubepods-burstable-");
 
-    let uid_ = pod_split
-        .trim_start_matches("pod")
-        .trim_end_matches(".slice"); //return uids with underscore (_) [ex.dd3a1c6b_af40_41b1_8e1c_9e31fe8d96cb]
+            let uid_ = pod_split
+                .trim_start_matches("pod")
+                .trim_end_matches(".slice"); //return uids with underscore (_) [ex.dd3a1c6b_af40_41b1_8e1c_9e31fe8d96cb]
 
-    let uid = uid_.replace("_", "-");
-    Ok(uid.to_string())
+            let uid = Some(uid_.replace("_", "-"));
+            uid
+        }
+        None => {
+            debug!("Index returned a value of None");
+            None
+        }
+    }
 }
 
+/// Detect if the host is running cgroup v2.
+/// On cgroup v2 the file /sys/fs/cgroup/cgroup.controllers exists; on v1 it
+/// does not (the controllers are split across /sys/fs/cgroup/<controller>).
+/// this is a way to detect if we can attach the try_resolve_k8s functions
+fn detect_cgroup_v2() -> bool {
+    Path::new("/host/sys/fs/cgroup")
+        .join("cgroup.controllers")
+        .is_file()
+}
 
+/// Scans /sys/fs/cgroup recursively and return the path of the directory that
+/// matches cgroup_id. This lookup is guaranteed because of the structure of the cgroup v2 in linux
+fn find_cgroup_path_by_id(cgroup_id: u64) -> Option<PathBuf> {
+    let root = Path::new("/host/sys/fs/cgroup");
+    let mut stack = vec![root.to_path_buf()];
+
+    while let Some(dir) = stack.pop() {
+        let meta = match fs::metadata(&dir) {
+            Ok(m) => m,
+            Err(_) => continue,
+        };
+
+        if meta.ino() == cgroup_id {
+            return Some(dir);
+        }
+
+        if let Ok(entries) = fs::read_dir(&dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    stack.push(path);
+                }
+            }
+        }
+    }
+
+    None
+}
+
+fn get_cgroup_info(tgid: u32) -> Option<String> {
+    let cgroup_info = match fs::read_to_string(format!("/proc/{}/cgroup", tgid)) {
+        Ok(s) => return Some(s),
+        Err(e) => {
+            debug!("Cannot read /proc/{}/cgroup: {}", tgid, e);
+            return None;
+        }
+    };
+}
 
 #[cfg(test)]
 mod tests {
@@ -353,4 +394,5 @@ mod tests {
 
         assert_eq!(docker_container_name, Some("busybox:latest".to_string()))
     }
+    // TODO: missing tests for extract_pod_uid, extract_target_from_splits, try_resolve_docker, try_resolve_k8s, enrich.
 }
