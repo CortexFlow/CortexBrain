@@ -205,7 +205,7 @@ fn resolve_docker_name(container_id: &str) -> Option<String> {
     let path = format!("/var/lib/docker/containers/{}/config.v2.json", container_id);
     let json_str = fs::read_to_string(&path).ok()?;
     let parsed: serde_json::Value = serde_json::from_str(&json_str).ok()?;
-    let mut image_name = parsed
+    let image_name = parsed
         .get("Config")?
         .get("Image")?
         .as_str()?
