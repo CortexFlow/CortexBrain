@@ -2,11 +2,55 @@ name: Core Build Checks
 
 on:
   pull_request:
-    branches: [ main, PreReleaseMain ]
+    branches: [ main, PreReleaseMain, 0.1.5 ]
   push:
     branches: [ main, PreReleaseMain ]
 
 jobs:
+  check-common-features:
+    name: Check common features (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: no features
+            args: --no-default-features
+          - name: network structs
+            args: --no-default-features --features network-structs
+          - name: monitoring structs
+            args: --no-default-features --features monitoring-structs
+          - name: network buffer reader
+            args: --no-default-features --features buffer-reader,network-structs
+          - name: monitoring buffer reader
+            args: --no-default-features --features buffer-reader,monitoring-structs
+          - name: handlers
+            args: --no-default-features --features map-handlers,program-handlers
+          - name: runtime features
+            args: --no-default-features --features map-handlers,program-handlers,network-structs,monitoring-structs,buffer-reader
+          - name: all features
+            args: --all-features
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Check cortexbrain-common feature isolation
+      working-directory: core
+      run: cargo check --locked -p cortexbrain-common ${{ matrix.args }}
+
+  test-common-contracts:
+    name: Test common event contracts
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Test cortexbrain-common public contracts
+      working-directory: core
+      run: cargo test --locked -p cortexbrain-common --test public_contracts --no-default-features --features network-structs,monitoring-structs
+
   build-core-components:
     runs-on: ubuntu-latest
     

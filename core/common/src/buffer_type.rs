@@ -198,6 +198,7 @@ pub struct SslEvent {
     pub size: i32,      // return value (bytes transferred or <0 on error)
     pub requested: i32, // num argument passed to SSL_read/SSL_write
 }
+#[cfg(feature = "monitoring-structs")]
 unsafe impl aya::Pod for SslEvent {}
 
 /// Perform a byte swap from little-endian to big-endian.
