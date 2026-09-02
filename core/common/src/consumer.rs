@@ -639,6 +639,7 @@ impl Consumer {
         }
     }
 
+    #[cfg(feature = "monitoring-structs")]
     pub async fn read_ssl_events(
         buffers: &mut [BytesMut],
         tot_events: i32,
