@@ -61,6 +61,27 @@ pub fn resolve_libssl_path() -> anyhow::Result<Option<String>> {
     Ok(None)
 }
 
+/// Initialise the shared OpenTelemetry metrics handle and the Docker/K8s
+/// service cache used by every perf-buffer consumer.
+pub async fn init_metrics_and_cache(
+    meter: &Meter,
+) -> Result<
+    (
+        Arc<Metrics>,
+        Arc<tokio::sync::RwLock<ServiceCache>>,
+    ),
+    anyhow::Error,
+> {
+    let metrics = Arc::new(Metrics::new(meter));
+
+    let mut cache_obj = ServiceCache { service_map: None };
+    cache_obj.init();
+    cache_obj.populate_map_with_pod_info().await?;
+    let cache = Arc::new(tokio::sync::RwLock::new(cache_obj));
+
+    Ok((metrics, cache))
+}
+
 /// Listen for eBPF perf-buffer events and record OpenTelemetry metrics.
 ///
 /// This function bridges the eBPF perf-buffer layer with the OpenTelemetry
@@ -147,11 +168,7 @@ pub async fn event_listener(bpf_maps: BpfMapsData, meter: Meter) -> Result<(), a
     let sched_stat_runtime_buffers = BufferSize::SchedStatRuntime.set_buffer();
     let ssl_events_buffers = BufferSize::SslEvents.set_buffer();
 
-    let metrics = Arc::new(Metrics::new(&meter));
-    let mut cache_obj = ServiceCache { service_map: None };
-    cache_obj.init(); //init cache
-    cache_obj.populate_map_with_pod_info().await?; // populate cache with a first scan of the services 
-    let cache = Arc::new(tokio::sync::RwLock::new(cache_obj));
+    let (metrics, cache) = init_metrics_and_cache(&meter).await?;
 
     info!("Starting event listener tasks...");
 
