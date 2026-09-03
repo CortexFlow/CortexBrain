@@ -6,12 +6,14 @@ use opentelemetry::metrics::Meter;
 use std::env;
 use std::path::Path;
 use std::sync::Arc;
-use tokio::signal;
+use std::time::Duration;
+use tokio::{signal, time};
 use tracing::{error, info};
 
 use cortexbrain_common::constants;
 use cortexbrain_common::consumer::{Consumer, read_perf_buffer};
 use cortexbrain_common::otel_metrics::Metrics;
+use cortexbrain_common::service_cache::ServiceCache;
 
 /// Locate the OpenSSL shared library used for the SSL uprobes.
 ///
@@ -57,6 +59,27 @@ pub fn resolve_libssl_path() -> anyhow::Result<Option<String>> {
     }
 
     Ok(None)
+}
+
+/// Initialise the shared OpenTelemetry metrics handle and the Docker/K8s
+/// service cache used by every perf-buffer consumer.
+pub async fn init_metrics_and_cache(
+    meter: &Meter,
+) -> Result<
+    (
+        Arc<Metrics>,
+        Arc<tokio::sync::RwLock<ServiceCache>>,
+    ),
+    anyhow::Error,
+> {
+    let metrics = Arc::new(Metrics::new(meter));
+
+    let mut cache_obj = ServiceCache { service_map: None };
+    cache_obj.init();
+    cache_obj.populate_map_with_pod_info().await?;
+    let cache = Arc::new(tokio::sync::RwLock::new(cache_obj));
+
+    Ok((metrics, cache))
 }
 
 /// Listen for eBPF perf-buffer events and record OpenTelemetry metrics.
@@ -145,12 +168,30 @@ pub async fn event_listener(bpf_maps: BpfMapsData, meter: Meter) -> Result<(), a
     let sched_stat_runtime_buffers = BufferSize::SchedStatRuntime.set_buffer();
     let ssl_events_buffers = BufferSize::SslEvents.set_buffer();
 
-    let metrics = Arc::new(Metrics::new(&meter));
+    let (metrics, cache) = init_metrics_and_cache(&meter).await?;
 
     info!("Starting event listener tasks...");
 
+    let cache_refresher = Arc::clone(&cache);
+    let cache_handle = {
+        tokio::spawn(async move {
+            let mut interval = time::interval(Duration::from_secs(60));
+            // every 60 seconds the cache auto updates and qu
+            loop {
+                interval.tick().await;
+                // scan the cache once again to check if we need to update it
+                // acquire cache write lock
+                let mut cache_lock = cache_refresher.write().await;
+                if let Err(e) = cache_lock.populate_map_with_pod_info().await {
+                    error!("cache refresh fail. {}", e);
+                };
+            }
+        })
+    };
+
     let net_metrics_handle = {
         let metrics = Arc::clone(&metrics);
+        let service_cache = Arc::clone(&cache);
         let mut array_buffers = net_perf_buffer;
         let mut buffers = net_metrics_buffers;
         tokio::spawn(async move {
@@ -159,6 +200,7 @@ pub async fn event_listener(bpf_maps: BpfMapsData, meter: Meter) -> Result<(), a
                 buffers,
                 Consumer::PacketLossMetrics,
                 Some(metrics),
+                Some(service_cache),
             )
             .await;
         })
@@ -166,6 +208,7 @@ pub async fn event_listener(bpf_maps: BpfMapsData, meter: Meter) -> Result<(), a
 
     let time_stamp_handle = {
         let metrics = Arc::clone(&metrics);
+        let service_cache = Arc::clone(&cache);
         let mut array_buffers = time_stamp_events_perf_buffer;
         let mut buffers = time_stamp_events_buffers;
         tokio::spawn(async move {
@@ -174,6 +217,7 @@ pub async fn event_listener(bpf_maps: BpfMapsData, meter: Meter) -> Result<(), a
                 buffers,
                 Consumer::TimeStampMetrics,
                 Some(metrics),
+                Some(service_cache),
             )
             .await;
         })
@@ -181,6 +225,7 @@ pub async fn event_listener(bpf_maps: BpfMapsData, meter: Meter) -> Result<(), a
 
     let cpu_frequency_metrics = {
         let metrics = Arc::clone(&metrics);
+        let service_cache = Arc::clone(&cache);
         let mut array_buffers = cpu_frequency_perf_buffer;
         let mut buffers = cpu_frequency_events_buffers;
         tokio::spawn(async move {
@@ -189,6 +234,7 @@ pub async fn event_listener(bpf_maps: BpfMapsData, meter: Meter) -> Result<(), a
                 buffers,
                 Consumer::CpuFrequency,
                 Some(metrics),
+                Some(service_cache),
             )
             .await;
         })
@@ -196,24 +242,42 @@ pub async fn event_listener(bpf_maps: BpfMapsData, meter: Meter) -> Result<(), a
 
     let cpu_idle_metrics = {
         let metrics = Arc::clone(&metrics);
+        let service_cache = Arc::clone(&cache);
         let mut array_buffers = cpu_idle_perf_buffer;
         let mut buffers = cpu_idle_buffers;
         tokio::spawn(async move {
-            read_perf_buffer(array_buffers, buffers, Consumer::CpuIdle, Some(metrics)).await;
+            read_perf_buffer(
+                array_buffers,
+                buffers,
+                Consumer::CpuIdle,
+                Some(metrics),
+                Some(service_cache),
+            )
+            .await;
         })
     };
 
     let mem_alloc_metrics = {
         let metrics = Arc::clone(&metrics);
+        let service_cache = Arc::clone(&cache);
         let mut array_buffers = mem_alloc_perf_buffer;
         let mut buffers = mem_alloc_buffers;
         tokio::spawn(async move {
-            read_perf_buffer(array_buffers, buffers, Consumer::MemAlloc, Some(metrics)).await;
+            read_perf_buffer(
+                array_buffers,
+                buffers,
+                Consumer::MemAlloc,
+                Some(metrics),
+                Some(service_cache),
+            )
+            .await;
         })
     };
 
     let sched_stat_wait_metrics = {
         let metrics = Arc::clone(&metrics);
+        let service_cache = Arc::clone(&cache);
+
         let mut array_buffers = sched_stat_wait_perf_buffer;
         let mut buffers = sched_stat_wait_buffers;
         tokio::spawn(async move {
@@ -222,6 +286,7 @@ pub async fn event_listener(bpf_maps: BpfMapsData, meter: Meter) -> Result<(), a
                 buffers,
                 Consumer::SchedStatWait,
                 Some(metrics),
+                Some(service_cache),
             )
             .await;
         })
@@ -229,6 +294,7 @@ pub async fn event_listener(bpf_maps: BpfMapsData, meter: Meter) -> Result<(), a
 
     let sched_stat_runtime_metrics = {
         let metrics = Arc::clone(&metrics);
+        let service_cache = Arc::clone(&cache);
         let mut array_buffers = sched_stat_runtime_perf_buffer;
         let mut buffers = sched_stat_runtime_buffers;
         tokio::spawn(async move {
@@ -237,6 +303,7 @@ pub async fn event_listener(bpf_maps: BpfMapsData, meter: Meter) -> Result<(), a
                 buffers,
                 Consumer::SchedStatRuntime,
                 Some(metrics),
+                Some(service_cache),
             )
             .await;
         })
@@ -244,16 +311,30 @@ pub async fn event_listener(bpf_maps: BpfMapsData, meter: Meter) -> Result<(), a
 
     let ssl_events_metrics = {
         let metrics = Arc::clone(&metrics);
+        let service_cache = Arc::clone(&cache);
         let mut array_buffers = ssl_events_perf_buffer;
         let mut buffers = ssl_events_buffers;
         tokio::spawn(async move {
-            read_perf_buffer(array_buffers, buffers, Consumer::SslEvents, Some(metrics)).await;
+            read_perf_buffer(
+                array_buffers,
+                buffers,
+                Consumer::SslEvents,
+                Some(metrics),
+                Some(service_cache),
+            )
+            .await;
         })
     };
 
     info!("Event listeners started, entering main loop...");
 
     tokio::select! {
+        result = cache_handle => {
+            if let Err(e) = result {
+                error!("Cache handle task failed: {:?}", e);
+            }
+        }
+
         result = net_metrics_handle => {
             if let Err(e) = result {
                 error!("Network metrics task failed: {:?}", e);

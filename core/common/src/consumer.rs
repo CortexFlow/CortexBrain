@@ -22,9 +22,12 @@ use crate::buffer_type::{PacketLog, TcpPacketRegistry, VethLog};
 use crate::metadata::Metadata;
 #[cfg(feature = "monitoring-structs")]
 use crate::otel_metrics::Metrics;
+use crate::service_cache::ServiceCache;
 use bytes::BytesMut;
 #[cfg(feature = "monitoring-structs")]
 use std::sync::Arc;
+#[cfg(feature = "buffer-reader")]
+use tokio::sync::RwLock;
 use tracing::{error, info, warn};
 
 /// Discriminator for perf-buffer event types consumed by the collector.
@@ -271,6 +274,7 @@ impl Consumer {
         offset: i32,
         exporter: &str,
         metrics: Arc<Metrics>,
+        cache: Arc<RwLock<ServiceCache>>,
     ) {
         for i in offset..tot_events {
             let vec_bytes = &buffers[i as usize];
@@ -293,9 +297,12 @@ impl Consumer {
 
                 match exporter {
                     "otlp" => {
-                        let mut metadata =
-                            Metadata::from_ebpf(Some(packet_loss.tgid), &packet_loss.comm);
-                        metadata.enrich();
+                        let mut metadata = Metadata::from_ebpf(
+                            Some(packet_loss.tgid),
+                            Some(packet_loss.cgroup_id),
+                            &packet_loss.comm,
+                        );
+                        metadata.enrich(&cache).await;
                         metrics.record_packet_loss_metrics(&packet_loss, &metadata);
                     }
                     _ => continue,
@@ -313,7 +320,8 @@ impl Consumer {
                 let sk_receive_buffer_size = packet_loss.sk_receive_buffer_size;
 
                 info!(
-                    "tgid: {}, comm: {}, ts_us: {}, sk_drops: {}, sk_err: {}, sk_err_soft: {}, sk_backlog_len: {}, sk_write_memory_queued: {}, sk_ack_backlog: {}, sk_receive_buffer_size: {}",
+                    "tgid: {}, comm: {}, ts_us: {}, sk_drops: {}, sk_err: {}, sk_err_soft: {}, sk_backlog_len: {}, 
+                    sk_write_memory_queued: {}, sk_ack_backlog: {}, sk_receive_buffer_size: {}",
                     tgid,
                     comm,
                     ts_us,
@@ -323,7 +331,7 @@ impl Consumer {
                     sk_backlog_len,
                     sk_write_memory_queued,
                     sk_ack_backlog,
-                    sk_receive_buffer_size
+                    sk_receive_buffer_size,
                 );
             }
         }
@@ -339,6 +347,7 @@ impl Consumer {
         offset: i32,
         exporter: &str,
         metrics: Arc<Metrics>,
+        cache: Arc<RwLock<ServiceCache>>,
     ) {
         for i in offset..tot_events {
             let vec_bytes = &buffers[i as usize];
@@ -363,9 +372,10 @@ impl Consumer {
                     "otlp" => {
                         let mut metadata = Metadata::from_ebpf(
                             Some(time_stamp_event.tgid),
+                            Some(time_stamp_event.cgroup_id),
                             &time_stamp_event.comm,
                         );
-                        metadata.enrich();
+                        metadata.enrich(&cache).await;
                         metrics.record_timestamp_metrics(&time_stamp_event, &metadata);
                     }
                     _ => continue,
@@ -394,6 +404,7 @@ impl Consumer {
         offset: i32,
         exporter: &str,
         metrics: Arc<Metrics>,
+        cache: Arc<RwLock<ServiceCache>>,
     ) {
         for i in offset..tot_events {
             let vec_bytes = &buffers[i as usize];
@@ -418,9 +429,10 @@ impl Consumer {
                     "otlp" => {
                         let mut metadata = Metadata::from_ebpf(
                             Some(cpu_freq_metrics.pid),
+                            None,
                             &cpu_freq_metrics.command,
                         );
-                        metadata.enrich();
+                        metadata.enrich(&cache).await;
                         metrics.record_cpu_bytes_alloc(&cpu_freq_metrics, &metadata);
                     }
                     _ => continue,
@@ -445,6 +457,7 @@ impl Consumer {
         offset: i32,
         exporter: &str,
         metrics: Arc<Metrics>,
+        cache: Arc<RwLock<ServiceCache>>,
     ) {
         for i in offset..tot_events {
             let vec_bytes = &buffers[i as usize];
@@ -467,9 +480,12 @@ impl Consumer {
 
                 match exporter {
                     "otlp" => {
-                        let mut metadata =
-                            Metadata::from_ebpf(Some(mem_alloc.tgid), &mem_alloc.command);
-                        metadata.enrich();
+                        let mut metadata = Metadata::from_ebpf(
+                            Some(mem_alloc.tgid),
+                            Some(mem_alloc.cgroup_id),
+                            &mem_alloc.command,
+                        );
+                        metadata.enrich(&cache).await;
                         metrics.record_enter_mem_alloc(&mem_alloc, &metadata);
                     }
                     _ => continue,
@@ -496,6 +512,7 @@ impl Consumer {
         offset: i32,
         exporter: &str,
         metrics: Arc<Metrics>,
+        cache: Arc<RwLock<ServiceCache>>,
     ) {
         for i in offset..tot_events {
             let vec_bytes = &buffers[i as usize];
@@ -520,9 +537,10 @@ impl Consumer {
                     "otlp" => {
                         let mut metadata = Metadata::from_ebpf(
                             Some(sched_stat_wait.tgid),
+                            Some(sched_stat_wait.cgroup_id),
                             &sched_stat_wait.command,
                         );
-                        metadata.enrich();
+                        metadata.enrich(&cache).await;
                         metrics.record_sched_stat_wait(&sched_stat_wait, &metadata);
                     }
                     _ => continue,
@@ -548,6 +566,7 @@ impl Consumer {
         offset: i32,
         exporter: &str,
         metrics: Arc<Metrics>,
+        cache: Arc<RwLock<ServiceCache>>,
     ) {
         for i in offset..tot_events {
             let vec_bytes = &buffers[i as usize];
@@ -572,9 +591,10 @@ impl Consumer {
                     "otlp" => {
                         let mut metadata = Metadata::from_ebpf(
                             Some(sched_stat_runtime.tgid),
+                            Some(sched_stat_runtime.cgroup_id),
                             &sched_stat_runtime.command,
                         );
-                        metadata.enrich();
+                        metadata.enrich(&cache).await;
                         metrics.record_sched_stat_runtime(&sched_stat_runtime, &metadata);
                     }
                     _ => continue,
@@ -600,6 +620,7 @@ impl Consumer {
         offset: i32,
         exporter: &str,
         metrics: Arc<Metrics>,
+        cache: Arc<RwLock<ServiceCache>>,
     ) {
         for i in offset..tot_events {
             let vec_bytes = &buffers[i as usize];
@@ -622,7 +643,7 @@ impl Consumer {
 
                 match exporter {
                     "otlp" => {
-                        let metadata = Metadata::from_ebpf(None, &[]);
+                        let metadata = Metadata::from_ebpf(None, None, &[]);
                         metrics.record_cpu_idle(&cpu_idle, &metadata);
                     }
                     _ => continue,
@@ -646,6 +667,7 @@ impl Consumer {
         offset: i32,
         exporter: &str,
         metrics: Arc<Metrics>,
+        cache: Arc<RwLock<ServiceCache>>,
     ) {
         for i in offset..tot_events {
             use crate::buffer_type::SslEvent;
@@ -674,8 +696,12 @@ impl Consumer {
                     // 0 = read // 1= write
                     0 => match exporter {
                         "otlp" => {
-                            let mut metadata = Metadata::from_ebpf(None, &[]);
-                            metadata.enrich();
+                            let mut metadata = Metadata::from_ebpf(
+                                Some(ssl_event.tgid),
+                                Some(ssl_event.cgroup_id),
+                                &ssl_event.comm,
+                            );
+                            metadata.enrich(&cache).await;
                             metrics.record_ssl_read_bytes(&ssl_event, &metadata);
                             let tgid = ssl_event.tgid;
                             let command = String::from_utf8_lossy(&ssl_event.comm);
@@ -691,8 +717,12 @@ impl Consumer {
                     },
                     1 => match exporter {
                         "otlp" => {
-                            let mut metadata = Metadata::from_ebpf(None, &[]);
-                            metadata.enrich();
+                            let mut metadata = Metadata::from_ebpf(
+                                Some(ssl_event.tgid),
+                                Some(ssl_event.cgroup_id),
+                                &ssl_event.comm,
+                            );
+                            metadata.enrich(&cache).await;
                             metrics.record_ssl_write_bytes(&ssl_event, &metadata);
                             let tgid = ssl_event.tgid;
                             let command = String::from_utf8_lossy(&ssl_event.comm);
@@ -730,6 +760,7 @@ pub async fn read_perf_buffer<T: std::borrow::BorrowMut<aya::maps::MapData>>(
     mut buffers: Vec<bytes::BytesMut>,
     consumer: Consumer,
     #[cfg(feature = "monitoring-structs")] metrics: Option<Arc<Metrics>>,
+    cache: Option<Arc<RwLock<ServiceCache>>>,
 ) {
     loop {
         for buf in array_buffers.iter_mut() {
@@ -768,6 +799,7 @@ pub async fn read_perf_buffer<T: std::borrow::BorrowMut<aya::maps::MapData>>(
                                     metrics
                                         .clone()
                                         .expect("Metrics required for PacketLossMetrics"),
+                                    cache.clone().expect("cache required for PacketLossMetrics"),
                                 )
                                 .await
                             }
@@ -781,6 +813,7 @@ pub async fn read_perf_buffer<T: std::borrow::BorrowMut<aya::maps::MapData>>(
                                     metrics
                                         .clone()
                                         .expect("Metric required for TimeStampMetrics"),
+                                    cache.clone().expect("cache required for PacketLossMetrics"),
                                 )
                                 .await
                             }
@@ -792,6 +825,7 @@ pub async fn read_perf_buffer<T: std::borrow::BorrowMut<aya::maps::MapData>>(
                                     offset,
                                     "otlp",
                                     metrics.clone().expect("Metric required for CpuFrequency"),
+                                    cache.clone().expect("cache required for PacketLossMetrics"),
                                 )
                                 .await
                             }
@@ -803,6 +837,7 @@ pub async fn read_perf_buffer<T: std::borrow::BorrowMut<aya::maps::MapData>>(
                                     offset,
                                     "otlp",
                                     metrics.clone().expect("Metric required for MemAlloc"),
+                                    cache.clone().expect("cache required for PacketLossMetrics"),
                                 )
                                 .await
                             }
@@ -814,6 +849,7 @@ pub async fn read_perf_buffer<T: std::borrow::BorrowMut<aya::maps::MapData>>(
                                     offset,
                                     "otlp",
                                     metrics.clone().expect("Metric required for SchedStatWait"),
+                                    cache.clone().expect("cache required for PacketLossMetrics"),
                                 )
                                 .await
                             }
@@ -827,6 +863,7 @@ pub async fn read_perf_buffer<T: std::borrow::BorrowMut<aya::maps::MapData>>(
                                     metrics
                                         .clone()
                                         .expect("Metric required for SchedStatRuntime"),
+                                    cache.clone().expect("cache required for PacketLossMetrics"),
                                 )
                                 .await
                             }
@@ -838,6 +875,7 @@ pub async fn read_perf_buffer<T: std::borrow::BorrowMut<aya::maps::MapData>>(
                                     offset,
                                     "otlp",
                                     metrics.clone().expect("Metric required for CpuIdle"),
+                                    cache.clone().expect("cache required for PacketLossMetrics"),
                                 )
                                 .await
                             }
@@ -849,6 +887,7 @@ pub async fn read_perf_buffer<T: std::borrow::BorrowMut<aya::maps::MapData>>(
                                     offset,
                                     "otlp",
                                     metrics.clone().expect("Metric required for SslEvents"),
+                                    cache.clone().expect("cache required for PacketLossMetrics"),
                                 )
                                 .await
                             }
