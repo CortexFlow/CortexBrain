@@ -1,4 +1,5 @@
 use anyhow::Error;
+use kube::Client;
 use std::fs;
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
@@ -58,19 +59,25 @@ impl Metadata {
     pub async fn enrich(&mut self, cache: &Arc<RwLock<ServiceCache>>) {
         if let Some(cgid) = self.cgroup_id
             && cgid != 0
-            && detect_cgroup_v2()
             && self.try_resolve_from_cgroup_id(cgid, cache).await
         {
             return;
         } else {
-            debug!("cgroup_v2 not detected. Using cgroup v1");
-            self.try_resolve_docker();
+            debug!("An error occured during cgroup_id resolution.Trying with docker and tgid");
         }
-        self.try_resolve_k8s(cache).await;
+        if let Some(tgid) = self.tgid
+            && self.try_resolve_docker(tgid, cache).await
+        {
+            return;
+        } else {
+            debug!("Cannot resolve tgid with Docker");
+        }
     }
 
     /// Resolve pod/container from a kernel cgroup_id by walking /sys/fs/cgroup (v2).
     /// Returns true if resolution succeeded (pod_uid extracted), false to allow caller fallback.
+    ///
+    /// only for k8s
     async fn try_resolve_from_cgroup_id(
         &mut self,
         cgroup_id: u64,
@@ -84,43 +91,40 @@ impl Metadata {
             return false;
         };
 
-        if let Some(id) = extract_pod_uid(cgroup_path.to_string_lossy().to_string()) {
+        if let Some(id) = extract_pod_uid(cgroup_path.to_string_lossy().to_string())
+            && Client::try_default().await.is_ok()
+        {
             self.container_id = Some(id.clone());
+            debug!(
+                "Resolving container id {:?} using the pod UID",
+                self.container_id
+            );
             self.runtime = ContainerRuntime::Kubernetes;
 
             // get pod from cache
             // acquire cache lock
             let cache_lock = cache.read().await;
             match cache_lock.get_from_cache(&id).await {
-                Some(name) => self.pod_name = Some(name),
+                Some(name) => {
+                    self.pod_name = Some(name);
+                    return true;
+                }
                 None => {
-                    // fallback to the container_id if the k8s API cannot resolve the name
-                    self.pod_name = Some(id.clone());
+                    return false;
                 }
             }
-            return true;
         }
-
-        // not a k8s pod cgroup — try docker/containerd/crio container id
-        if let Some(id) = extract_container_id_from_path(&cgroup_path.to_string_lossy()) {
-            self.container_id = Some(id.clone());
-            self.runtime = ContainerRuntime::Docker;
-            match resolve_docker_name(&id) {
-                Some(name) => self.container_name = Some(name),
-                None => self.container_name = self.container_id.clone(),
-            }
-            return true;
-        }
-
         false
     }
 
     /// Docker resolution via local filesystem.
     /// This part is triggered when the container is already detected
     // TODO: this is working for Linux, can anyone check if this works on macOs systems ?
-    fn try_resolve_docker(&mut self) {
-        let Some(tgid) = self.tgid else { return };
-
+    pub async fn try_resolve_docker(
+        &mut self,
+        tgid: u32,
+        cache: &Arc<RwLock<ServiceCache>>,
+    ) -> bool {
         // Step 1: read the cgroup path from procfs
         if let Some(cgroup_info) = get_cgroup_info(tgid) {
             // Extract the actual path from the cgroup file (format: hierarchy:id:path)
@@ -132,61 +136,32 @@ impl Metadata {
 
             if cgroup_path.is_empty() {
                 info!("cgroup_path is empty");
-                return;
+                return false;
             }
 
             // Step 2: extract container ID from the path
-            if let Some(id) = extract_container_id_from_path(cgroup_path) {
+            if let Some(id) = extract_container_id_from_path(&cgroup_path.to_string()) {
                 self.container_id = Some(id.clone());
+                debug!(
+                    "Resolving container id {:?} using the docker fs",
+                    self.container_id
+                );
                 self.runtime = ContainerRuntime::Docker;
 
-                // Step 3: resolve container name from Docker metadata JSON
-                match resolve_docker_name(&id) {
+                let cache_lock = cache.read().await;
+                match cache_lock.get_from_cache(&id).await {
                     Some(name) => self.container_name = Some(name),
-                    None => {
-                        self.container_name = self.container_id.clone(); // fallback to the container_id if the system cannot resolve the name after the 2 steps
-                    }
+                    None => match resolve_docker_name(&id) {
+                        Some(name) => {
+                            self.container_name = Some(name);
+                            return true;
+                        }
+                        None => return false,
+                    },
                 }
             }
         };
-    }
-
-    async fn try_resolve_k8s(&mut self, cache: &Arc<RwLock<ServiceCache>>) {
-        let Some(tgid) = self.tgid else { return };
-
-        // Step 1: read the cgroup path from procfs
-        if let Some(cgroup_info) = get_cgroup_info(tgid) {
-            // Extract the actual path from the cgroup file (format: hierarchy:id:path)
-            let cgroup_path = cgroup_info
-                .lines()
-                .filter_map(|line| line.split(':').nth(2))
-                .next()
-                .unwrap_or("");
-
-            if cgroup_path.is_empty() {
-                info!("cgroup_path is empty");
-                return;
-            }
-
-            // Step 2: extract container ID from the path
-            if let Some(id) = extract_pod_uid(cgroup_path.to_string()) {
-                self.container_id = Some(id.clone());
-                self.runtime = ContainerRuntime::Kubernetes;
-
-                // Step 3: resolve container name from the k8s API
-
-                //acquire cache lock
-                let cache_lock = cache.read().await;
-
-                match cache_lock.get_from_cache(&id).await {
-                    Some(name) => self.pod_name = Some(name),
-                    None => {
-                        // fallback to the container_id if the k8s API cannot resolve the name
-                        self.pod_name = Some(id.clone());
-                    }
-                }
-            }
-        }
+        false
     }
 }
 
@@ -286,16 +261,6 @@ fn extract_pod_uid(cgroup_path: String) -> Option<String> {
             None
         }
     }
-}
-
-/// Detect if the host is running cgroup v2.
-/// On cgroup v2 the file /sys/fs/cgroup/cgroup.controllers exists; on v1 it
-/// does not (the controllers are split across /sys/fs/cgroup/<controller>).
-/// this is a way to detect if we can attach the try_resolve_k8s functions
-fn detect_cgroup_v2() -> bool {
-    Path::new("/host/sys/fs/cgroup")
-        .join("cgroup.controllers")
-        .is_file()
 }
 
 /// Scans /sys/fs/cgroup recursively and return the path of the directory that
