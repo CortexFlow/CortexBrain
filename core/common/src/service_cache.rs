@@ -30,16 +30,54 @@ impl ServiceCache {
 
     /// Helper function to populate and mantain a cache service map
     pub async fn populate_map_with_pod_info(&mut self) -> Result<(), Error> {
-        let all_pods = self.query_all_pods_from_kubeapi().await?;
+        if Client::try_default().await.is_ok() {
+            let all_pods = self.query_all_pods_from_kubeapi().await?;
 
-        debug!("Querying and updating all the pods");
-        for pod in all_pods {
-            if let (Some(name), Some(uid)) = (pod.metadata.name, pod.metadata.uid) {
-                if let Some(map) = self.service_map.as_mut() {
-                    map.insert(uid, name);
+            debug!("Querying and updating all the pods");
+            for pod in all_pods {
+                if let (Some(name), Some(uid), Some(annotations)) = (
+                    pod.metadata.name,
+                    pod.metadata.uid,
+                    pod.metadata.annotations,
+                ) {
+                    // docs from kubernetes
+                    // Annotations is an unstructured key value map stored with a resource that
+                    // may be set by external tools to store and retrieve arbitrary metadata.
+                    // They are not queryable and should be preserved when modifying objects.
+                    //More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations
+
+                    if let Some(map) = self.service_map.as_mut() {
+
+                        // static pods are managed by the kubelet itself instead all the other pods 
+                        // are managed by controllers without the need of the API server
+                        // the kubelet mirrors the static pods but the UID does not match the real signature of the pod (verified)
+                        // so the algorithm check if the pod is static by checking if the annotations contains the word 'file' or 'http' 
+                        // reference for the labels: https://kubernetes.io/docs/reference/labels-annotations-taints/
+                        // and copies the config.hash (aka the signature of the static pod) into the service cache instead of the UID
+
+                        // more about static pods: https://medium.com/@iamsteffinissac/mastering-static-pods-in-kubernetes-bootstrapping-troubleshooting-mirror-pods-advanced-update-a35a5f95e329
+
+
+                        let is_static_pod = annotations
+                            .get("kubernetes.io/config.source")
+                            .is_some_and(|a| a == "file" || a== "http");
+
+                        let key = if is_static_pod {
+                            annotations
+                                .get("kubernetes.io/config.hash")
+                                .cloned()
+                                .unwrap_or(uid)
+                        } else {
+                            uid
+                        };
+                        map.insert(key, name);
+                    }
                 }
-            }
-        } // insert the pod name and uid from the KubeAPI
+            } // insert the pod name and uid from the KubeAPI
+        } else {
+            debug!("Kubernetes environment not available");
+        }
+
         Ok(())
     }
     pub async fn get_from_cache(&self, container_id: &str) -> Option<String> {
