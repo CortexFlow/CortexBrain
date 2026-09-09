@@ -898,6 +898,6 @@ pub async fn read_perf_buffer<T: std::borrow::BorrowMut<aya::maps::MapData>>(
                 }
             }
         }
-        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        tokio::time::sleep(std::time::Duration::from_millis(5000)).await;
     }
 }
