@@ -204,6 +204,7 @@ pub struct SslEvent {
     pub requested: i32, // num argument passed to SSL_read/SSL_write
     pub cgroup_id: u64,
 }
+#[cfg(feature = "monitoring-structs")]
 unsafe impl aya::Pod for SslEvent {}
 
 /// Perform a byte swap from little-endian to big-endian.
