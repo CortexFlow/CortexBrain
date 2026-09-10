@@ -24,7 +24,7 @@ use crate::metadata::Metadata;
 use crate::otel_metrics::Metrics;
 use crate::service_cache::ServiceCache;
 use bytes::BytesMut;
-#[cfg(feature = "monitoring-structs")]
+#[cfg(feature = "buffer-reader")]
 use std::sync::Arc;
 #[cfg(feature = "buffer-reader")]
 use tokio::sync::RwLock;
