@@ -111,33 +111,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d18bc4e506fbb85ab7392ed993a7db4d1a452c71b75a246af4a80ab8c9d2dd50"
 dependencies = [
  "assert_matches",
- "aya-obj 0.2.1",
+ "aya-obj",
  "bitflags",
  "bytes",
  "libc",
  "log",
- "object 0.36.7",
+ "object",
  "once_cell",
  "thiserror 1.0.69",
  "tokio",
-]
-
-[[package]]
-name = "aya"
-version = "0.14.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "66e644424fada9fff4fdc63848db1732fb69b626e8328202ef55c03df1f4d939"
-dependencies = [
- "assert_matches",
- "aya-obj 0.3.0",
- "bitflags",
- "hashbrown 0.17.1",
- "libc",
- "log",
- "object 0.39.1",
- "once_cell",
- "scopeguard",
- "thiserror 2.0.17",
 ]
 
 [[package]]
@@ -195,7 +177,7 @@ version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b600d806c1d07d3b81ab5f4a2a95fd80f479a0d3f1d68f29064d660865f85f02"
 dependencies = [
- "aya 0.13.1",
+ "aya",
  "aya-log-common 0.1.15 (registry+https://github.com/rust-lang/crates.io-index)",
  "bytes",
  "log",
@@ -260,20 +242,8 @@ dependencies = [
  "core-error",
  "hashbrown 0.15.5",
  "log",
- "object 0.36.7",
+ "object",
  "thiserror 1.0.69",
-]
-
-[[package]]
-name = "aya-obj"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8c76b9c75d9cdc155ff8f6a06d61e873f67bf47be8cfa92a3b5aaea43f4b4077"
-dependencies = [
- "bytes",
- "log",
- "object 0.39.1",
- "thiserror 2.0.17",
 ]
 
 [[package]]
@@ -438,7 +408,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "607ae90d919de9c35d6bf3a1b0a958a7b4b4578337b88351c2699cb8c37be8e9"
 dependencies = [
  "anyhow",
- "aya 0.13.1",
+ "aya",
  "bytemuck",
  "bytemuck_derive",
  "bytes",
@@ -458,10 +428,10 @@ dependencies = [
 
 [[package]]
 name = "cortexbrain-common"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
  "anyhow",
- "aya 0.14.0",
+ "aya",
  "bytemuck",
  "bytemuck_derive",
  "bytes",
@@ -484,11 +454,11 @@ name = "cortexflow-metrics"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "aya 0.13.1",
+ "aya",
  "aya-log",
  "bytemuck",
  "bytes",
- "cortexbrain-common 0.1.3",
+ "cortexbrain-common 0.1.4",
  "libc",
  "nix",
  "opentelemetry",
@@ -504,7 +474,7 @@ name = "cortexflow_agent_api"
 version = "0.1.2"
 dependencies = [
  "anyhow",
- "aya 0.13.1",
+ "aya",
  "bytemuck",
  "bytemuck_derive",
  "chrono",
@@ -526,7 +496,7 @@ name = "cortexflow_identity"
 version = "0.1.1"
 dependencies = [
  "anyhow",
- "aya 0.13.1",
+ "aya",
  "bytemuck",
  "bytemuck_derive",
  "bytes",
@@ -664,12 +634,6 @@ name = "foldhash"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d9c4f5dac5e15c24eb999c26181a6ca40b39fe946cbe4c263c7209467bc83af2"
-
-[[package]]
-name = "foldhash"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "77ce24cb58228fbb8aa041425bb1050850ac19177686ea6e0f41a70416f56fdb"
 
 [[package]]
 name = "form_urlencoded"
@@ -828,7 +792,7 @@ checksum = "9229cfe53dfd69f0609a49f65461bd93001ea1ef889cd5529dd176593f5338a1"
 dependencies = [
  "allocator-api2",
  "equivalent",
- "foldhash 0.1.5",
+ "foldhash",
 ]
 
 [[package]]
@@ -836,10 +800,6 @@ name = "hashbrown"
 version = "0.17.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ed5909b6e89a2db4456e54cd5f673791d7eca6732202bbf2a9cc504fe2f9b84a"
-dependencies = [
- "equivalent",
- "foldhash 0.2.0",
-]
 
 [[package]]
 name = "heck"
@@ -1398,18 +1358,6 @@ checksum = "62948e14d923ea95ea2c7c86c71013138b66525b86bdc08d2dcc262bdb497b87"
 dependencies = [
  "crc32fast",
  "hashbrown 0.15.5",
- "indexmap",
- "memchr",
-]
-
-[[package]]
-name = "object"
-version = "0.39.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2e5a6c098c7a3b6547378093f5cc30bc54fd361ce711e05293a5cc589562739b"
-dependencies = [
- "crc32fast",
- "hashbrown 0.17.1",
  "indexmap",
  "memchr",
 ]
