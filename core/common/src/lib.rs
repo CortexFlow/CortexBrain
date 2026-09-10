@@ -19,3 +19,4 @@ pub mod metadata;
 pub mod consumer;
 #[cfg(feature = "experimental")]
 pub mod service_discovery;
+pub mod service_cache;

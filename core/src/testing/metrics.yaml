@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: cortexflow-metrics
+  name: cortexflow-metrics-cache-5s
   namespace: cortexflow
   labels:
     app: cortexflow-metrics
@@ -19,7 +19,7 @@ spec:
       hostNetwork: true
       containers:
         - name: metrics
-          image: ghcr.io/cortexflow/metrics:latest
+          image: lorenzotettamanti/cortexflow-metrics:0.1.1-cache-5s-update-6
           command: ["/bin/bash", "-c"]
           args:
             - |
@@ -45,6 +45,8 @@ spec:
             value: grpc
           - name: OTEL_RESOURCE_ATTRIBUTES
             value: service.namespace=cortexflow,service.version=0.1.5
+          - name: CF_DEBUG_LEVEL
+            value: debug
           volumeMounts:
             - name: bpf
               mountPath: /sys/fs/bpf
@@ -59,6 +61,9 @@ spec:
             - name: tracefs
               mountPath: /sys/kernel/debug
               readOnly: false
+            - name: cgroup
+              mountPath: /host/sys/fs/cgroup
+              readOnly: true
           securityContext:
             privileged: true
             allowPrivilegeEscalation: true
@@ -109,9 +114,11 @@ spec:
           hostPath:
             path: /lib/modules
             type: Directory
-
         - name: tracefs
           hostPath:
             path: /sys/kernel/debug
             type: Directory
-
+        - name: cgroup
+          hostPath:
+            path: /sys/fs/cgroup
+            type: Directory
