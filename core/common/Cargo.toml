@@ -8,6 +8,14 @@ readme = "../../README.md"
 documentation = "https://docs.cortexflow.org"
 homepage = "https://docs.cortexflow.org"
 repository = "https://github.com/CortexFlow/CortexBrain"
+authors = [
+    "Lorenzo Tettamanti",
+    "Pranav Verma",
+    "Lorenzo Bradanini",
+    "Siddharth Sutar",
+    "Andrea Bozzo",
+    "Daniele Cangi"
+]
 
 [dependencies]
 tracing = { version = "0.1", features = ["std"] }
