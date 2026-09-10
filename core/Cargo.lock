@@ -111,15 +111,32 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d18bc4e506fbb85ab7392ed993a7db4d1a452c71b75a246af4a80ab8c9d2dd50"
 dependencies = [
  "assert_matches",
- "aya-obj",
+ "aya-obj 0.2.1",
  "bitflags",
  "bytes",
  "libc",
  "log",
- "object",
+ "object 0.36.7",
  "once_cell",
  "thiserror 1.0.69",
- "tokio",
+]
+
+[[package]]
+name = "aya"
+version = "0.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "66e644424fada9fff4fdc63848db1732fb69b626e8328202ef55c03df1f4d939"
+dependencies = [
+ "assert_matches",
+ "aya-obj 0.3.0",
+ "bitflags",
+ "hashbrown 0.17.1",
+ "libc",
+ "log",
+ "object 0.39.1",
+ "once_cell",
+ "scopeguard",
+ "thiserror 2.0.17",
 ]
 
 [[package]]
@@ -173,31 +190,29 @@ dependencies = [
 
 [[package]]
 name = "aya-log"
-version = "0.2.1"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b600d806c1d07d3b81ab5f4a2a95fd80f479a0d3f1d68f29064d660865f85f02"
+checksum = "476912cd6322ecf481a48f9db82207406a472563875eef014e927800522aac5c"
 dependencies = [
- "aya",
- "aya-log-common 0.1.15 (registry+https://github.com/rust-lang/crates.io-index)",
- "bytes",
+ "aya 0.14.0",
+ "aya-log-common 0.2.0",
  "log",
- "thiserror 1.0.69",
- "tokio",
-]
-
-[[package]]
-name = "aya-log-common"
-version = "0.1.15"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "befef9fe882e63164a2ba0161874e954648a72b0e1c4b361f532d590638c4eec"
-dependencies = [
- "num_enum",
+ "thiserror 2.0.17",
 ]
 
 [[package]]
 name = "aya-log-common"
 version = "0.1.15"
 source = "git+https://github.com/aya-rs/aya#948b8553ee72ab72d91c9a16e7e937a75eb0e155"
+dependencies = [
+ "num_enum",
+]
+
+[[package]]
+name = "aya-log-common"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d14c56374a63b20cb1d76108bf9ff2a75e137d47f57f32f2841ef74153b2186a"
 dependencies = [
  "num_enum",
 ]
@@ -208,7 +223,7 @@ version = "0.1.1"
 source = "git+https://github.com/aya-rs/aya#948b8553ee72ab72d91c9a16e7e937a75eb0e155"
 dependencies = [
  "aya-ebpf",
- "aya-log-common 0.1.15 (git+https://github.com/aya-rs/aya)",
+ "aya-log-common 0.1.15",
  "aya-log-ebpf-macros",
 ]
 
@@ -217,7 +232,7 @@ name = "aya-log-ebpf-macros"
 version = "0.1.0"
 source = "git+https://github.com/aya-rs/aya#948b8553ee72ab72d91c9a16e7e937a75eb0e155"
 dependencies = [
- "aya-log-common 0.1.15 (git+https://github.com/aya-rs/aya)",
+ "aya-log-common 0.1.15",
  "aya-log-parser",
  "proc-macro2",
  "quote",
@@ -229,7 +244,7 @@ name = "aya-log-parser"
 version = "0.1.13"
 source = "git+https://github.com/aya-rs/aya#948b8553ee72ab72d91c9a16e7e937a75eb0e155"
 dependencies = [
- "aya-log-common 0.1.15 (git+https://github.com/aya-rs/aya)",
+ "aya-log-common 0.1.15",
 ]
 
 [[package]]
@@ -242,8 +257,20 @@ dependencies = [
  "core-error",
  "hashbrown 0.15.5",
  "log",
- "object",
+ "object 0.36.7",
  "thiserror 1.0.69",
+]
+
+[[package]]
+name = "aya-obj"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8c76b9c75d9cdc155ff8f6a06d61e873f67bf47be8cfa92a3b5aaea43f4b4077"
+dependencies = [
+ "bytes",
+ "log",
+ "object 0.39.1",
+ "thiserror 2.0.17",
 ]
 
 [[package]]
@@ -403,12 +430,10 @@ checksum = "773648b94d0e5d620f64f280777445740e61fe701025087ec8b57f45c791888b"
 
 [[package]]
 name = "cortexbrain-common"
-version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "607ae90d919de9c35d6bf3a1b0a958a7b4b4578337b88351c2699cb8c37be8e9"
+version = "0.1.4"
 dependencies = [
  "anyhow",
- "aya",
+ "aya 0.13.1",
  "bytemuck",
  "bytemuck_derive",
  "bytes",
@@ -429,9 +454,11 @@ dependencies = [
 [[package]]
 name = "cortexbrain-common"
 version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4a16980b59a1072feb4a503decf19a344b149e3a277b0ba0e5705fa4c8e7cf04"
 dependencies = [
  "anyhow",
- "aya",
+ "aya 0.13.1",
  "bytemuck",
  "bytemuck_derive",
  "bytes",
@@ -454,13 +481,13 @@ name = "cortexflow-metrics"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "aya",
+ "aya 0.13.1",
  "aya-log",
  "bytemuck",
  "bytes",
- "cortexbrain-common 0.1.4",
+ "cortexbrain-common 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "libc",
- "nix",
+ "nix 0.31.3",
  "opentelemetry",
  "opentelemetry-otlp",
  "opentelemetry_sdk",
@@ -474,11 +501,11 @@ name = "cortexflow_agent_api"
 version = "0.1.2"
 dependencies = [
  "anyhow",
- "aya",
+ "aya 0.13.1",
  "bytemuck",
  "bytemuck_derive",
  "chrono",
- "cortexbrain-common 0.1.2",
+ "cortexbrain-common 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "prost",
  "tokio",
  "tokio-stream",
@@ -496,14 +523,14 @@ name = "cortexflow_identity"
 version = "0.1.1"
 dependencies = [
  "anyhow",
- "aya",
+ "aya 0.13.1",
  "bytemuck",
  "bytemuck_derive",
  "bytes",
- "cortexbrain-common 0.1.2",
+ "cortexbrain-common 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "k8s-openapi",
  "kube",
- "nix",
+ "nix 0.30.1",
  "tokio",
  "tracing",
 ]
@@ -634,6 +661,12 @@ name = "foldhash"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d9c4f5dac5e15c24eb999c26181a6ca40b39fe946cbe4c263c7209467bc83af2"
+
+[[package]]
+name = "foldhash"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "77ce24cb58228fbb8aa041425bb1050850ac19177686ea6e0f41a70416f56fdb"
 
 [[package]]
 name = "form_urlencoded"
@@ -792,7 +825,7 @@ checksum = "9229cfe53dfd69f0609a49f65461bd93001ea1ef889cd5529dd176593f5338a1"
 dependencies = [
  "allocator-api2",
  "equivalent",
- "foldhash",
+ "foldhash 0.1.5",
 ]
 
 [[package]]
@@ -800,6 +833,10 @@ name = "hashbrown"
 version = "0.17.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ed5909b6e89a2db4456e54cd5f673791d7eca6732202bbf2a9cc504fe2f9b84a"
+dependencies = [
+ "equivalent",
+ "foldhash 0.2.0",
+]
 
 [[package]]
 name = "heck"
@@ -1204,9 +1241,9 @@ checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
 
 [[package]]
 name = "libc"
-version = "0.2.177"
+version = "0.2.189"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2874a2af47a2325c2001a6e6fad9b16a53b802102b528163885171cf92b15976"
+checksum = "3eaf3ede3fee6db1a4c2ee091bf8a8b4dccdc6d17f656fb07896ee72867612f2"
 
 [[package]]
 name = "linux-raw-sys"
@@ -1312,6 +1349,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "nix"
+version = "0.31.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cf20d2fde8ff38632c426f1165ed7436270b44f199fc55284c38276f9db47c3d"
+dependencies = [
+ "bitflags",
+ "cfg-if",
+ "cfg_aliases",
+ "libc",
+ "memoffset",
+]
+
+[[package]]
 name = "nu-ansi-term"
 version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1358,6 +1408,18 @@ checksum = "62948e14d923ea95ea2c7c86c71013138b66525b86bdc08d2dcc262bdb497b87"
 dependencies = [
  "crc32fast",
  "hashbrown 0.15.5",
+ "indexmap",
+ "memchr",
+]
+
+[[package]]
+name = "object"
+version = "0.39.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2e5a6c098c7a3b6547378093f5cc30bc54fd361ce711e05293a5cc589562739b"
+dependencies = [
+ "crc32fast",
+ "hashbrown 0.17.1",
  "indexmap",
  "memchr",
 ]
@@ -2439,9 +2501,9 @@ checksum = "8df9b6e13f2d32c91b9bd719c00d1958837bc7dec474d94952798cc8e69eeec3"
 
 [[package]]
 name = "tracing"
-version = "0.1.41"
+version = "0.1.44"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "784e0ac535deb450455cbfa28a6f0df145ea1bb7ae51b821cf5e7927fdcfbdd0"
+checksum = "63e71662fa4b2a2c3a26f570f037eb95bb1f85397f3cd8076caed2f026a6d100"
 dependencies = [
  "log",
  "pin-project-lite",
@@ -2451,9 +2513,9 @@ dependencies = [
 
 [[package]]
 name = "tracing-attributes"
-version = "0.1.30"
+version = "0.1.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "81383ab64e72a7a8b8e13130c49e3dab29def6d0c7d76a03087b3cf71c5c6903"
+checksum = "7490cfa5ec963746568740651ac6781f701c9c5ea257c58e057f3ba8cf69e8da"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2462,9 +2524,9 @@ dependencies = [
 
 [[package]]
 name = "tracing-core"
-version = "0.1.34"
+version = "0.1.36"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b9d12581f227e93f094d3af2ae690a574abb8a2b9b7a96e7cfe9647b2b617678"
+checksum = "db97caf9d906fbde555dd62fa95ddba9eecfd14cb388e4f491a66d74cd5fb79a"
 dependencies = [
  "once_cell",
  "valuable",
@@ -2483,9 +2545,9 @@ dependencies = [
 
 [[package]]
 name = "tracing-subscriber"
-version = "0.3.20"
+version = "0.3.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2054a14f5307d601f88daf0553e1cbf472acc4f2c51afab632431cdcd72124d5"
+checksum = "cb7f578e5945fb242538965c2d0b04418d38ec25c79d160cd279bf0731c8d319"
 dependencies = [
  "matchers",
  "nu-ansi-term",
