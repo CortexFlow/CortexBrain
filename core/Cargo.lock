@@ -478,7 +478,7 @@ dependencies = [
 
 [[package]]
 name = "cortexflow-metrics"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "aya 0.13.1",

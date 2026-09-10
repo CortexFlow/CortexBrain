@@ -1,6 +1,6 @@
 [package]
 name = "cortexflow-metrics"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 description = "Cortexflow metrics service library"
 license = "Apache-2.0"
