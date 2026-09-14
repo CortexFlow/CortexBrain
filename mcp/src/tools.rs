@@ -8,10 +8,13 @@ use rmcp::{tool, tool_handler, tool_router};
 use schemars::JsonSchema;
 use serde::Deserialize;
 
+// >>> instruction-file update: request contract now includes start/end/step
 #[derive(Deserialize, JsonSchema)]
 struct Params {
-    container_name: String, // example "grafana/grafana:13.1.0"
-    timeframe: String,    //example "10m"
+    container_name: String,
+    start: String,
+    end: String,
+    step: String,
 }
 
 #[derive(Clone)]
@@ -36,12 +39,15 @@ impl PrometheusTool {
         &self,
         Parameters(params): Parameters<Params>,
     ) -> Result<String, ()> {
-        let res = self
+        // >>> instruction-file update: no panic path; return MCP-style error propagation
+        match self
             .prometheus
-            .query_get_cpu_bytes(&params.container_name, &params.timeframe)
+            .query_get_cpu_bytes(&params.container_name, &params.start, &params.end, &params.step)
             .await
-            .expect("An error occured");
-        Ok(res)
+        {
+            Ok(res) => Ok(res),
+            Err(_) => Err(()),
+        }
     }
 
     #[tool(
@@ -52,25 +58,34 @@ impl PrometheusTool {
         &self,
         Parameters(params): Parameters<Params>,
     ) -> Result<String, ()> {
-        let res = self
+        // >>> instruction-file update: no panic path; return MCP-style error propagation
+        match self
             .prometheus
-            .query_get_memory_allocated_bytes(&params.container_name, &params.timeframe)
+            .query_get_memory_allocated_bytes(&params.container_name, &params.start, &params.end, &params.step)
             .await
-            .expect("An error occured");
-        Ok(res)
+        {
+            Ok(res) => Ok(res),
+            Err(_) => Err(()),
+        }
     }
 
     #[tool(
         name = "get_events",
         description = "Total number of eBPF events processed across all perf buffers"
     )]
-    pub async fn get_events(&self, Parameters(params): Parameters<Params>) -> Result<String, ()> {
-        let res = self
+    pub async fn get_events(
+        &self,
+        Parameters(params): Parameters<Params>,
+    ) -> Result<String, ()> {
+        // >>> instruction-file update: no panic path; return MCP-style error propagation
+        match self
             .prometheus
-            .query_get_events(&params.container_name, &params.timeframe)
+            .query_get_events(&params.container_name, &params.start, &params.end, &params.step)
             .await
-            .expect("An error occured");
-        Ok(res)
+        {
+            Ok(res) => Ok(res),
+            Err(_) => Err(()),
+        }
     }
 
     #[tool(
@@ -81,12 +96,15 @@ impl PrometheusTool {
         &self,
         Parameters(params): Parameters<Params>,
     ) -> Result<String, ()> {
-        let res = self
+        // >>> instruction-file update: no panic path; return MCP-style error propagation
+        match self
             .prometheus
-            .query_get_l4_events(&params.container_name, &params.timeframe)
+            .query_get_l4_events(&params.container_name, &params.start, &params.end, &params.step)
             .await
-            .expect("An error occured");
-        Ok(res)
+        {
+            Ok(res) => Ok(res),
+            Err(_) => Err(()),
+        }
     }
 
     #[tool(
@@ -97,12 +115,15 @@ impl PrometheusTool {
         &self,
         Parameters(params): Parameters<Params>,
     ) -> Result<String, ()> {
-        let res = self
+        // >>> instruction-file update: no panic path; return MCP-style error propagation
+        match self
             .prometheus
-            .query_get_ssl_write_events(&params.container_name, &params.timeframe)
+            .query_get_ssl_write_events(&params.container_name, &params.start, &params.end, &params.step)
             .await
-            .expect("An error occured");
-        Ok(res)
+        {
+            Ok(res) => Ok(res),
+            Err(_) => Err(()),
+        }
     }
 
     #[tool(
@@ -113,12 +134,15 @@ impl PrometheusTool {
         &self,
         Parameters(params): Parameters<Params>,
     ) -> Result<String, ()> {
-        let res = self
+        // >>> instruction-file update: no panic path; return MCP-style error propagation
+        match self
             .prometheus
-            .query_get_ssl_read_events(&params.container_name, &params.timeframe)
+            .query_get_ssl_read_events(&params.container_name, &params.start, &params.end, &params.step)
             .await
-            .expect("An error occured");
-        Ok(res)
+        {
+            Ok(res) => Ok(res),
+            Err(_) => Err(()),
+        }
     }
 }
 
