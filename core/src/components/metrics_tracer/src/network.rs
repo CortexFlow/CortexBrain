@@ -5,7 +5,7 @@ use crate::data_structures::{
 };
 use aya_ebpf::EbpfContext;
 use aya_ebpf::helpers::bpf_get_current_pid_tgid;
-use aya_ebpf::helpers::generated::{bpf_ktime_get_ns, bpf_perf_event_output};
+use aya_ebpf::helpers::generated::{bpf_get_current_cgroup_id, bpf_ktime_get_ns, bpf_perf_event_output};
 use aya_ebpf::helpers::{
     bpf_get_current_comm, bpf_probe_read_kernel, bpf_probe_read_kernel_str_bytes,
 };
@@ -27,6 +27,7 @@ pub fn detect_packet_loss(ctx: &ProbeContext) -> Result<PacketLossMetrics, i64> 
     }
 
     let tgid = (unsafe { bpf_get_current_pid_tgid() } >> 32) as u32;
+    let cgroup_id: u64 = unsafe { bpf_get_current_cgroup_id() };
     let comm = unsafe { bpf_get_current_comm() }.map_err(|_| 1i64)?;
     let ts_us: u64 = unsafe { bpf_ktime_get_ns() } / 1_000;
     let sk_err_offset = 284;
@@ -76,6 +77,7 @@ pub fn detect_packet_loss(ctx: &ProbeContext) -> Result<PacketLossMetrics, i64> 
         sk_receive_buffer_size: sk_receive_buffer_size,
         sk_ack_backlog: sk_ack_backlog,
         sk_drops: sk_drops,
+        cgroup_id,
     };
 
     Ok(packet_loss_metrics)
@@ -88,10 +90,12 @@ pub fn on_connect(ctx: ProbeContext) -> Result<(), i64> {
     }
 
     let tgid = (unsafe { bpf_get_current_pid_tgid() } >> 32) as u32;
+    let cgroup_id: u64 = unsafe { bpf_get_current_cgroup_id() };
     let mut start = TimeStampStartInfo {
         comm: [0; TASK_COMM_LEN],
         ts_ns: unsafe { bpf_ktime_get_ns() },
         tgid,
+        cgroup_id,
     };
     unsafe {
         let comm_result = bpf_get_current_comm();
@@ -162,6 +166,7 @@ pub fn on_rcv_state_process(ctx: ProbeContext) -> Result<(), i64> {
         daddr_v4: 0,
         saddr_v6: [0; 4],
         daddr_v6: [0; 4],
+        cgroup_id: start.cgroup_id,
     };
 
     // family, ports

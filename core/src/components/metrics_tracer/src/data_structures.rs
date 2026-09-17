@@ -17,6 +17,7 @@ pub struct PacketLossMetrics {
     pub sk_receive_buffer_size: i32, // Offset 244
     pub sk_ack_backlog: u32,         // Offset 604
     pub sk_drops: i32,               // Offset 136
+    pub cgroup_id: u64,
 }
 
 #[repr(C, packed)]
@@ -25,6 +26,7 @@ pub struct TimeStampStartInfo {
     pub comm: [u8; TASK_COMM_LEN],
     pub ts_ns: u64,
     pub tgid: u32,
+    pub cgroup_id: u64,
 }
 
 /// Event we send to userspace when latency is computed
@@ -43,6 +45,7 @@ pub struct TimeStampEvent {
     pub daddr_v4: u32,
     pub saddr_v6: [u32; 4],
     pub daddr_v6: [u32; 4],
+    pub cgroup_id: u64,
 }
 
 #[repr(C, packed)]
@@ -62,6 +65,7 @@ pub struct MemAlloc {
     pub(crate) length: u64,
     pub(crate) addr: u64,
     pub(crate) command: [u8; 16],
+    pub(crate) cgroup_id: u64,
 }
 
 #[repr(C, packed)]
@@ -70,6 +74,7 @@ pub struct SchedStatWait {
     pub(crate) tgid: u32,
     pub(crate) delay: u64,
     pub(crate) command: [u8; 16],
+    pub(crate) cgroup_id: u64,
 }
 
 #[repr(C, packed)]
@@ -78,6 +83,7 @@ pub struct SchedStatRuntime {
     pub(crate) tgid: u32,
     pub(crate) runtime: u64,
     pub(crate) command: [u8; 16],
+    pub(crate) cgroup_id: u64,
 }
 
 #[repr(C, packed)]
@@ -96,6 +102,7 @@ pub struct SslEvent {
     pub direction: u8,  // 0 = read, 1 = write
     pub size: i32,      // return value (bytes transferred or <0 on error)
     pub requested: i32, // num argument passed to SSL_read/SSL_write
+    pub cgroup_id: u64,
 }
 
 // Map: connect-start timestamp by socket pointer

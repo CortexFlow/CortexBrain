@@ -49,6 +49,7 @@ const OTEL_EXPORTER_OTLP_ENDPOINT: &str = "OTEL_EXPORTER_OTLP_ENDPOINT";
 const OTEL_EXPORTER_OTLP_PROTOCOL: &str = "OTEL_EXPORTER_OTLP_PROTOCOL";
 const DEFAULT_OTLP_GRPC_ENDPOINT: &str = "http://localhost:4317";
 const DEFAULT_OTLP_HTTP_ENDPOINT: &str = "http://localhost:4318";
+const CF_DEBUG_LEVEL: &str = "CF_DEBUG_LEVEL";
 
 fn resolved_otlp_endpoint() -> String {
     if let Ok(endpoint) = std::env::var(OTEL_EXPORTER_OTLP_ENDPOINT)
@@ -115,7 +116,8 @@ pub fn otlp_logger_init(service_name: String) -> SdkLoggerProvider {
     let otel_layer = OpenTelemetryTracingBridge::new(&provider);
 
     // init fmt filter and layer
-    let fmt_filter = EnvFilter::new("info").add_directive("opentelemetry=debug".parse().unwrap());
+    let fmt_filter = EnvFilter::new(std::env::var(CF_DEBUG_LEVEL).unwrap_or("debug".to_string()))
+        .add_directive("opentelemetry=debug".parse().unwrap());
     let fmt_layer = tracing_subscriber::fmt::layer()
         .with_thread_names(true)
         .with_line_number(false)

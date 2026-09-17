@@ -58,28 +58,30 @@ pub fn per_cpu_bytes_alloc(ctx: &TracePointContext) -> Result<((u32, u32, [u8; 1
     Ok((bytes_alloc, tgid, command))
 }
 
-pub fn sched_stat_wait(ctx: &TracePointContext) -> Result<((u32, u64, [u8; 16])), i64> {
+pub fn sched_stat_wait(ctx: &TracePointContext) -> Result<((u32, u64, [u8; 16], u64)), i64> {
     let delay_offset = 16;
 
     //let tgid: u32 = unsafe { ctx.read_at(tgid_offset) }?;
     let pid_tgid: u64 = bpf_get_current_pid_tgid();
     let tgid: u32 = (pid_tgid >> 32) as u32;
+    let cgroup_id: u64 = unsafe { bpf_get_current_cgroup_id() };
 
     let delay = unsafe { ctx.read_at(delay_offset) }?;
     let command = ctx.command()?;
 
-    Ok((tgid, delay, command))
+    Ok((tgid, delay, command, cgroup_id))
 }
 
-pub fn sched_stat_runtime(ctx: &TracePointContext) -> Result<((u32, u64, [u8; 16])), i64> {
+pub fn sched_stat_runtime(ctx: &TracePointContext) -> Result<((u32, u64, [u8; 16], u64)), i64> {
     let runtime_offset = 16;
 
     //let tgid: u32 = unsafe { ctx.read_at(tgid_offset) }?;
     let pid_tgid: u64 = bpf_get_current_pid_tgid();
     let tgid: u32 = (pid_tgid >> 32) as u32;
+    let cgroup_id: u64 = unsafe { bpf_get_current_cgroup_id() };
 
     let runtime = unsafe { ctx.read_at(runtime_offset) }?;
     let command = ctx.command()?;
 
-    Ok((tgid, runtime, command))
+    Ok((tgid, runtime, command, cgroup_id))
 }

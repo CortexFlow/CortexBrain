@@ -1,7 +1,7 @@
 // observe L5 and L6 connections
 
 use crate::data_structures::{SSL_CTX_MAP, SSL_EVENTS, SslEvent};
-use aya_ebpf::helpers::{bpf_get_current_comm, bpf_get_current_pid_tgid, bpf_ktime_get_ns};
+use aya_ebpf::helpers::{bpf_get_current_comm, bpf_get_current_cgroup_id, bpf_get_current_pid_tgid, bpf_ktime_get_ns};
 use aya_ebpf::programs::{ProbeContext, RetProbeContext};
 
 /// store requested bytes keyed by pid_tgid
@@ -25,6 +25,7 @@ pub fn try_ssl_event_end(ctx: &RetProbeContext, direction: u8) -> Result<(), i64
     let size = ctx.ret::<i32>();
     let pid_tgid = unsafe { bpf_get_current_pid_tgid() }; // extracts pid and tgid
     let tgid = (pid_tgid >> 32) as u32; // read only tgid 
+    let cgroup_id: u64 = unsafe { bpf_get_current_cgroup_id() };
 
     let map_ptr = unsafe { &raw mut SSL_CTX_MAP };
     let requested = unsafe { (*map_ptr).get(&pid_tgid) }.copied().ok_or(1i64)?;
@@ -39,6 +40,7 @@ pub fn try_ssl_event_end(ctx: &RetProbeContext, direction: u8) -> Result<(), i64
         direction,
         size,
         requested,
+        cgroup_id,
     };
 
     unsafe {
