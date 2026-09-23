@@ -26,6 +26,13 @@ cortexflow_agent_api = {version="0.1.2",features = ["client"]}
 kube = "2.0.1"
 k8s-openapi = {version = "0.26.0", features = ["v1_34"]}
 
+[dev-dependencies]
+serde_json = "1.0"
+tower = { version = "0.5", features = ["util"] }
+http = "1"
+http-body-util = "0.1"
+bytes = "1"
+
 [[bin]]
 name = "cfcli"
 path = "src/main.rs"

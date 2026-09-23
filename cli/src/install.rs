@@ -214,54 +214,59 @@ async fn install_simple_example_component() -> Result<(), CliError> {
 // docs:
 pub async fn install_blocklist_configmap() -> Result<(), CliError> {
     match connect_to_client().await {
-        Ok(client) => {
-            println!(
-                "{} {}",
-                "=====>".blue().bold(),
-                "Checking if the Blocklist configmap exists"
-            );
-            sleep(Duration::from_secs(1));
-            let blocklist_exists = check_if_blocklist_exists(client).await?;
-            if !blocklist_exists {
+        Ok(client) => install_blocklist_configmap_with_client(client).await,
+        Err(e) => Err(CliError::ClientError(Error::Api(ErrorResponse {
+            status: "failed".to_string(),
+            message: "Failed to connect to kubernetes client".to_string(),
+            reason: e.to_string(),
+            code: 404,
+        }))),
+    }
+}
+
+// docs:
+//
+// Split out of install_blocklist_configmap so the blocklist-checking logic can be
+// exercised in tests against a fake kube Client, without requiring a real cluster.
+
+async fn install_blocklist_configmap_with_client(client: Client) -> Result<(), CliError> {
+    println!(
+        "{} {}",
+        "=====>".blue().bold(),
+        "Checking if the Blocklist configmap exists"
+    );
+    sleep(Duration::from_secs(1));
+    let blocklist_exists = check_if_blocklist_exists(client).await?;
+    if !blocklist_exists {
+        println!(
+            "{} {}",
+            "=====>".blue().bold(),
+            "Blocklist configmap does not exist".red().bold()
+        );
+        sleep(Duration::from_secs(1));
+        println!("{} {}", "=====>".bold().blue(), "Creating configmap");
+        let metdata_configs = create_configs();
+        sleep(Duration::from_secs(1));
+        match create_config_file(metdata_configs).await {
+            Ok(_) => {
                 println!(
                     "{} {}",
-                    "=====>".blue().bold(),
-                    "Blocklist configmap does not exist".red().bold()
-                );
-                sleep(Duration::from_secs(1));
-                println!("{} {}", "=====>".bold().blue(), "Creating configmap");
-                let metdata_configs = create_configs();
-                sleep(Duration::from_secs(1));
-                match create_config_file(metdata_configs).await {
-                    Ok(_) => {
-                        println!(
-                            "{} {}",
-                            "=====>".bold().blue(),
-                            "Configmap created/repaired successfully".bold().green()
-                        )
-                    }
-                    Err(e) => {
-                        return Err(CliError::InstallerError {
-                            reason: e.to_string(),
-                        });
-                    }
-                }
-                return Ok(());
-            } else {
-                println!()
+                    "=====>".bold().blue(),
+                    "Configmap created/repaired successfully".bold().green()
+                )
             }
-
-            Ok(())
+            Err(e) => {
+                return Err(CliError::InstallerError {
+                    reason: e.to_string(),
+                });
+            }
         }
-        Err(e) => {
-            return Err(CliError::ClientError(Error::Api(ErrorResponse {
-                status: "failed".to_string(),
-                message: "Failed to connect to kubernetes client".to_string(),
-                reason: e.to_string(),
-                code: 404,
-            })));
-        }
+        return Ok(());
+    } else {
+        println!()
     }
+
+    Ok(())
 }
 
 // docs:
@@ -298,6 +303,13 @@ async fn check_if_blocklist_exists(client: Client) -> Result<bool, CliError> {
 //
 
 fn install_components(components_type: &str) -> Result<(), CliError> {
+    install_components_with(&RealCommandRunner, components_type)
+}
+
+fn install_components_with(
+    runner: &dyn CommandRunner,
+    components_type: &str,
+) -> Result<(), CliError> {
     if components_type == "cortexbrain" {
         let files_to_install = vec![
             "configmap-role.yaml",
@@ -328,7 +340,7 @@ fn install_components(components_type: &str) -> Result<(), CliError> {
                 "Applying",
                 component.to_string().green().bold()
             );
-            apply_component(component)?;
+            apply_component_with(runner, component)?;
             i = i + 1;
         }
     } else if components_type == "simple-example" {
@@ -348,7 +360,7 @@ fn install_components(components_type: &str) -> Result<(), CliError> {
                 "Applying",
                 component.to_string().green().bold()
             );
-            apply_component(component)?;
+            apply_component_with(runner, component)?;
             i = i + 1;
         }
     } else {
@@ -368,10 +380,10 @@ fn install_components(components_type: &str) -> Result<(), CliError> {
 //
 // Returns an CliError if something fails
 
-fn apply_component(file: &str) -> Result<(), CliError> {
-    let output = Command::new(BASE_COMMAND)
-        .args(["apply", "-f", file])
-        .output()
+fn apply_component_with(runner: &dyn CommandRunner, file: &str) -> Result<(), CliError> {
+    let args = ["apply".to_string(), "-f".to_string(), file.to_string()];
+    let output = runner
+        .run(BASE_COMMAND, &args)
         .map_err(|e| CliError::InstallerError {
             reason: e.to_string(),
         })?;
@@ -523,14 +535,7 @@ fn rm_file(file_to_remove: &str) -> Result<(), CliError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_rm_file() {
-        let file_name = "test_rm_file.txt";
-        std::fs::write(file_name, "test content").unwrap();
-        assert!(rm_file(file_name).is_ok());
-        assert!(!std::path::Path::new(file_name).exists());
-    }
+    use clap::Parser;
 
     #[test]
     fn test_download_file_with_success() {
@@ -551,20 +556,6 @@ mod tests {
     }
 
     #[test]
-    fn test_rm_file_failure() {
-        let file_name = "non_existent_file.txt";
-        assert!(rm_file(file_name).is_err());
-    }
-
-    #[test]
-    fn test_rm_file_cleanup_only() {
-        let file_name = "test_rm_file_cleanup_only.txt";
-        std::fs::write(file_name, "test content").unwrap();
-        // Clean up without removing
-        rm_file(file_name).unwrap();
-    }
-
-    #[test]
     fn test_rm_file_failure_cleanup() {
         let file_name = "test_rm_file_failure_cleanup.txt";
         // Attempt to clean up a non-existent file
@@ -579,18 +570,119 @@ mod tests {
         assert!(rm_file(file_name).is_ok());
     }
 
-    #[test]
-    fn test_rm_file_success_cleanup_only() {
-        let file_name = "test_rm_file_success_cleanup_only.txt";
-        std::fs::write(file_name, "test content").unwrap();
-        // Clean up a file that exists
-        assert!(rm_file(file_name).is_ok());
+    // docs: builds a fake kube Client backed by an in-memory tower service, so the
+    // Kubernetes API calls never leave the process or touch a real cluster.
+    fn mock_client(status: http::StatusCode, body: String) -> Client {
+        let service = tower::service_fn(move |_req: http::Request<kube::client::Body>| {
+            let body = body.clone();
+            async move {
+                let response = http::Response::builder()
+                    .status(status)
+                    .body(http_body_util::Full::new(bytes::Bytes::from(body)))
+                    .unwrap();
+                Ok::<_, std::convert::Infallible>(response)
+            }
+        });
+        Client::new(service, "cortexflow")
+    }
+
+    fn configmap_found_body() -> String {
+        serde_json::json!({
+            "apiVersion": "v1",
+            "kind": "ConfigMap",
+            "metadata": {
+                "name": "cortexbrain-client-config",
+                "namespace": "cortexflow"
+            },
+            "data": {}
+        })
+        .to_string()
+    }
+
+    fn configmap_not_found_body() -> String {
+        serde_json::json!({
+            "apiVersion": "v1",
+            "kind": "Status",
+            "status": "Failure",
+            "message": "configmaps \"cortexbrain-client-config\" not found",
+            "reason": "NotFound",
+            "code": 404
+        })
+        .to_string()
+    }
+
+    #[tokio::test]
+    async fn test_check_if_blocklist_exists_true() {
+        let client = mock_client(http::StatusCode::OK, configmap_found_body());
+        let exists = check_if_blocklist_exists(client).await.unwrap();
+        assert!(exists);
+    }
+
+    #[tokio::test]
+    async fn test_check_if_blocklist_exists_false() {
+        let client = mock_client(http::StatusCode::NOT_FOUND, configmap_not_found_body());
+        let exists = check_if_blocklist_exists(client).await.unwrap();
+        assert!(!exists);
+    }
+
+    #[tokio::test]
+    async fn test_install_blocklist_configmap_with_client_already_exists() {
+        // When the configmap already exists no creation attempt is made, so this
+        // is safe to exercise end-to-end against the fake client.
+        let client = mock_client(http::StatusCode::OK, configmap_found_body());
+        assert!(install_blocklist_configmap_with_client(client).await.is_ok());
     }
 
     #[test]
-    fn test_rm_file_failure_cleanup_only() {
-        let file_name = "non_existent_file.txt";
-        // Attempt to clean up a non-existent file
-        assert!(rm_file(file_name).is_err());
+    fn test_install_components_with_invalid_type() {
+        let runner = crate::command_runner::test_support::StubCommandRunner::success("");
+        assert!(install_components_with(&runner, "not-a-real-type").is_err());
+    }
+
+    #[test]
+    fn test_install_components_with_simple_example_success() {
+        let runner = crate::command_runner::test_support::StubCommandRunner::success("");
+        assert!(install_components_with(&runner, "simple-example").is_ok());
+    }
+
+    #[test]
+    fn test_install_components_with_cortexbrain_success() {
+        let runner = crate::command_runner::test_support::StubCommandRunner::success("");
+        assert!(install_components_with(&runner, "cortexbrain").is_ok());
+    }
+
+    #[test]
+    fn test_install_components_with_apply_failure() {
+        let runner = crate::command_runner::test_support::StubCommandRunner::failure("kubectl error");
+        assert!(install_components_with(&runner, "simple-example").is_err());
+    }
+
+    #[derive(clap::Parser)]
+    struct InstallCommandsHarness {
+        #[command(subcommand)]
+        cmd: InstallCommands,
+    }
+
+    #[test]
+    fn test_install_commands_parses_cortexflow() {
+        let parsed = InstallCommandsHarness::try_parse_from(["cfcli", "cortexflow"]).unwrap();
+        assert!(matches!(parsed.cmd, InstallCommands::All));
+    }
+
+    #[test]
+    fn test_install_commands_parses_simple_example() {
+        let parsed = InstallCommandsHarness::try_parse_from(["cfcli", "simple-example"]).unwrap();
+        assert!(matches!(parsed.cmd, InstallCommands::TestPods));
+    }
+
+    #[test]
+    fn test_install_commands_parses_blocklist() {
+        let parsed = InstallCommandsHarness::try_parse_from(["cfcli", "blocklist"]).unwrap();
+        assert!(matches!(parsed.cmd, InstallCommands::Blocklist));
+    }
+
+    #[test]
+    fn test_install_commands_rejects_unknown_subcommand() {
+        assert!(InstallCommandsHarness::try_parse_from(["cfcli", "not-a-command"]).is_err());
     }
 }
