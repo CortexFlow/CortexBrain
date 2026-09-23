@@ -1,6 +1,7 @@
 use colored::Colorize;
-use std::{io::stdin, process::Command};
+use std::io::stdin;
 
+use crate::command_runner::{CommandRunner, RealCommandRunner};
 use crate::errors::CliError;
 use crate::essential::{BASE_COMMAND, connect_to_client};
 use kube::{Error, core::ErrorResponse};
@@ -78,22 +79,7 @@ async fn uninstall_all() -> Result<(), CliError> {
                 "=====>".blue().bold(),
                 "Deleting cortexflow components".red().bold()
             );
-            let output = Command::new(BASE_COMMAND)
-                .args(["delete", "namespace", "cortexflow"])
-                .output()
-                .map_err(|e| CliError::InstallerError {
-                    reason: format!("Failed to execute delete command: {}", e),
-                })?;
-
-            if output.status.success() {
-                println!("✅ Removed cortexflow namespace");
-                Ok(())
-            } else {
-                let stderr = String::from_utf8_lossy(&output.stderr);
-                return Err(CliError::InstallerError {
-                    reason: format!("Failed to delete cortexflow namespace. Error: {}", stderr),
-                });
-            }
+            uninstall_all_with(&RealCommandRunner)
         }
         Err(e) => {
             return {
@@ -105,6 +91,29 @@ async fn uninstall_all() -> Result<(), CliError> {
                 })))
             };
         }
+    }
+}
+
+fn uninstall_all_with(runner: &dyn CommandRunner) -> Result<(), CliError> {
+    let args = [
+        "delete".to_string(),
+        "namespace".to_string(),
+        "cortexflow".to_string(),
+    ];
+    let output = runner
+        .run(BASE_COMMAND, &args)
+        .map_err(|e| CliError::InstallerError {
+            reason: format!("Failed to execute delete command: {}", e),
+        })?;
+
+    if output.status.success() {
+        println!("✅ Removed cortexflow namespace");
+        Ok(())
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        Err(CliError::InstallerError {
+            reason: format!("Failed to delete cortexflow namespace. Error: {}", stderr),
+        })
     }
 }
 
@@ -127,22 +136,7 @@ async fn uninstall_component(component_type: &str, component: &str) -> Result<()
                 component
             );
 
-            let output = Command::new(BASE_COMMAND)
-                .args(["delete", component_type, component, "-n", "cortexflow"])
-                .output()
-                .map_err(|e| CliError::InstallerError {
-                    reason: format!("Failed to execute delete command: {}", e),
-                })?;
-
-            if output.status.success() {
-                println!("✅ Removed component {}", component);
-                Ok(())
-            } else {
-                let stderr = String::from_utf8_lossy(&output.stderr);
-                return Err(CliError::InstallerError {
-                    reason: format!("Failed to delete component '{}': {}", component, stderr),
-                });
-            }
+            uninstall_component_with(&RealCommandRunner, component_type, component)
         }
         Err(e) => {
             return {
@@ -154,5 +148,77 @@ async fn uninstall_component(component_type: &str, component: &str) -> Result<()
                 })))
             };
         }
+    }
+}
+
+fn uninstall_component_with(
+    runner: &dyn CommandRunner,
+    component_type: &str,
+    component: &str,
+) -> Result<(), CliError> {
+    let args = [
+        "delete".to_string(),
+        component_type.to_string(),
+        component.to_string(),
+        "-n".to_string(),
+        "cortexflow".to_string(),
+    ];
+    let output = runner
+        .run(BASE_COMMAND, &args)
+        .map_err(|e| CliError::InstallerError {
+            reason: format!("Failed to execute delete command: {}", e),
+        })?;
+
+    if output.status.success() {
+        println!("✅ Removed component {}", component);
+        Ok(())
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        Err(CliError::InstallerError {
+            reason: format!("Failed to delete component '{}': {}", component, stderr),
+        })
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::command_runner::test_support::StubCommandRunner;
+
+    #[test]
+    fn test_uninstall_all_with_success() {
+        let runner = StubCommandRunner::success("");
+        assert!(uninstall_all_with(&runner).is_ok());
+    }
+
+    #[test]
+    fn test_uninstall_all_with_command_failure() {
+        let runner = StubCommandRunner::failure("namespace not found");
+        assert!(uninstall_all_with(&runner).is_err());
+    }
+
+    #[test]
+    fn test_uninstall_all_with_io_error() {
+        let runner = StubCommandRunner::io_error();
+        assert!(uninstall_all_with(&runner).is_err());
+    }
+
+    #[test]
+    fn test_uninstall_component_with_success() {
+        let runner = StubCommandRunner::success("");
+        assert!(uninstall_component_with(&runner, "deployment", "cortexflow-identity").is_ok());
+    }
+
+    #[test]
+    fn test_uninstall_component_with_command_failure() {
+        let runner = StubCommandRunner::failure("component not found");
+        assert!(uninstall_component_with(&runner, "deployment", "unknown").is_err());
+    }
+
+    #[test]
+    fn test_uninstall_component_with_io_error() {
+        let runner = StubCommandRunner::io_error();
+        assert!(uninstall_component_with(&runner, "deployment", "cortexflow-identity").is_err());
     }
 }

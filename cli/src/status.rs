@@ -7,6 +7,29 @@ use crate::logs::{ get_available_namespaces, check_namespace_exists };
 use crate::essential::{ BASE_COMMAND, connect_to_client };
 use crate::errors::CliError;
 
+// docs:
+//
+// Pure parsing helper shared by get_pods_status/get_services_status so the
+// column-parsing logic can be unit tested with stubbed kubectl output.
+
+fn parse_status_columns(stdout: &str, min_parts: usize) -> Vec<(String, String, String)> {
+    stdout
+        .lines()
+        .filter_map(|line| {
+            let parts: Vec<&str> = line.split_whitespace().collect();
+            if parts.len() >= min_parts {
+                Some((
+                    parts[0].to_string(),
+                    parts[1].to_string(),
+                    parts[2].to_string(),
+                ))
+            } else {
+                None
+            }
+        })
+        .collect()
+}
+
 #[derive(Debug)]
 pub enum OutputFormat {
     Text,
@@ -165,23 +188,7 @@ async fn get_pods_status(namespace: &str) -> Result<Vec<(String, String, String)
             match output {
                 Ok(output) if output.status.success() => {
                     let stdout = str::from_utf8(&output.stdout).unwrap_or("");
-                    Ok(
-                        stdout
-                            .lines()
-                            .filter_map(|line| {
-                                let parts: Vec<&str> = line.split_whitespace().collect();
-                                if parts.len() >= 3 {
-                                    Some((
-                                        parts[0].to_string(), // name
-                                        parts[1].to_string(), // ready
-                                        parts[2].to_string(), // status
-                                    ))
-                                } else {
-                                    None
-                                }
-                            })
-                            .collect()
-                    )
+                    Ok(parse_status_columns(stdout, 3))
                 }
                 _ => Ok(Vec::new()),
             }
@@ -220,23 +227,7 @@ async fn get_services_status(namespace: &str) -> Result<Vec<(String, String, Str
             match output {
                 Ok(output) if output.status.success() => {
                     let stdout = str::from_utf8(&output.stdout).unwrap_or("");
-                    Ok(
-                        stdout
-                            .lines()
-                            .filter_map(|line| {
-                                let parts: Vec<&str> = line.split_whitespace().collect();
-                                if parts.len() >= 4 {
-                                    Some((
-                                        parts[0].to_string(), // name
-                                        parts[1].to_string(), // type
-                                        parts[2].to_string(), // cluster ips
-                                    ))
-                                } else {
-                                    None
-                                }
-                            })
-                            .collect()
-                    )
+                    Ok(parse_status_columns(stdout, 4))
                 }
                 _ => Ok(Vec::new()),
             }
@@ -358,5 +349,81 @@ fn display_yaml_format(
         println!("  - name: {}", name);
         println!("    type: {}", service_type);
         println!("    cluster_ip: {}", cluster_ip);
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_output_format_from_json() {
+        assert!(matches!(OutputFormat::from("json".to_string()), OutputFormat::Json));
+        assert!(matches!(OutputFormat::from("JSON".to_string()), OutputFormat::Json));
+    }
+
+    #[test]
+    fn test_output_format_from_yaml() {
+        assert!(matches!(OutputFormat::from("yaml".to_string()), OutputFormat::Yaml));
+    }
+
+    #[test]
+    fn test_output_format_from_defaults_to_text() {
+        assert!(matches!(OutputFormat::from("unknown".to_string()), OutputFormat::Text));
+    }
+
+    #[test]
+    fn test_parse_status_columns_pods() {
+        let stdout = "pod-a   1/1   Running\npod-b   0/1   Pending\n";
+        let parsed = parse_status_columns(stdout, 3);
+        assert_eq!(
+            parsed,
+            vec![
+                ("pod-a".to_string(), "1/1".to_string(), "Running".to_string()),
+                ("pod-b".to_string(), "0/1".to_string(), "Pending".to_string()),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_status_columns_services() {
+        let stdout = "svc-a   ClusterIP   10.0.0.1   443/TCP\n";
+        let parsed = parse_status_columns(stdout, 4);
+        assert_eq!(
+            parsed,
+            vec![("svc-a".to_string(), "ClusterIP".to_string(), "10.0.0.1".to_string())]
+        );
+    }
+
+    #[test]
+    fn test_parse_status_columns_skips_short_lines() {
+        let stdout = "only-one-column\n";
+        assert!(parse_status_columns(stdout, 3).is_empty());
+    }
+
+    #[test]
+    fn test_parse_status_columns_empty_input() {
+        assert!(parse_status_columns("", 3).is_empty());
+    }
+
+    #[test]
+    fn test_display_text_format_does_not_panic() {
+        display_text_format(
+            "cortexflow",
+            true,
+            vec![("pod-a".to_string(), "1/1".to_string(), "Running".to_string())],
+            vec![("svc-a".to_string(), "ClusterIP".to_string(), "10.0.0.1".to_string())],
+        );
+    }
+
+    #[test]
+    fn test_display_json_format_does_not_panic() {
+        display_json_format("cortexflow", false, Vec::new(), Vec::new());
+    }
+
+    #[test]
+    fn test_display_yaml_format_does_not_panic() {
+        display_yaml_format("cortexflow", false, Vec::new(), Vec::new());
     }
 }

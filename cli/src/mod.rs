@@ -7,3 +7,4 @@ pub mod logs;
 pub mod monitoring;
 pub mod policies;
 pub mod errors;
+pub mod command_runner;

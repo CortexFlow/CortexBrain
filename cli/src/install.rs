@@ -1,3 +1,4 @@
+use crate::command_runner::{CommandRunner, RealCommandRunner};
 use crate::errors::CliError;
 use crate::essential::{BASE_COMMAND, connect_to_client, create_config_file, create_configs};
 use clap::{Args, Subcommand};
@@ -453,13 +454,16 @@ fn rm_installation_files(file_to_remove: InstallationType) -> Result<(), CliErro
 // Returns a CliError if something fails
 
 fn download_file(src: &str) -> Result<(), CliError> {
-    let output =
-        Command::new("wget")
-            .args([src])
-            .output()
-            .map_err(|e| CliError::InstallerError {
-                reason: e.to_string(),
-            })?;
+    download_file_with(&RealCommandRunner, src)
+}
+
+fn download_file_with(runner: &dyn CommandRunner, src: &str) -> Result<(), CliError> {
+    let args = [src.to_string()];
+    let output = runner
+        .run("wget", &args)
+        .map_err(|e| CliError::InstallerError {
+            reason: e.to_string(),
+        })?;
 
     if !output.status.success() {
         return Err(CliError::InstallerError {
@@ -486,6 +490,13 @@ fn download_file(src: &str) -> Result<(), CliError> {
 // Returns an CliError if something fails
 
 fn rm_file(file_to_remove: &str) -> Result<(), CliError> {
+    // rm -f never fails for a missing file, so check existence first
+    if !std::path::Path::new(file_to_remove).exists() {
+        return Err(CliError::InstallerError {
+            reason: format!("File not found: {}", file_to_remove),
+        });
+    }
+
     let output = Command::new("rm")
         .args(["-f", file_to_remove])
         .output()
@@ -507,4 +518,79 @@ fn rm_file(file_to_remove: &str) -> Result<(), CliError> {
 
     thread::sleep(Duration::from_secs(2));
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_rm_file() {
+        let file_name = "test_file.txt";
+        std::fs::write(file_name, "test content").unwrap();
+        assert!(rm_file(file_name).is_ok());
+        assert!(!std::path::Path::new(file_name).exists());
+    }
+
+    #[test]
+    fn test_download_file_with_success() {
+        let runner = crate::command_runner::test_support::StubCommandRunner::success("");
+        assert!(download_file_with(&runner, "https://example.com/file.yaml").is_ok());
+    }
+
+    #[test]
+    fn test_download_file_with_command_failure() {
+        let runner = crate::command_runner::test_support::StubCommandRunner::failure("404 Not Found");
+        assert!(download_file_with(&runner, "https://example.com/missing.yaml").is_err());
+    }
+
+    #[test]
+    fn test_download_file_with_io_error() {
+        let runner = crate::command_runner::test_support::StubCommandRunner::io_error();
+        assert!(download_file_with(&runner, "https://example.com/file.yaml").is_err());
+    }
+
+    #[test]
+    fn test_rm_file_failure() {
+        let file_name = "non_existent_file.txt";
+        assert!(rm_file(file_name).is_err());
+    }
+
+    #[test]
+    fn test_rm_file_cleanup_only() {
+        let file_name = "test_file.txt";
+        std::fs::write(file_name, "test content").unwrap();
+        // Clean up without removing
+        rm_file(file_name).unwrap();
+    }
+
+    #[test]
+    fn test_rm_file_failure_cleanup() {
+        let file_name = "non_existent_file.txt";
+        // Attempt to clean up a non-existent file
+        assert!(rm_file(file_name).is_err());
+    }
+
+    #[test]
+    fn test_rm_file_success_cleanup() {
+        let file_name = "test_file.txt";
+        std::fs::write(file_name, "test content").unwrap();
+        // Clean up a file that exists
+        assert!(rm_file(file_name).is_ok());
+    }
+
+    #[test]
+    fn test_rm_file_success_cleanup_only() {
+        let file_name = "test_file.txt";
+        std::fs::write(file_name, "test content").unwrap();
+        // Clean up a file that exists
+        assert!(rm_file(file_name).is_ok());
+    }
+
+    #[test]
+    fn test_rm_file_failure_cleanup_only() {
+        let file_name = "non_existent_file.txt";
+        // Attempt to clean up a non-existent file
+        assert!(rm_file(file_name).is_err());
+    }
 }

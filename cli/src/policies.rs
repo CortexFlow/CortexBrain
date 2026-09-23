@@ -127,3 +127,57 @@ pub async fn remove_ip(ip:&str) -> Result<(), Error> {
     }
     Ok(())
 }
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::Parser;
+
+    #[derive(Parser)]
+    struct TestCli {
+        #[command(flatten)]
+        args: PoliciesArgs,
+    }
+
+    // docs: the gRPC-calling functions in this module have no pure logic to
+    // unit test without mocking the agent_api client; these tests instead
+    // verify the clap argument parsing, which is the only externally-free logic here.
+
+    #[test]
+    fn test_parse_create_blocklist_with_ip() {
+        let cli = TestCli::try_parse_from(["cfcli", "create-blocklist", "--flags", "1.2.3.4"])
+            .unwrap();
+        assert!(matches!(
+            cli.args.policy_cmd,
+            PoliciesCommands::CreateBlocklist
+        ));
+        assert_eq!(cli.args.flags, Some("1.2.3.4".to_string()));
+    }
+
+    #[test]
+    fn test_parse_check_blocklist() {
+        let cli = TestCli::try_parse_from(["cfcli", "check-blocklist"]).unwrap();
+        assert!(matches!(
+            cli.args.policy_cmd,
+            PoliciesCommands::CheckBlocklist
+        ));
+        assert_eq!(cli.args.flags, None);
+    }
+
+    #[test]
+    fn test_parse_remove_ip() {
+        let cli =
+            TestCli::try_parse_from(["cfcli", "remove-ip", "--flags", "5.6.7.8"]).unwrap();
+        assert!(matches!(
+            cli.args.policy_cmd,
+            PoliciesCommands::RemoveIpFromBlocklist
+        ));
+        assert_eq!(cli.args.flags, Some("5.6.7.8".to_string()));
+    }
+
+    #[test]
+    fn test_parse_unknown_subcommand_fails() {
+        assert!(TestCli::try_parse_from(["cfcli", "not-a-command"]).is_err());
+    }
+}

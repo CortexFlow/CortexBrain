@@ -1,9 +1,19 @@
+use crate::command_runner::{CommandRunner, RealCommandRunner};
 use crate::errors::CliError;
 use crate::essential::{BASE_COMMAND, connect_to_client};
 use clap::Args;
 use colored::Colorize;
 use kube::{Error, core::ErrorResponse};
-use std::{process::Command, result::Result::Ok, str};
+use std::{result::Result::Ok, str};
+
+fn parse_lines(stdout: &[u8]) -> Vec<String> {
+    str::from_utf8(stdout)
+        .unwrap_or("")
+        .lines()
+        .map(|line| line.trim().to_string())
+        .filter(|line| !line.is_empty())
+        .collect()
+}
 
 #[derive(Args, Debug, Clone)]
 pub struct LogsArgs {
@@ -182,16 +192,7 @@ pub async fn logs_command(
 
 pub async fn check_namespace_exists(namespace: &str) -> Result<bool, CliError> {
     match connect_to_client().await {
-        Ok(_) => {
-            let output = Command::new(BASE_COMMAND)
-                .args(["get", "namespace", namespace])
-                .output();
-
-            match output {
-                Ok(output) => Ok(output.status.success()),
-                Err(_) => Ok(false),
-            }
-        }
+        Ok(_) => Ok(check_namespace_exists_with(&RealCommandRunner, namespace)),
         Err(e) => {
             return Err(CliError::ClientError(Error::Api(ErrorResponse {
                 status: "failed".to_string(),
@@ -200,6 +201,14 @@ pub async fn check_namespace_exists(namespace: &str) -> Result<bool, CliError> {
                 code: 404,
             })));
         }
+    }
+}
+
+fn check_namespace_exists_with(runner: &dyn CommandRunner, namespace: &str) -> bool {
+    let args = ["get".to_string(), "namespace".to_string(), namespace.to_string()];
+    match runner.run(BASE_COMMAND, &args) {
+        Ok(output) => output.status.success(),
+        Err(_) => false,
     }
 }
 
@@ -215,30 +224,7 @@ pub async fn check_namespace_exists(namespace: &str) -> Result<bool, CliError> {
 
 pub async fn get_available_namespaces() -> Result<Vec<String>, CliError> {
     match connect_to_client().await {
-        Ok(_) => {
-            let output = Command::new(BASE_COMMAND)
-                .args([
-                    "get",
-                    "namespaces",
-                    "--no-headers",
-                    "-o",
-                    "custom-columns=NAME:.metadata.name",
-                ])
-                .output();
-
-            match output {
-                Ok(output) if output.status.success() => {
-                    let stdout = str::from_utf8(&output.stdout).unwrap_or("");
-                    let ns = stdout
-                        .lines()
-                        .map(|line| line.trim().to_string())
-                        .filter(|line| !line.is_empty())
-                        .collect();
-                    Ok(ns)
-                }
-                _ => Ok(Vec::new()),
-            }
-        }
+        Ok(_) => Ok(get_available_namespaces_with(&RealCommandRunner)),
         Err(e) => {
             return Err(CliError::ClientError(Error::Api(ErrorResponse {
                 status: "failed".to_string(),
@@ -247,6 +233,21 @@ pub async fn get_available_namespaces() -> Result<Vec<String>, CliError> {
                 code: 404,
             })));
         }
+    }
+}
+
+fn get_available_namespaces_with(runner: &dyn CommandRunner) -> Vec<String> {
+    let args = [
+        "get".to_string(),
+        "namespaces".to_string(),
+        "--no-headers".to_string(),
+        "-o".to_string(),
+        "custom-columns=NAME:.metadata.name".to_string(),
+    ];
+
+    match runner.run(BASE_COMMAND, &args) {
+        Ok(output) if output.status.success() => parse_lines(&output.stdout),
+        _ => Vec::new(),
     }
 }
 
@@ -265,34 +266,11 @@ async fn get_pods_for_service(
     service_name: &str,
 ) -> Result<Vec<String>, CliError> {
     match connect_to_client().await {
-        Ok(_) => {
-            let output = Command::new(BASE_COMMAND)
-                .args([
-                    "get",
-                    "pods",
-                    "-n",
-                    namespace,
-                    "-l",
-                    &format!("app={}", service_name),
-                    "--no-headers",
-                    "-o",
-                    "custom-columns=NAME:.metadata.name",
-                ])
-                .output();
-
-            match output {
-                Ok(output) if output.status.success() => {
-                    let stdout = str::from_utf8(&output.stdout).unwrap_or("");
-                    let pods = stdout
-                        .lines()
-                        .map(|line| line.trim().to_string())
-                        .filter(|line| !line.is_empty())
-                        .collect();
-                    Ok(pods)
-                }
-                _ => Ok(Vec::new()),
-            }
-        }
+        Ok(_) => Ok(get_pods_for_service_with(
+            &RealCommandRunner,
+            namespace,
+            service_name,
+        )),
         Err(e) => {
             return Err(CliError::ClientError(Error::Api(ErrorResponse {
                 status: "failed".to_string(),
@@ -301,6 +279,29 @@ async fn get_pods_for_service(
                 code: 404,
             })));
         }
+    }
+}
+
+fn get_pods_for_service_with(
+    runner: &dyn CommandRunner,
+    namespace: &str,
+    service_name: &str,
+) -> Vec<String> {
+    let args = [
+        "get".to_string(),
+        "pods".to_string(),
+        "-n".to_string(),
+        namespace.to_string(),
+        "-l".to_string(),
+        format!("app={}", service_name),
+        "--no-headers".to_string(),
+        "-o".to_string(),
+        "custom-columns=NAME:.metadata.name".to_string(),
+    ];
+
+    match runner.run(BASE_COMMAND, &args) {
+        Ok(output) if output.status.success() => parse_lines(&output.stdout),
+        _ => Vec::new(),
     }
 }
 
@@ -320,34 +321,11 @@ async fn get_pods_for_component(
     component: &Component,
 ) -> Result<Vec<String>, CliError> {
     match connect_to_client().await {
-        Ok(_) => {
-            let output = Command::new(BASE_COMMAND)
-                .args([
-                    "get",
-                    "pods",
-                    "-n",
-                    namespace,
-                    "-l",
-                    component.to_label_selector(),
-                    "--no-headers",
-                    "-o",
-                    "custom-columns=NAME:.metadata.name",
-                ])
-                .output();
-
-            match output {
-                Ok(output) if output.status.success() => {
-                    let stdout = str::from_utf8(&output.stdout).unwrap_or("");
-                    let pods = stdout
-                        .lines()
-                        .map(|line| line.trim().to_string())
-                        .filter(|line| !line.is_empty())
-                        .collect();
-                    Ok(pods)
-                }
-                _ => Ok(Vec::new()),
-            }
-        }
+        Ok(_) => Ok(get_pods_for_component_with(
+            &RealCommandRunner,
+            namespace,
+            component,
+        )),
         Err(e) => {
             return Err(CliError::ClientError(Error::Api(ErrorResponse {
                 status: "failed".to_string(),
@@ -356,6 +334,29 @@ async fn get_pods_for_component(
                 code: 404,
             })));
         }
+    }
+}
+
+fn get_pods_for_component_with(
+    runner: &dyn CommandRunner,
+    namespace: &str,
+    component: &Component,
+) -> Vec<String> {
+    let args = [
+        "get".to_string(),
+        "pods".to_string(),
+        "-n".to_string(),
+        namespace.to_string(),
+        "-l".to_string(),
+        component.to_label_selector().to_string(),
+        "--no-headers".to_string(),
+        "-o".to_string(),
+        "custom-columns=NAME:.metadata.name".to_string(),
+    ];
+
+    match runner.run(BASE_COMMAND, &args) {
+        Ok(output) if output.status.success() => parse_lines(&output.stdout),
+        _ => Vec::new(),
     }
 }
 
@@ -371,32 +372,7 @@ async fn get_pods_for_component(
 
 async fn get_all_pods(namespace: &str) -> Result<Vec<String>, CliError> {
     match connect_to_client().await {
-        Ok(_) => {
-            let output = Command::new(BASE_COMMAND)
-                .args([
-                    "get",
-                    "pods",
-                    "-n",
-                    namespace,
-                    "--no-headers",
-                    "-o",
-                    "custom-columns=NAME:.metadata.name",
-                ])
-                .output();
-
-            match output {
-                Ok(output) if output.status.success() => {
-                    let stdout = str::from_utf8(&output.stdout).unwrap_or("");
-                    let pods = stdout
-                        .lines()
-                        .map(|line| line.trim().to_string())
-                        .filter(|line| !line.is_empty())
-                        .collect();
-                    Ok(pods)
-                }
-                _ => Ok(Vec::new()),
-            }
-        }
+        Ok(_) => Ok(get_all_pods_with(&RealCommandRunner, namespace)),
         Err(e) => {
             return Err(CliError::ClientError(Error::Api(ErrorResponse {
                 status: "failed".to_string(),
@@ -405,5 +381,218 @@ async fn get_all_pods(namespace: &str) -> Result<Vec<String>, CliError> {
                 code: 404,
             })));
         }
+    }
+}
+
+fn get_all_pods_with(runner: &dyn CommandRunner, namespace: &str) -> Vec<String> {
+    let args = [
+        "get".to_string(),
+        "pods".to_string(),
+        "-n".to_string(),
+        namespace.to_string(),
+        "--no-headers".to_string(),
+        "-o".to_string(),
+        "custom-columns=NAME:.metadata.name".to_string(),
+    ];
+
+    match runner.run(BASE_COMMAND, &args) {
+        Ok(output) if output.status.success() => parse_lines(&output.stdout),
+        _ => Vec::new(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::command_runner::test_support::StubCommandRunner;
+
+    // Component
+
+    #[test]
+    fn test_component_from_control_plane() {
+        assert!(matches!(
+            Component::from("control-plane".to_string()),
+            Component::ControlPlane
+        ));
+    }
+
+    #[test]
+    fn test_component_from_data_plane() {
+        assert!(matches!(
+            Component::from("data-plane".to_string()),
+            Component::DataPlane
+        ));
+    }
+
+    #[test]
+    fn test_component_from_is_case_insensitive() {
+        assert!(matches!(
+            Component::from("Data-Plane".to_string()),
+            Component::DataPlane
+        ));
+    }
+
+    #[test]
+    fn test_component_from_unknown_defaults_to_control_plane() {
+        assert!(matches!(
+            Component::from("unknown".to_string()),
+            Component::ControlPlane
+        ));
+    }
+
+    #[test]
+    fn test_component_to_label_selector() {
+        assert_eq!(
+            Component::ControlPlane.to_label_selector(),
+            "component=control-plane"
+        );
+        assert_eq!(
+            Component::DataPlane.to_label_selector(),
+            "component=data-plane"
+        );
+    }
+
+    // parse_lines
+
+    #[test]
+    fn test_parse_lines_filters_empty_lines_and_trims() {
+        let stdout = b"  pod-a  \n\npod-b\n   \n";
+        let parsed = parse_lines(stdout);
+        assert_eq!(parsed, vec!["pod-a".to_string(), "pod-b".to_string()]);
+    }
+
+    #[test]
+    fn test_parse_lines_empty_input() {
+        assert!(parse_lines(b"").is_empty());
+    }
+
+    // check_namespace_exists_with
+
+    #[test]
+    fn test_check_namespace_exists_with_success() {
+        let runner = StubCommandRunner::success("");
+        assert!(check_namespace_exists_with(&runner, "cortexflow"));
+    }
+
+    #[test]
+    fn test_check_namespace_exists_with_failure() {
+        let runner = StubCommandRunner::failure("not found");
+        assert!(!check_namespace_exists_with(&runner, "missing"));
+    }
+
+    #[test]
+    fn test_check_namespace_exists_with_io_error() {
+        let runner = StubCommandRunner::io_error();
+        assert!(!check_namespace_exists_with(&runner, "cortexflow"));
+    }
+
+    // get_available_namespaces_with
+
+    #[test]
+    fn test_get_available_namespaces_with_success() {
+        let runner = StubCommandRunner::success("default\ncortexflow\nkube-system\n");
+        let namespaces = get_available_namespaces_with(&runner);
+        assert_eq!(
+            namespaces,
+            vec![
+                "default".to_string(),
+                "cortexflow".to_string(),
+                "kube-system".to_string()
+            ]
+        );
+    }
+
+    #[test]
+    fn test_get_available_namespaces_with_empty_output() {
+        let runner = StubCommandRunner::success("");
+        assert!(get_available_namespaces_with(&runner).is_empty());
+    }
+
+    #[test]
+    fn test_get_available_namespaces_with_command_failure() {
+        let runner = StubCommandRunner::failure("connection refused");
+        assert!(get_available_namespaces_with(&runner).is_empty());
+    }
+
+    // get_pods_for_service_with
+
+    #[test]
+    fn test_get_pods_for_service_with_success() {
+        let runner = StubCommandRunner::success("pod-a\npod-b\n");
+        let pods = get_pods_for_service_with(&runner, "cortexflow", "my-service");
+        assert_eq!(pods, vec!["pod-a".to_string(), "pod-b".to_string()]);
+    }
+
+    #[test]
+    fn test_get_pods_for_service_with_no_matches() {
+        let runner = StubCommandRunner::success("");
+        assert!(get_pods_for_service_with(&runner, "cortexflow", "unknown-service").is_empty());
+    }
+
+    #[test]
+    fn test_get_pods_for_service_with_command_failure() {
+        let runner = StubCommandRunner::failure("error");
+        assert!(get_pods_for_service_with(&runner, "cortexflow", "my-service").is_empty());
+    }
+
+    // get_pods_for_component_with
+
+    #[test]
+    fn test_get_pods_for_component_with_success() {
+        let runner = StubCommandRunner::success("agent-pod\n");
+        let pods = get_pods_for_component_with(&runner, "cortexflow", &Component::DataPlane);
+        assert_eq!(pods, vec!["agent-pod".to_string()]);
+    }
+
+    #[test]
+    fn test_get_pods_for_component_with_no_matches() {
+        let runner = StubCommandRunner::success("");
+        assert!(
+            get_pods_for_component_with(&runner, "cortexflow", &Component::ControlPlane)
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn test_get_pods_for_component_with_command_failure() {
+        let runner = StubCommandRunner::failure("error");
+        assert!(
+            get_pods_for_component_with(&runner, "cortexflow", &Component::ControlPlane)
+                .is_empty()
+        );
+    }
+
+    // get_all_pods_with
+
+    #[test]
+    fn test_get_all_pods_with_success() {
+        let runner = StubCommandRunner::success("pod-a\npod-b\npod-c\n");
+        let pods = get_all_pods_with(&runner, "cortexflow");
+        assert_eq!(
+            pods,
+            vec![
+                "pod-a".to_string(),
+                "pod-b".to_string(),
+                "pod-c".to_string()
+            ]
+        );
+    }
+
+    #[test]
+    fn test_get_all_pods_with_empty_namespace() {
+        let runner = StubCommandRunner::success("");
+        assert!(get_all_pods_with(&runner, "empty_namespace").is_empty());
+    }
+
+    #[test]
+    fn test_get_all_pods_with_command_failure() {
+        let runner = StubCommandRunner::failure("namespace not found");
+        assert!(get_all_pods_with(&runner, "non_existent_namespace").is_empty());
+    }
+
+    #[test]
+    fn test_get_all_pods_with_io_error() {
+        let runner = StubCommandRunner::io_error();
+        assert!(get_all_pods_with(&runner, "cortexflow").is_empty());
     }
 }
