@@ -377,18 +377,23 @@ name = "cortexflow-cli"
 version = "0.1.5"
 dependencies = [
  "anyhow",
+ "bytes",
  "clap",
  "colored",
  "cortexflow_agent_api",
  "directories",
+ "http",
+ "http-body-util",
  "k8s-openapi",
  "kube",
  "prost",
  "prost-types",
  "serde",
+ "serde_json",
  "tokio",
  "tonic",
  "tonic-reflection",
+ "tower",
  "tracing",
 ]
 
