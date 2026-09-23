@@ -526,7 +526,7 @@ mod tests {
 
     #[test]
     fn test_rm_file() {
-        let file_name = "test_file.txt";
+        let file_name = "test_rm_file.txt";
         std::fs::write(file_name, "test content").unwrap();
         assert!(rm_file(file_name).is_ok());
         assert!(!std::path::Path::new(file_name).exists());
@@ -558,7 +558,7 @@ mod tests {
 
     #[test]
     fn test_rm_file_cleanup_only() {
-        let file_name = "test_file.txt";
+        let file_name = "test_rm_file_cleanup_only.txt";
         std::fs::write(file_name, "test content").unwrap();
         // Clean up without removing
         rm_file(file_name).unwrap();
@@ -566,14 +566,14 @@ mod tests {
 
     #[test]
     fn test_rm_file_failure_cleanup() {
-        let file_name = "non_existent_file.txt";
+        let file_name = "test_rm_file_failure_cleanup.txt";
         // Attempt to clean up a non-existent file
         assert!(rm_file(file_name).is_err());
     }
 
     #[test]
     fn test_rm_file_success_cleanup() {
-        let file_name = "test_file.txt";
+        let file_name = "test_rm_file_success_cleanup.txt";
         std::fs::write(file_name, "test content").unwrap();
         // Clean up a file that exists
         assert!(rm_file(file_name).is_ok());
@@ -581,7 +581,7 @@ mod tests {
 
     #[test]
     fn test_rm_file_success_cleanup_only() {
-        let file_name = "test_file.txt";
+        let file_name = "test_rm_file_success_cleanup_only.txt";
         std::fs::write(file_name, "test content").unwrap();
         // Clean up a file that exists
         assert!(rm_file(file_name).is_ok());

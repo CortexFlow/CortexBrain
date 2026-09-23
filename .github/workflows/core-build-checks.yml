@@ -51,6 +51,18 @@ jobs:
       working-directory: core
       run: cargo test --locked -p cortexbrain-common --test public_contracts --no-default-features --features network-structs,monitoring-structs
 
+  test-cli:
+    name: Test CLI
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Test CLI
+      working-directory: cli
+      run: cargo test --locked
+
   build-core-components:
     runs-on: ubuntu-latest
     
