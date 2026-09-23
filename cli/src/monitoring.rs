@@ -10,7 +10,8 @@ use tonic_reflection::pb::v1::server_reflection_response::MessageResponse;
 use agent_api::client::{connect_to_client, connect_to_server_reflection};
 use agent_api::requests::{
     get_all_features, send_active_connection_request, send_dropped_packets_request,
-    send_latency_metrics_request, send_tracked_veth_request, send_veth_tracked_hashmap_req,
+    send_latency_metrics_request,
+    send_veth_tracked_hashmap_req,
 };
 
 use crate::errors::CliError;
@@ -344,4 +345,29 @@ fn convert_timestamp_to_date(timestamp: u64) -> String {
     DateTime::from_timestamp_micros(timestamp as i64)
         .map(|dt| dt.to_string())
         .unwrap_or_else(|| "Cannot convert timestamp to date".to_string())
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_convert_timestamp_to_date_valid() {
+        // 1700000000000000 us = 2023-11-14T22:13:20Z
+        let result = convert_timestamp_to_date(1_700_000_000_000_000);
+        assert!(result.contains("2023"));
+    }
+
+    #[test]
+    fn test_convert_timestamp_to_date_zero() {
+        let result = convert_timestamp_to_date(0);
+        assert!(result.contains("1970"));
+    }
+
+    #[test]
+    fn test_convert_timestamp_to_date_invalid_returns_fallback() {
+        let result = convert_timestamp_to_date(i64::MAX as u64);
+        assert_eq!(result, "Cannot convert timestamp to date");
+    }
 }

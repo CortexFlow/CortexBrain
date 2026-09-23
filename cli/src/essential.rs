@@ -1,3 +1,4 @@
+use crate::command_runner::{CommandRunner, RealCommandRunner};
 use crate::errors::CliError;
 use std::borrow::Cow;
 use std::thread;
@@ -130,10 +131,17 @@ pub fn update_cli() -> Result<(), CliError> {
 //
 // This function returns the latest version of the CLI from the crates.io registry
 pub fn get_latest_cfcli_version() -> Result<String, CliError> {
-    let output = Command::new("cargo")
-        .args(["search", "cortexflow-cli", "--limit", "1"])
-        .output()
-        .expect("Error");
+    get_latest_cfcli_version_with(&RealCommandRunner)
+}
+
+fn get_latest_cfcli_version_with(runner: &dyn CommandRunner) -> Result<String, CliError> {
+    let args = [
+        "search".to_string(),
+        "cortexflow-cli".to_string(),
+        "--limit".to_string(),
+        "1".to_string(),
+    ];
+    let output = runner.run("cargo", &args).expect("Error");
 
     if !output.status.success() {
         return Err(CliError::InstallerError {
@@ -410,10 +418,18 @@ pub async fn update_configmap(config_struct: MetadataConfigFile) -> Result<(), C
 
 #[cfg(test)]
 mod tests {
-    use crate::essential::extract_version_from_output;
+    use crate::command_runner::test_support::StubCommandRunner;
+    use crate::essential::{create_configs, extract_version_from_output, get_latest_cfcli_version_with};
 
     #[test]
-    fn test_version_extraction() {
+    fn creates_an_empty_blocklist_configuration() {
+        let configs = create_configs();
+
+        assert_eq!(configs.blocklist, vec![String::new()]);
+    }
+
+    #[test]
+    fn extracts_the_version_from_cargo_search_output() {
         let command_stdout = String::from(
             r#"cortexflow-cli = "0.1.4-test_123"    
             # CortexFlow command line interface made to interact with the CortexBrain core components...
@@ -422,5 +438,20 @@ mod tests {
 
         let extracted_command = extract_version_from_output(command_stdout.into());
         assert_eq!(extracted_command, "0.1.4-test_123");
+    }
+
+    #[test]
+    fn get_latest_cfcli_version_returns_parsed_version_on_success() {
+        let runner = StubCommandRunner::success(
+            r#"cortexflow-cli = "0.1.5"    # CortexFlow command line interface"#,
+        );
+        let version = get_latest_cfcli_version_with(&runner);
+        assert_eq!(version.unwrap(), "0.1.5");
+    }
+
+    #[test]
+    fn get_latest_cfcli_version_errors_on_command_failure() {
+        let runner = StubCommandRunner::failure("network unreachable");
+        assert!(get_latest_cfcli_version_with(&runner).is_err());
     }
 }

@@ -1,3 +1,4 @@
+mod command_runner;
 mod errors;
 mod essential;
 mod install;
@@ -193,4 +194,85 @@ async fn args_parser() -> Result<(), CliError> {
 #[tokio::main]
 async fn main() {
     let _ = args_parser().await.map_err(|e| eprintln!("{}", e));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::Parser;
+
+    // docs: args_parser() dispatches to functions that reach a real kubernetes
+    // cluster / gRPC agent, so only the pure clap parsing logic is unit tested here.
+
+    #[test]
+    fn test_parse_no_subcommand() {
+        let cli = Cli::try_parse_from(["cfcli"]).unwrap();
+        assert!(cli.cmd.is_none());
+    }
+
+    #[test]
+    fn test_parse_uninstall() {
+        let cli = Cli::try_parse_from(["cfcli", "uninstall"]).unwrap();
+        assert!(matches!(cli.cmd, Some(Commands::Uninstall)));
+    }
+
+    #[test]
+    fn test_parse_update() {
+        let cli = Cli::try_parse_from(["cfcli", "update"]).unwrap();
+        assert!(matches!(cli.cmd, Some(Commands::Update)));
+    }
+
+    #[test]
+    fn test_parse_info() {
+        let cli = Cli::try_parse_from(["cfcli", "info"]).unwrap();
+        assert!(matches!(cli.cmd, Some(Commands::Info)));
+    }
+
+    #[test]
+    fn test_parse_install_cortexflow() {
+        let cli = Cli::try_parse_from(["cfcli", "install", "cortexflow"]).unwrap();
+        match cli.cmd {
+            Some(Commands::Install(args)) => {
+                assert!(matches!(args.install_cmd, InstallCommands::All));
+            }
+            _ => panic!("expected Install command"),
+        }
+    }
+
+    #[test]
+    fn test_parse_logs_with_flags() {
+        let cli = Cli::try_parse_from([
+            "cfcli",
+            "logs",
+            "--service",
+            "my-service",
+            "--namespace",
+            "cortexflow",
+        ])
+        .unwrap();
+        match cli.cmd {
+            Some(Commands::Logs(args)) => {
+                assert_eq!(args.service, Some("my-service".to_string()));
+                assert_eq!(args.namespace, Some("cortexflow".to_string()));
+                assert_eq!(args.component, None);
+            }
+            _ => panic!("expected Logs command"),
+        }
+    }
+
+    #[test]
+    fn test_parse_status_with_output_format() {
+        let cli = Cli::try_parse_from(["cfcli", "status", "--output", "json"]).unwrap();
+        match cli.cmd {
+            Some(Commands::Status(args)) => {
+                assert_eq!(args.output, Some("json".to_string()));
+            }
+            _ => panic!("expected Status command"),
+        }
+    }
+
+    #[test]
+    fn test_parse_unknown_subcommand_fails() {
+        assert!(Cli::try_parse_from(["cfcli", "not-a-real-command"]).is_err());
+    }
 }

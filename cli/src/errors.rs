@@ -122,3 +122,18 @@ impl fmt::Display for CliError {
         }
     }
 }
+
+# [cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_display_base_error() {
+        let err = CliError::BaseError {
+            reason: "some reason".to_string(),
+        };
+        let err_str = format!("{}", err);
+        assert!(err_str.contains("An error occured. Reason:"));
+        assert!(err_str.contains("some reason"));
+    }
+}

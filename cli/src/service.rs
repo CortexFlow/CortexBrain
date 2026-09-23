@@ -7,6 +7,40 @@ use crate::errors::CliError;
 use crate::essential::{BASE_COMMAND, connect_to_client};
 use crate::logs::{check_namespace_exists, get_available_namespaces};
 
+// docs:
+//
+// Pure formatting helper extracted from list_services so the table-row
+// formatting logic can be unit tested with stubbed kubectl output.
+
+fn format_service_rows(stdout: &str) -> Vec<String> {
+    stdout
+        .lines()
+        .filter_map(|line| {
+            let parts: Vec<&str> = line.split_whitespace().collect();
+            if parts.len() >= 5 {
+                let name = parts[0];
+                let ready = parts[1];
+                let status = parts[2];
+                let restarts = parts[3];
+                let age = parts[4];
+
+                let full_status = if ready.contains('/') {
+                    format!("{} ({})", status, ready)
+                } else {
+                    status.to_string()
+                };
+
+                Some(format!(
+                    "{:<40} {:<20} {:<10} {:<10}",
+                    name, full_status, restarts, age
+                ))
+            } else {
+                None
+            }
+        })
+        .collect()
+}
+
 //service subcommands
 #[derive(Subcommand, Debug, Clone)]
 pub enum ServiceCommands {
@@ -104,26 +138,8 @@ pub async fn list_services(namespace: Option<String>) -> Result<(), CliError> {
                     println!("{}", "-".repeat(80));
 
                     // Display Each Pod.
-                    for line in stdout.lines() {
-                        let parts: Vec<&str> = line.split_whitespace().collect();
-                        if parts.len() >= 5 {
-                            let name = parts[0];
-                            let ready = parts[1];
-                            let status = parts[2];
-                            let restarts = parts[3];
-                            let age = parts[4];
-
-                            let full_status = if ready.contains('/') {
-                                format!("{} ({})", status, ready)
-                            } else {
-                                status.to_string()
-                            };
-
-                            println!(
-                                "{:<40} {:<20} {:<10} {:<10}",
-                                name, full_status, restarts, age
-                            );
-                        }
+                    for row in format_service_rows(stdout) {
+                        println!("{}", row);
                     }
                     Ok(())
                 }
@@ -265,5 +281,41 @@ pub async fn describe_service(
                 })))
             };
         }
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_format_service_rows_formats_matching_lines() {
+        let stdout = "my-svc        1/1     Running   0   5d\nother-svc     2/2     Pending   1   1h\n";
+        let rows = format_service_rows(stdout);
+        assert_eq!(rows.len(), 2);
+        assert!(rows[0].contains("my-svc"));
+        assert!(rows[0].contains("Running (1/1)"));
+        assert!(rows[1].contains("other-svc"));
+        assert!(rows[1].contains("Pending (2/2)"));
+    }
+
+    #[test]
+    fn test_format_service_rows_skips_short_lines() {
+        let stdout = "incomplete line\n";
+        assert!(format_service_rows(stdout).is_empty());
+    }
+
+    #[test]
+    fn test_format_service_rows_without_ready_slash() {
+        let stdout = "svc-a   Active   0   5d   extra\n";
+        let rows = format_service_rows(stdout);
+        assert_eq!(rows.len(), 1);
+        assert!(rows[0].contains("svc-a"));
+    }
+
+    #[test]
+    fn test_format_service_rows_empty_input() {
+        assert!(format_service_rows("").is_empty());
     }
 }
