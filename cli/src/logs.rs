@@ -4,7 +4,7 @@ use crate::essential::{BASE_COMMAND, connect_to_client};
 use clap::Args;
 use colored::Colorize;
 use kube::{Error, core::ErrorResponse};
-use std::{result::Result::Ok, str};
+use std::{process::Command, result::Result::Ok, str};
 
 fn parse_lines(stdout: &[u8]) -> Vec<String> {
     str::from_utf8(stdout)

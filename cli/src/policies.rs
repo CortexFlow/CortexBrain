@@ -146,7 +146,7 @@ mod tests {
 
     #[test]
     fn test_parse_create_blocklist_with_ip() {
-        let cli = TestCli::try_parse_from(["cfcli", "create-blocklist", "--flags", "1.2.3.4"])
+        let cli = TestCli::try_parse_from(["cfcli", "--flags", "1.2.3.4", "create-blocklist"])
             .unwrap();
         assert!(matches!(
             cli.args.policy_cmd,
@@ -168,7 +168,7 @@ mod tests {
     #[test]
     fn test_parse_remove_ip() {
         let cli =
-            TestCli::try_parse_from(["cfcli", "remove-ip", "--flags", "5.6.7.8"]).unwrap();
+            TestCli::try_parse_from(["cfcli", "--flags", "5.6.7.8", "remove-ip"]).unwrap();
         assert!(matches!(
             cli.args.policy_cmd,
             PoliciesCommands::RemoveIpFromBlocklist
