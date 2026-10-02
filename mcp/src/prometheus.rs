@@ -556,10 +556,9 @@ mod tests {
             "status": "success",
             "data": { "resultType": "matrix", "result": [
                 { "metric": { "container_name": "grafana" },
-                  "values": [[1, "NaN"], [2, "1.25"]] },
+                  "values": [[1, "None"], [2, "1.25"]] },
             ]}
         });
-
         let series = parse_series(&raw, "container_name");
         assert_eq!(series[0].values.len(), 1);
         assert_eq!(series[0].values[0].value, 1.25);
