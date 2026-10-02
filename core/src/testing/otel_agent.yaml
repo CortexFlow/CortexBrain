@@ -17,6 +17,15 @@ data:
           http:
             endpoint: 0.0.0.0:4318
 
+    processors:
+      transform/identity:
+        error_mode: ignore
+        metric_statements:
+          - context: datapoint
+            statements:
+              - set(attributes["container.name"], attributes["k8s.pod.name"])
+                where attributes["container.name"] == nil and attributes["k8s.pod.name"] != nil
+
     exporters:
       otlp:
         endpoint: ${OTEL_COLLECTOR_SERVICE_HOST}:4317
@@ -38,6 +47,7 @@ data:
           exporters: [otlp, logging]
         metrics:
           receivers: [otlp]
+          processors: [transform/identity]
           exporters: [otlp, prometheus]
 
 ---
@@ -64,9 +74,9 @@ spec:
       dnsPolicy: ClusterFirstWithHostNet
       containers:
       - name: otel-agent
-        image: otel/opentelemetry-collector:0.95.0
+        image: otel/opentelemetry-collector-contrib:0.95.0
         command:
-          - "/otelcol"
+          - "/otelcol-contrib"
           - "--config=/conf/otel-agent-config.yaml"
         resources:
           limits:
@@ -123,6 +133,13 @@ data:
         limit_mib: 1500
         spike_limit_mib: 512
         check_interval: 5s
+      transform/identity:
+        error_mode: ignore
+        metric_statements:
+          - context: datapoint
+            statements:
+              - set(attributes["container.name"], attributes["k8s.pod.name"])
+                where attributes["container.name"] == nil and attributes["k8s.pod.name"] != nil
 
     exporters:
     #  otlp:
@@ -147,7 +164,7 @@ data:
           exporters: [logging]
         metrics: 
           receivers: [otlp]
-          processors: [memory_limiter]
+          processors: [memory_limiter, transform/identity]
           exporters: [logging,prometheus]
 
 ---
@@ -197,9 +214,9 @@ spec:
     spec:
       containers:
       - name: otel-collector
-        image: otel/opentelemetry-collector:0.95.0
+        image: otel/opentelemetry-collector-contrib:0.95.0
         command:
-          - "/otelcol"
+          - "/otelcol-contrib"
           - "--config=/conf/otel-collector-config.yaml"
         resources:
           limits:

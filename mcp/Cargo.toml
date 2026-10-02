@@ -13,4 +13,4 @@ serde_json = "1.0.151"
 reqwest = {version="0.13.4",features=["json","query"]}
 schemars = "1.2.1"
 serde = "1.0.229"
-cortexbrain-common={path="../core/common"}
+# TEMP-CHECK cortexbrain-common

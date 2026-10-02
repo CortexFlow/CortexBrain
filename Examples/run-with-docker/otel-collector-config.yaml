@@ -11,6 +11,13 @@ processors:
     limit_mib: 1500
     spike_limit_mib: 512
     check_interval: 5s
+  transform/identity:
+    error_mode: ignore
+    metric_statements:
+      - context: datapoint
+        statements:
+          - set(attributes["container.name"], attributes["k8s.pod.name"])
+            where attributes["container.name"] == nil and attributes["k8s.pod.name"] != nil
 
 exporters:
   logging: {}
@@ -30,5 +37,5 @@ service:
       exporters: [logging]
     metrics:
       receivers: [otlp]
-      processors: [memory_limiter]
+      processors: [memory_limiter, transform/identity]
       exporters: [logging, prometheus]
