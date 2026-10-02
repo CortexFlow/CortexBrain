@@ -294,7 +294,14 @@ async fn event_listener(bpf_maps: BpfMapsData) -> Result<(), anyhow::Error> {
 
     // spawn async tasks
     let veth_events_displayer = tokio::spawn(async move {
-        read_perf_buffer(perf_veth_buffers, veth_buffers, Consumer::VethLog, None).await;
+        read_perf_buffer(
+            perf_veth_buffers,
+            veth_buffers,
+            Consumer::VethLog,
+            None,
+            None,
+        )
+        .await;
     });
 
     let net_events_displayer = tokio::spawn(async move {
@@ -303,6 +310,7 @@ async fn event_listener(bpf_maps: BpfMapsData) -> Result<(), anyhow::Error> {
             events_buffers,
             Consumer::PacketLog,
             None,
+            None
         )
         .await;
     });
@@ -313,6 +321,7 @@ async fn event_listener(bpf_maps: BpfMapsData) -> Result<(), anyhow::Error> {
             tcp_buffers,
             Consumer::TcpPacketRegistry,
             None,
+            None
         )
         .await;
     });
