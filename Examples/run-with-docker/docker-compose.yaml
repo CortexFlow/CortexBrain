@@ -49,7 +49,7 @@ services:
   #    - cortexflow
 
   otel-collector:
-    image: otel/opentelemetry-collector:0.95.0
+    image: otel/opentelemetry-collector-contrib:0.95.0
     container_name: otel-collector
     command:
       - "--config=/conf/otel-collector-config.yaml"

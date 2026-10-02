@@ -74,9 +74,9 @@ spec:
       dnsPolicy: ClusterFirstWithHostNet
       containers:
       - name: otel-agent
-        image: otel/opentelemetry-collector:0.95.0
+        image: otel/opentelemetry-collector-contrib:0.95.0
         command:
-          - "/otelcol"
+          - "/otelcol-contrib"
           - "--config=/conf/otel-agent-config.yaml"
         resources:
           limits:
@@ -214,9 +214,9 @@ spec:
     spec:
       containers:
       - name: otel-collector
-        image: otel/opentelemetry-collector:0.95.0
+        image: otel/opentelemetry-collector-contrib:0.95.0
         command:
-          - "/otelcol"
+          - "/otelcol-contrib"
           - "--config=/conf/otel-collector-config.yaml"
         resources:
           limits:
