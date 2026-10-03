@@ -40,7 +40,7 @@ jobs:
       run: cargo check --locked -p cortexbrain-common ${{ matrix.args }}
 
   test-common-contracts:
-    name: Test common event contracts
+    name: Test common contracts
     runs-on: ubuntu-latest
 
     steps:
@@ -50,6 +50,10 @@ jobs:
     - name: Test cortexbrain-common public contracts
       working-directory: core
       run: cargo test --locked -p cortexbrain-common --test public_contracts --no-default-features --features network-structs,monitoring-structs
+
+    - name: Test cortexbrain-common OpenTelemetry metrics
+      working-directory: core
+      run: cargo test --locked -p cortexbrain-common --test otel_metrics_contracts --no-default-features --features monitoring-structs
 
   test-cli:
     name: Test CLI
