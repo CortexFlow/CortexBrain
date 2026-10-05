@@ -70,6 +70,18 @@ jobs:
       working-directory: cli
       run: cargo test --locked
 
+  test-mcp:
+    name: Test MCP
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Test MCP
+        working-directory: mcp
+        run: cargo test --locked
+
   build-core-components:
     runs-on: ubuntu-latest
     
