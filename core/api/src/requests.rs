@@ -110,3 +110,11 @@ pub async fn send_veth_tracked_hashmap_req(
     let response = client.get_tracked_veth_from_hash_map(request).await?;
     Ok(response)
 }
+
+/// Fetch the OpenMetrics text-exposition endpoint of the OpenTelemetry
+/// collector and return the raw body.
+pub async fn get_otel_collector_metrics(endpoint: &str) -> Result<String, Error> {
+    let client = reqwest::Client::new();
+    let response = client.get(endpoint).send().await?;
+    Ok(response.text().await?)
+}
