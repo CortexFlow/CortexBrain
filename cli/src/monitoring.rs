@@ -7,11 +7,10 @@ use prost_types::FileDescriptorProto;
 use std::result::Result::Ok;
 use tonic_reflection::pb::v1::server_reflection_response::MessageResponse;
 
-use agent_api::client::{connect_to_client, connect_to_server_reflection};
+use agent_api::client::{OTEL_COLLECTOR_METRICS_ENDPOINT, connect_to_client, connect_to_server_reflection};
 use agent_api::requests::{
-    get_all_features, send_active_connection_request, send_dropped_packets_request,
-    send_latency_metrics_request,
-    send_veth_tracked_hashmap_req,
+    get_all_features, get_otel_collector_metrics, send_active_connection_request,
+    send_dropped_packets_request, send_latency_metrics_request, send_veth_tracked_hashmap_req,
 };
 
 use crate::errors::CliError;
@@ -42,6 +41,8 @@ pub enum MonitorCommands {
         about = "Monitor tracked veth interfaces from the identity service"
     )]
     Veth,
+    #[command(name = "otel-live", about = "Return metrics from the OTEL collector")]
+    LiveOtelMetricsHttp,
 }
 
 // cfcli monitor <args>
@@ -341,12 +342,31 @@ pub async fn monitor_tracked_veth() -> Result<(), CliError> {
     }
 }
 
+pub async fn live_otel_http_metrics() -> Result<(), CliError> {
+    println!(
+        "{} {}",
+        "=====>".blue().bold(),
+        "Connecting to OpenTelemetry collector".white()
+    );
+
+    match get_otel_collector_metrics(OTEL_COLLECTOR_METRICS_ENDPOINT).await {
+        Ok(response) => {
+            println!("{response}");
+        }
+        Err(e) => {
+            return Err(CliError::AgentError(
+                tonic_reflection::server::Error::InvalidFileDescriptorSet(e.to_string()),
+            ));
+        }
+    }
+    Ok(())
+}
+
 fn convert_timestamp_to_date(timestamp: u64) -> String {
     DateTime::from_timestamp_micros(timestamp as i64)
         .map(|dt| dt.to_string())
         .unwrap_or_else(|| "Cannot convert timestamp to date".to_string())
 }
-
 
 #[cfg(test)]
 mod tests {

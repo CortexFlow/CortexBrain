@@ -18,8 +18,8 @@ use crate::essential::{info, update_cli};
 use crate::install::{InstallArgs, InstallCommands, install_cortexflow, install_simple_example};
 use crate::logs::{LogsArgs, logs_command};
 use crate::monitoring::{
-    MonitorArgs, MonitorCommands, list_features, monitor_dropped_packets, monitor_identity_events,
-    monitor_latency_metrics, monitor_tracked_veth,
+    MonitorArgs, MonitorCommands, list_features, live_otel_http_metrics, monitor_dropped_packets,
+    monitor_identity_events, monitor_latency_metrics, monitor_tracked_veth,
 };
 use crate::policies::{
     PoliciesArgs, PoliciesCommands, check_blocklist, create_blocklist, remove_ip,
@@ -127,6 +127,9 @@ async fn args_parser() -> Result<(), CliError> {
             }
             MonitorCommands::Veth => {
                 let _ = monitor_tracked_veth().await?;
+            }
+            MonitorCommands::LiveOtelMetricsHttp => {
+                let _ = live_otel_http_metrics().await?;
             }
         },
         Some(Commands::Policies(policies_args)) => {
