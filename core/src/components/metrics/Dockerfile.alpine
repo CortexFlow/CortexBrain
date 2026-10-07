@@ -1,0 +1,57 @@
+FROM rust:1.90-alpine AS ebpf-builder
+
+RUN apk update && apk add \
+    clang \
+    clang-dev \
+    clang20-libclang \
+    llvm \
+    bpftool \
+    rust-bindgen
+
+RUN RUSTFLAGS="-C target-feature=-crt-static" cargo install --locked bpf-linker@0.10.4 
+RUN rustup toolchain install nightly-2025-08-01 --component rust-src
+
+WORKDIR /usr/src/app
+COPY . .
+
+RUN bpftool btf dump file /sys/kernel/btf/vmlinux format c > src/components/metrics_tracer/vmlinux.h \
+    && bindgen --use-core --no-layout-tests \
+        --allowlist-type 'sk_buff' \
+        --allowlist-type 'sock_common' \
+        --allowlist-type 'in6_addr' \
+        src/components/metrics_tracer/vmlinux.h \
+        -o src/components/metrics_tracer/src/bindings.rs \
+    && sed -i 's/ pub gen :/ pub r#gen :/g' src/components/metrics_tracer/src/bindings.rs
+
+RUN cargo +nightly-2025-08-01 build -Z build-std=core --target bpfel-unknown-none --release -p metrics_tracer
+
+# ==============================================================================
+# PHASE 2: Build the Main Metrics Service Application (User-space)
+# ==============================================================================
+FROM rust:1.90-alpine AS app-builder
+
+RUN apk update && apk add musl-dev
+
+WORKDIR /usr/src/app
+COPY . .
+
+RUN RUSTFLAGS="-C target-feature=-crt-static"  cargo +nightly-2025-08-01 build --release -p cortexflow-metrics
+
+# ==============================================================================
+# PHASE 3: Final minimal image (Production Runtime)
+# ==============================================================================
+FROM alpine:3.14
+
+RUN apk update && apk add \
+    libgcc \
+    ca-certificates
+
+WORKDIR /usr/src/cortexbrain-metrics
+
+COPY --from=app-builder /usr/src/app/target/release/cortexflow-metrics /usr/local/bin/cortexflow-metrics
+COPY --from=ebpf-builder /usr/src/app/target/bpfel-unknown-none/release/metrics_tracer /usr/src/cortexbrain-metrics/metrics_tracer
+
+ENV BPF_PATH="/usr/src/cortexbrain-metrics/metrics_tracer"
+ENV PIN_MAP_PATH="/sys/fs/bpf/trace_maps"
+
+CMD ["cortexflow-metrics"]
