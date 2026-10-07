@@ -3,8 +3,8 @@ use anyhow::anyhow;
 use aya::maps::perf::PerfEventArrayBuffer;
 use chrono::Local;
 use cortexbrain_common::buffer_type::IpProtocols;
-use cortexbrain_common::buffer_type::PacketLossMetrics;
 use cortexbrain_common::buffer_type::PacketLog;
+use cortexbrain_common::buffer_type::PacketLossMetrics;
 use cortexbrain_common::buffer_type::TimeStampMetrics;
 use cortexbrain_common::formatters::{format_ipv4, format_ipv6};
 use cortexbrain_common::map_handlers::load_perf_event_array_from_mapdata;
@@ -186,12 +186,12 @@ impl Default for AgentApi {
                         }
                         Err(e) => {
                             eprintln!("Error while reading events: {}", e);
-                            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                            tokio::time::sleep(tokio::time::Duration::from_millis(5000)).await;
                         }
                     }
                 }
                 // small delay to avoid cpu congestion
-                tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                tokio::time::sleep(tokio::time::Duration::from_millis(5000)).await;
             }
         });
 
@@ -253,12 +253,12 @@ impl Default for AgentApi {
                         }
                         Err(e) => {
                             eprintln!("Errore nella lettura network metrics eventi: {}", e);
-                            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                            tokio::time::sleep(tokio::time::Duration::from_millis(5000)).await;
                         }
                     }
                 }
                 // small delay to avoid cpu congestion
-                tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                tokio::time::sleep(tokio::time::Duration::from_millis(5000)).await;
             }
         });
 
@@ -320,7 +320,7 @@ impl Default for AgentApi {
                         }
                         Err(e) => {
                             eprintln!("Errore nella lettura time stamp eventi: {}", e);
-                            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                            tokio::time::sleep(tokio::time::Duration::from_millis(5000)).await;
                         }
                     }
                 }
@@ -389,7 +389,7 @@ impl Default for AgentApi {
                         }
                         Err(e) => {
                             eprintln!("Errore nella lettura time stamp eventi: {}", e);
-                            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                            tokio::time::sleep(tokio::time::Duration::from_millis(5000)).await;
                         }
                     }
                 }
