@@ -43,6 +43,7 @@ tokio-stream = "0.1.17"
 bytemuck = { version = "1.23.0" }
 bytemuck_derive = "1.10.1"
 chrono = "0.4.42"
+reqwest = "0.13.4"
 
 [build-dependencies]
 tonic-build = "0.14.0"
