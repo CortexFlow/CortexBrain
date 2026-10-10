@@ -35,6 +35,8 @@ metadata:
     app: prometheus
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: prometheus
@@ -49,7 +51,7 @@ spec:
         runAsNonRoot: true
       containers:
         - name: prometheus
-          image: prom/prometheus:v2.51.2
+          image: prom/prometheus:v3.13.3
           args:
             - "--config.file=/etc/prometheus/prometheus.yml"
             - "--storage.tsdb.path=/prometheus"
