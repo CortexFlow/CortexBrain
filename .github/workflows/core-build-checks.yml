@@ -154,3 +154,25 @@ jobs:
     - name: Cleanup build artifacts
       run: |
         docker system prune -f
+    
+  build-metrics-alpine:
+    runs-on : alpine-latest 
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build metrics image(alpine)
+        run: |
+          cd core
+          chmod +x metrics-build-alpine.sh
+          echo "🚀 Starting CortexFlow Metrics build..."
+          ./metrics-build-alpine.sh || { echo "❌ Metrics build failed"; exit 1; }4
+          echo "✅ Metrics build completed"
+      
+      - name: Cleanup artifacts
+        run: docker system prune -f
+    
