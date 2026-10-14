@@ -6,6 +6,9 @@ use tonic_reflection::pb::v1::server_reflection_client::ServerReflectionClient;
 
 const AGENT_IP: &str = "http://127.0.0.1:9090";
 
+/// OpenTelemetry collector OpenMetrics text-exposition scrape endpoint.
+pub const OTEL_COLLECTOR_METRICS_ENDPOINT: &str = "http://127.0.0.1:8889/metrics";
+
 #[cfg(feature = "client")]
 pub async fn connect_to_client() -> Result<AgentClient<Channel>, Error> {
     //this methods force a HTTP/2 connection from a static string

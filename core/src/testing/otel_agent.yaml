@@ -31,8 +31,7 @@ data:
         endpoint: ${OTEL_COLLECTOR_SERVICE_HOST}:4317
         tls:
           insecure: true
-      logging:
-        loglevel: info   
+      debug: {}
       prometheus:
           endpoint: 0.0.0.0:8889
           namespace: cortexbrain
@@ -41,10 +40,10 @@ data:
       pipelines:
         traces:
           receivers: [otlp]
-          exporters: [otlp, logging]
+          exporters: [otlp, debug]
         logs:
           receivers: [otlp]
-          exporters: [otlp, logging]
+          exporters: [otlp, debug]
         metrics:
           receivers: [otlp]
           processors: [transform/identity]
@@ -74,7 +73,7 @@ spec:
       dnsPolicy: ClusterFirstWithHostNet
       containers:
       - name: otel-agent
-        image: otel/opentelemetry-collector-contrib:0.95.0
+        image: otel/opentelemetry-collector-contrib:0.162.0
         command:
           - "/otelcol-contrib"
           - "--config=/conf/otel-agent-config.yaml"
@@ -146,7 +145,7 @@ data:
     #    endpoint: otel-collector.cortexflow.svc.cluster.local:4317
     #    tls:
     #      insecure: true
-      logging: {}  
+      debug: {}  
       prometheus:
           endpoint: 0.0.0.0:8889
           namespace: cortexbrain
@@ -157,15 +156,15 @@ data:
         traces:
           receivers: [otlp]
           processors: [memory_limiter]
-          exporters: [logging]
+          exporters: [debug]
         logs:
           receivers: [otlp]
           processors: [memory_limiter]
-          exporters: [logging]
+          exporters: [debug]
         metrics: 
           receivers: [otlp]
           processors: [memory_limiter, transform/identity]
-          exporters: [logging,prometheus]
+          exporters: [debug,prometheus]
 
 ---
 apiVersion: v1
@@ -214,7 +213,7 @@ spec:
     spec:
       containers:
       - name: otel-collector
-        image: otel/opentelemetry-collector-contrib:0.95.0
+        image: otel/opentelemetry-collector-contrib:0.162.0
         command:
           - "/otelcol-contrib"
           - "--config=/conf/otel-collector-config.yaml"

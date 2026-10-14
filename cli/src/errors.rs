@@ -100,7 +100,7 @@ impl fmt::Display for CliError {
             CliError::ClientError(e) => {
                 // raw error looks like this
                 // (ErrorResponse { status: "failed", message: "Failed to connect to kubernetes client", reason: "transport error", code: 404 }
-                let msg = Error::source(e).unwrap(); // msg = Failed to connect to kubernetes client: transport error
+                let msg = Error::source(e).unwrap_or(e); // msg = Failed to connect to kubernetes client: transport error
                 write!(
                     f,
                     "{} {} {}",
@@ -110,7 +110,7 @@ impl fmt::Display for CliError {
                 )
             }
             CliError::AgentError(e) => {
-                let msg = Error::source(e).unwrap();
+                let msg = Error::source(e).unwrap_or(e);
                 write!(
                     f,
                     "{} {} {}",
