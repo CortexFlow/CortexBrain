@@ -20,7 +20,7 @@ processors:
             where attributes["container.name"] == nil and attributes["k8s.pod.name"] != nil
 
 exporters:
-  logging: {}
+  debug: {}
   prometheus:
     endpoint: 0.0.0.0:8889
     namespace: cortexbrain
@@ -30,12 +30,12 @@ service:
     traces:
       receivers: [otlp]
       processors: [memory_limiter]
-      exporters: [logging]
+      exporters: [debug]
     logs:
       receivers: [otlp]
       processors: [memory_limiter]
-      exporters: [logging]
+      exporters: [debug]
     metrics:
       receivers: [otlp]
       processors: [memory_limiter, transform/identity]
-      exporters: [logging, prometheus]
+      exporters: [debug,prometheus]
