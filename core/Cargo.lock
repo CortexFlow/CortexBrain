@@ -556,7 +556,7 @@ dependencies = [
  "aya-log",
  "bytemuck",
  "bytes",
- "cortexbrain-common 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
+ "cortexbrain-common 0.1.4",
  "libc",
  "nix 0.31.3",
  "opentelemetry",

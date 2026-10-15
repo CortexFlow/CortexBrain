@@ -8,9 +8,6 @@ use tokio::sync::RwLock;
 use tracing::{debug, info};
 
 use crate::service_cache::ServiceCache;
-
-// TODO: add containerd tracing and mutual exclusion for docker environments
-
 /// Detected container runtime.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ContainerRuntime {
@@ -30,7 +27,7 @@ pub struct Metadata {
     pub container_name: Option<String>,
     pub container_id: Option<String>,
     pub pod_name: Option<String>,
-    pub namespace: Option<String>, // TODO: implement this one
+    pub namespace: Option<String>,
 }
 
 impl Metadata {
@@ -105,8 +102,9 @@ impl Metadata {
             // acquire cache lock
             let cache_lock = cache.read().await;
             match cache_lock.get_from_cache(&id).await {
-                Some(name) => {
-                    self.pod_name = Some(name);
+                Some(cached_data) => {
+                    self.pod_name = Some(cached_data[0].clone());
+                    self.namespace = Some(cached_data[1].clone());
                     return true;
                 }
                 None => {
@@ -150,10 +148,14 @@ impl Metadata {
 
                 let cache_lock = cache.read().await;
                 match cache_lock.get_from_cache(&id).await {
-                    Some(name) => self.container_name = Some(name),
+                    Some(cached_data) => {
+                        self.container_name = Some(cached_data[0].clone());
+                        self.namespace = Some(cached_data[1].clone());
+                    }
                     None => match resolve_docker_name(&id) {
                         Some(name) => {
                             self.container_name = Some(name);
+                            self.namespace = None;
                             return true;
                         }
                         None => return false,
