@@ -65,13 +65,7 @@ pub fn resolve_libssl_path() -> anyhow::Result<Option<String>> {
 /// service cache used by every perf-buffer consumer.
 pub async fn init_metrics_and_cache(
     meter: &Meter,
-) -> Result<
-    (
-        Arc<Metrics>,
-        Arc<tokio::sync::RwLock<ServiceCache>>,
-    ),
-    anyhow::Error,
-> {
+) -> Result<(Arc<Metrics>, Arc<tokio::sync::RwLock<ServiceCache>>), anyhow::Error> {
     let metrics = Arc::new(Metrics::new(meter));
 
     let mut cache_obj = ServiceCache { service_map: None };

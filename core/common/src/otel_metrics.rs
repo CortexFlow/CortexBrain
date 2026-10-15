@@ -14,7 +14,7 @@ use crate::buffer_type::{
     CpuFrequency, CpuIdle, MemAlloc, PacketLossMetrics, SchedStatRuntime, SchedStatWait, SslEvent,
     TimeStampMetrics,
 };
-use crate::metadata::{Metadata};
+use crate::metadata::Metadata;
 use crate::semantic::Semantic;
 use opentelemetry::KeyValue;
 use opentelemetry::metrics::{Counter, Gauge, Histogram, Meter};
@@ -243,7 +243,10 @@ impl Metrics {
     /// and `sk_err` as gauges.
     pub fn record_packet_loss_metrics(&self, m: &PacketLossMetrics, metadata: &Metadata) {
         let attrs = &self.build_attrs(metadata);
-        debug!("Building attributes for packet loss metrics. Attributes: {:?}",attrs);
+        debug!(
+            "Building attributes for packet loss metrics. Attributes: {:?}",
+            attrs
+        );
 
         self.events_total.add(1, attrs);
         self.socket_events_total.add(1, attrs);
@@ -257,7 +260,10 @@ impl Metrics {
     /// histogram.
     pub fn record_timestamp_metrics(&self, m: &TimeStampMetrics, metadata: &Metadata) {
         let attrs = &self.build_attrs(metadata);
-        debug!("Building attributes for latency metrics. Attributes: {:?}",attrs);
+        debug!(
+            "Building attributes for latency metrics. Attributes: {:?}",
+            attrs
+        );
 
         self.events_total.add(1, attrs);
         self.tcp_latency_us.record(m.delta_us, attrs);
@@ -267,7 +273,10 @@ impl Metrics {
     pub fn record_cpu_bytes_alloc(&self, m: &CpuFrequency, metadata: &Metadata) {
         let bytes_allocated = m.bytes_alloc;
         let attrs = &self.build_attrs(metadata);
-        debug!("Building attributes for CPU metrics. Attributes: {:?}",attrs);
+        debug!(
+            "Building attributes for CPU metrics. Attributes: {:?}",
+            attrs
+        );
 
         self.cpu_bytes_alloc_events_total.add(1, attrs);
         self.cpu_bytes_alloc.record(bytes_allocated as i64, attrs);
@@ -281,7 +290,10 @@ impl Metrics {
     /// events.
     pub fn record_enter_mem_alloc(&self, m: &MemAlloc, metadata: &Metadata) {
         let attrs = &self.build_attrs(metadata);
-        debug!("Building attributes for Mem alloc metrics. Attributes: {:?}",attrs);
+        debug!(
+            "Building attributes for Mem alloc metrics. Attributes: {:?}",
+            attrs
+        );
 
         self.events_total.add(1, attrs);
         self.mem_alloc_events_total.add(1, attrs);
@@ -295,8 +307,11 @@ impl Metrics {
     /// histogram.
     pub fn record_sched_stat_wait(&self, m: &SchedStatWait, metadata: &Metadata) {
         let attrs = &self.build_attrs(metadata);
-        debug!("Building attributes for Sched stat wait metrics. Attributes: {:?}",attrs);
-        
+        debug!(
+            "Building attributes for Sched stat wait metrics. Attributes: {:?}",
+            attrs
+        );
+
         self.events_total.add(1, attrs);
         self.sched_stat_wait.record(m.delay as i64, attrs);
         self.sched_stat_wait_distribution.record(m.delay, attrs);
@@ -310,8 +325,10 @@ impl Metrics {
     pub fn record_sched_stat_runtime(&self, m: &SchedStatRuntime, metadata: &Metadata) {
         let attrs = &self.build_attrs(metadata);
 
-        debug!("Building attributes for sched stat runtime metrics. Attributes: {:?}",attrs);
-
+        debug!(
+            "Building attributes for sched stat runtime metrics. Attributes: {:?}",
+            attrs
+        );
 
         self.events_total.add(1, attrs);
         self.sched_stat_runtime.record(m.runtime as i64, attrs);
@@ -326,7 +343,10 @@ impl Metrics {
     pub fn record_cpu_idle(&self, m: &CpuIdle, metadata: &Metadata) {
         let mut attrs = self.build_attrs(metadata);
 
-        debug!("Building attributes for record cpu idle metrics. Attributes: {:?}",attrs);
+        debug!(
+            "Building attributes for record cpu idle metrics. Attributes: {:?}",
+            attrs
+        );
 
         attrs.push(KeyValue::new("cpu_id", m.cpu_id as i64));
 
@@ -336,16 +356,20 @@ impl Metrics {
 
     pub fn record_ssl_read_bytes(&self, m: &SslEvent, metadata: &Metadata) {
         let attrs = self.build_attrs(metadata);
-        debug!("Building attributes for SSL read metrics. Attributes: {:?}",attrs);
-
+        debug!(
+            "Building attributes for SSL read metrics. Attributes: {:?}",
+            attrs
+        );
 
         self.events_total.add(1, &attrs);
         self.ssl_read_bytes.record(m.size as i64, &attrs);
     }
     pub fn record_ssl_write_bytes(&self, m: &SslEvent, metadata: &Metadata) {
         let attrs = self.build_attrs(metadata);
-        debug!("Building attributes for SSL write metrics. Attributes: {:?}",attrs);
-
+        debug!(
+            "Building attributes for SSL write metrics. Attributes: {:?}",
+            attrs
+        );
 
         self.events_total.add(1, &attrs);
         self.ssl_write_bytes.record(m.size as i64, &attrs);
