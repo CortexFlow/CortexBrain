@@ -19,8 +19,8 @@ spec:
       hostNetwork: true
       containers:
         - name: metrics
-          image: lorenzotettamanti/cortexflow-metrics:0.1.1-cache-5s-update-6
-          command: ["/bin/bash", "-c"]
+          image: lorenzotettamanti/alpine-cf-metrics:latest
+          command: ["/bin/sh", "-c"]
           args:
             - |
               echo "Running on kernel $(uname -r)"
@@ -64,33 +64,6 @@ spec:
             - name: cgroup
               mountPath: /host/sys/fs/cgroup
               readOnly: true
-          securityContext:
-            privileged: true
-            allowPrivilegeEscalation: true
-            capabilities:
-              add:
-                - SYS_ADMIN
-                - NET_ADMIN
-                - SYS_RESOURCE
-                - BPF
-                - SYS_PTRACE
-        - name: bpftool-control-manager
-          image: danielpacak/bpftool-runner:latest
-          command: ["/bin/bash", "-c", "sleep infinity"]
-          volumeMounts:
-            - name: bpf
-              mountPath: /sys/fs/bpf
-              mountPropagation: Bidirectional
-              readOnly: false
-            - name: proc
-              mountPath: /host/proc
-              readOnly: false
-            - name: kernel-dev
-              mountPath: /lib/modules
-              readOnly: false
-            - name: tracefs
-              mountPath: /sys/kernel/debug
-              readOnly: false
           securityContext:
             privileged: true
             allowPrivilegeEscalation: true
