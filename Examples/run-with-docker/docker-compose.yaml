@@ -1,6 +1,6 @@
 services:
   cortexflow-metrics:
-    image: ghcr.io/cortexflow/metrics:latest
+    image: lorenzotettamanti/alpine-cf-metrics:latest
     container_name: cortexflow-metrics
     stop_signal: SIGINT
     restart: unless-stopped
@@ -67,6 +67,29 @@ services:
     depends_on:
       #      - cortexflow-identity
       - cortexflow-metrics
+
+  nvidia-dcgm:
+    image: nvidia/dcgm-exporter:4.8.4
+    container_name: nvidia-dcgm
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    cap_add:
+      - SYS_ADMIN
+    depends_on:
+      - cortexflow-metrics
+    restart: always
+    gpus: all
+    ports:
+      - "9400:9400"
+    networks:
+      - cortexflow
+    
+
 
   prometheus:
     image: prom/prometheus:v3.13.3
