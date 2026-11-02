@@ -186,8 +186,8 @@ pub async fn event_listener(bpf_maps: BpfMapsData, meter: Meter) -> Result<(), a
     let net_metrics_handle = {
         let metrics = Arc::clone(&metrics);
         let service_cache = Arc::clone(&cache);
-        let mut array_buffers = net_perf_buffer;
-        let mut buffers = net_metrics_buffers;
+        let array_buffers = net_perf_buffer;
+        let buffers = net_metrics_buffers;
         tokio::spawn(async move {
             read_perf_buffer(
                 array_buffers,
@@ -203,8 +203,8 @@ pub async fn event_listener(bpf_maps: BpfMapsData, meter: Meter) -> Result<(), a
     let time_stamp_handle = {
         let metrics = Arc::clone(&metrics);
         let service_cache = Arc::clone(&cache);
-        let mut array_buffers = time_stamp_events_perf_buffer;
-        let mut buffers = time_stamp_events_buffers;
+        let array_buffers = time_stamp_events_perf_buffer;
+        let buffers = time_stamp_events_buffers;
         tokio::spawn(async move {
             read_perf_buffer(
                 array_buffers,
@@ -220,8 +220,8 @@ pub async fn event_listener(bpf_maps: BpfMapsData, meter: Meter) -> Result<(), a
     let cpu_frequency_metrics = {
         let metrics = Arc::clone(&metrics);
         let service_cache = Arc::clone(&cache);
-        let mut array_buffers = cpu_frequency_perf_buffer;
-        let mut buffers = cpu_frequency_events_buffers;
+        let array_buffers = cpu_frequency_perf_buffer;
+        let buffers = cpu_frequency_events_buffers;
         tokio::spawn(async move {
             read_perf_buffer(
                 array_buffers,
@@ -237,8 +237,8 @@ pub async fn event_listener(bpf_maps: BpfMapsData, meter: Meter) -> Result<(), a
     let cpu_idle_metrics = {
         let metrics = Arc::clone(&metrics);
         let service_cache = Arc::clone(&cache);
-        let mut array_buffers = cpu_idle_perf_buffer;
-        let mut buffers = cpu_idle_buffers;
+        let array_buffers = cpu_idle_perf_buffer;
+        let buffers = cpu_idle_buffers;
         tokio::spawn(async move {
             read_perf_buffer(
                 array_buffers,
@@ -254,8 +254,8 @@ pub async fn event_listener(bpf_maps: BpfMapsData, meter: Meter) -> Result<(), a
     let mem_alloc_metrics = {
         let metrics = Arc::clone(&metrics);
         let service_cache = Arc::clone(&cache);
-        let mut array_buffers = mem_alloc_perf_buffer;
-        let mut buffers = mem_alloc_buffers;
+        let array_buffers = mem_alloc_perf_buffer;
+        let buffers = mem_alloc_buffers;
         tokio::spawn(async move {
             read_perf_buffer(
                 array_buffers,
@@ -272,8 +272,8 @@ pub async fn event_listener(bpf_maps: BpfMapsData, meter: Meter) -> Result<(), a
         let metrics = Arc::clone(&metrics);
         let service_cache = Arc::clone(&cache);
 
-        let mut array_buffers = sched_stat_wait_perf_buffer;
-        let mut buffers = sched_stat_wait_buffers;
+        let array_buffers = sched_stat_wait_perf_buffer;
+        let buffers = sched_stat_wait_buffers;
         tokio::spawn(async move {
             read_perf_buffer(
                 array_buffers,
@@ -289,8 +289,8 @@ pub async fn event_listener(bpf_maps: BpfMapsData, meter: Meter) -> Result<(), a
     let sched_stat_runtime_metrics = {
         let metrics = Arc::clone(&metrics);
         let service_cache = Arc::clone(&cache);
-        let mut array_buffers = sched_stat_runtime_perf_buffer;
-        let mut buffers = sched_stat_runtime_buffers;
+        let array_buffers = sched_stat_runtime_perf_buffer;
+        let buffers = sched_stat_runtime_buffers;
         tokio::spawn(async move {
             read_perf_buffer(
                 array_buffers,
@@ -306,8 +306,8 @@ pub async fn event_listener(bpf_maps: BpfMapsData, meter: Meter) -> Result<(), a
     let ssl_events_metrics = {
         let metrics = Arc::clone(&metrics);
         let service_cache = Arc::clone(&cache);
-        let mut array_buffers = ssl_events_perf_buffer;
-        let mut buffers = ssl_events_buffers;
+        let array_buffers = ssl_events_perf_buffer;
+        let buffers = ssl_events_buffers;
         tokio::spawn(async move {
             read_perf_buffer(
                 array_buffers,
