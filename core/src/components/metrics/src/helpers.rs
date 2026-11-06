@@ -1,19 +1,28 @@
 use anyhow::anyhow;
-use aya::util::online_cpus;
-use cortexbrain_common::map_handlers::map_manager;
-use cortexbrain_common::{buffer_type::BufferSize, map_handlers::BpfMapsData};
+use aya::{
+    Ebpf,
+    programs::{ProgramError, UProbe},
+    util::online_cpus,
+};
+use cortexbrain_common::{
+    buffer_type::BufferSize,
+    constants,
+    consumer::{Consumer, read_perf_buffer},
+    map_handlers::{BpfMapsData, map_manager},
+    otel_metrics::Metrics,
+    service_cache::ServiceCache,
+};
 use opentelemetry::metrics::Meter;
-use std::env;
-use std::path::Path;
-use std::sync::Arc;
-use std::time::Duration;
+use std::{
+    collections::HashSet,
+    env, fs,
+    os::unix::fs::MetadataExt,
+    path::Path,
+    sync::{Arc, Mutex, Once},
+    time::Duration,
+};
 use tokio::{signal, time};
-use tracing::{error, info};
-
-use cortexbrain_common::constants;
-use cortexbrain_common::consumer::{Consumer, read_perf_buffer};
-use cortexbrain_common::otel_metrics::Metrics;
-use cortexbrain_common::service_cache::ServiceCache;
+use tracing::{debug, error, info, warn};
 
 /// Locate the OpenSSL shared library used for the SSL uprobes.
 ///
@@ -76,6 +85,131 @@ pub async fn init_metrics_and_cache(
     Ok((metrics, cache))
 }
 
+const LIBSSL_NAMES: [&str; 4] = [
+    "libssl.so.3",
+    "libssl.so.1.1",
+    "libssl.so.1.0.0",
+    "libssl.so",
+];
+
+const LIBSSL_DIRS: [&str; 8] = [
+    "/usr/lib/x86_64-linux-gnu",
+    "/usr/lib64",
+    "/usr/lib/aarch64-linux-gnu",
+    "/lib/x86_64-linux-gnu",
+    "/lib64",
+    "/usr/lib",
+    "/lib",
+    "/usr/local/lib",
+];
+
+const SSL_UPROBES: [(&str, &str); 4] = [
+    ("ssl_read", "SSL_read"),
+    ("ssl_read_ret", "SSL_read"),
+    ("ssl_write", "SSL_write"),
+    ("ssl_write_ret", "SSL_write"),
+];
+
+static INVALID_LIBSSL_PATH: Once = Once::new();
+
+fn resolve_libssl_paths() -> Vec<String> {
+    let mut paths = Vec::new();
+
+    if let Ok(path) = env::var(constants::LIBSSL_PATH) {
+        if Path::new(&path).is_file() {
+            paths.push(path);
+        } else if !path.is_empty() {
+            INVALID_LIBSSL_PATH.call_once(|| warn!("Invalid LIBSSL_PATH: {}", path));
+        }
+    }
+
+    let Some(proc_dir) = ["/host/proc", "/proc"]
+        .into_iter()
+        .find(|dir| Path::new(dir).is_dir())
+    else {
+        return paths;
+    };
+    let Ok(entries) = fs::read_dir(proc_dir) else {
+        return paths;
+    };
+
+    let mut roots = HashSet::new();
+    for entry in entries.flatten() {
+        let Ok(pid) = entry.file_name().to_string_lossy().parse::<u32>() else {
+            continue;
+        };
+        let pid = pid.to_string();
+        let root = Path::new(proc_dir).join(&pid).join("root");
+        let Ok(metadata) = fs::metadata(&root) else {
+            continue;
+        };
+        if !roots.insert((metadata.dev(), metadata.ino())) {
+            continue;
+        }
+
+        for dir in LIBSSL_DIRS {
+            for name in LIBSSL_NAMES {
+                let path = root.join(dir.trim_start_matches('/')).join(name);
+                if path.is_file() {
+                    paths.push(path.to_string_lossy().into_owned());
+                }
+            }
+        }
+    }
+
+    paths
+}
+
+fn attach_uprobe(
+    bpf: &Arc<Mutex<Ebpf>>,
+    program_name: &str,
+    symbol: &str,
+    target: &str,
+) -> Result<(), anyhow::Error> {
+    let mut bpf = bpf
+        .lock()
+        .map_err(|e| anyhow::anyhow!("Cannot get value from lock. Reason: {}", e))?;
+    let program: &mut UProbe = bpf
+        .program_mut(program_name)
+        .ok_or_else(|| anyhow::anyhow!("Program {} not found", program_name))?
+        .try_into()
+        .map_err(|e| anyhow::anyhow!("Failed to convert program: {:?}", e))?;
+    match program.load() {
+        Ok(()) | Err(ProgramError::AlreadyLoaded) => {}
+        Err(e) => {
+            return Err(anyhow::anyhow!(
+                "Cannot load program: {}. Error: {}",
+                program_name,
+                e
+            ));
+        }
+    }
+    program
+        .attach(Some(symbol), 0, target, None)
+        .map_err(|e| anyhow::anyhow!("Failed to attach {} to {}: {:?}", program_name, target, e))?;
+    info!(
+        "{} program attached successfully to user space function {}",
+        program_name, target
+    );
+    Ok(())
+}
+
+fn attach_ssl_uprobes(bpf: &Arc<Mutex<Ebpf>>, attached: &mut HashSet<(u64, u64)>) {
+    for path in resolve_libssl_paths() {
+        let Ok(metadata) = fs::metadata(&path) else {
+            continue;
+        };
+        if !attached.insert((metadata.dev(), metadata.ino())) {
+            continue;
+        }
+        for (program, symbol) in SSL_UPROBES {
+            if let Err(e) = attach_uprobe(bpf, program, symbol, &path) {
+                debug!("SSL uprobe {} -> {}: {}", program, path, e);
+            }
+        }
+    }
+}
+
 /// Listen for eBPF perf-buffer events and record OpenTelemetry metrics.
 ///
 /// This function bridges the eBPF perf-buffer layer with the OpenTelemetry
@@ -97,6 +231,7 @@ pub async fn init_metrics_and_cache(
 pub async fn event_listener(bpf_maps: BpfMapsData, meter: Meter) -> Result<(), anyhow::Error> {
     info!("Getting CPU count...");
 
+    let bpf = Arc::clone(&bpf_maps.bpf);
     let mut maps = map_manager(bpf_maps)?;
 
     let cpu_count = online_cpus().map_err(|e| anyhow::anyhow!("Error {:?}", e))?;
@@ -179,6 +314,22 @@ pub async fn event_listener(bpf_maps: BpfMapsData, meter: Meter) -> Result<(), a
                 if let Err(e) = cache_lock.populate_map_with_pod_info().await {
                     error!("cache refresh fail. {}", e);
                 };
+            }
+        })
+    };
+
+    let mut attached = HashSet::new();
+    if let Ok(Some(path)) = resolve_libssl_path() {
+        if let Ok(metadata) = fs::metadata(&path) {
+            attached.insert((metadata.dev(), metadata.ino()));
+        }
+    }
+    let _ssl_handle = {
+        tokio::spawn(async move {
+            let mut interval = time::interval(Duration::from_secs(60));
+            loop {
+                interval.tick().await;
+                attach_ssl_uprobes(&bpf, &mut attached);
             }
         })
     };
