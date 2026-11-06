@@ -16,6 +16,7 @@ use crate::buffer_type::{
     CpuFrequency, CpuIdle, MemAlloc, PacketLossMetrics, SchedStatRuntime, SchedStatWait,
     TimeStampMetrics,
 };
+use crate::constants::DEFAULT_MAP_READING_TIME;
 #[cfg(feature = "network-structs")]
 use crate::buffer_type::{PacketLog, TcpPacketRegistry, VethLog};
 #[cfg(feature = "monitoring-structs")]
@@ -899,6 +900,6 @@ pub async fn read_perf_buffer<T: std::borrow::BorrowMut<aya::maps::MapData>>(
                 }
             }
         }
-        tokio::time::sleep(std::time::Duration::from_millis(5000)).await;
+        tokio::time::sleep(std::time::Duration::from_millis(std::env::var(DEFAULT_MAP_READING_TIME).ok().and_then(|v| v.parse::<u64>().ok()).unwrap_or(5000))).await;
     }
 }

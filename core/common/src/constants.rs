@@ -10,3 +10,5 @@ pub const PIN_MAP_PATH: &str = "PIN_MAP_PATH";
 /// When set, this path is used directly. When unset, the library is located
 /// by searching the default system library directories.
 pub const LIBSSL_PATH: &str = "LIBSSL_PATH";
+
+pub const DEFAULT_MAP_READING_TIME : &str = "DEFAULT_MAP_READING_TIME";
