@@ -12,6 +12,7 @@ services:
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
       - OTEL_EXPORTER_OTLP_PROTOCOL=grpc
       - LIBSSL_PATH=/host/usr/lib/x86_64-linux-gnu/libssl.so.3
+      - DEFAULT_MAP_READING_TIME=100
     volumes:
       - type: bind
         source: /sys/fs/bpf
