@@ -70,6 +70,18 @@ jobs:
       working-directory: cli
       run: cargo test --locked
 
+  test-identity:
+    name: Test Identity
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Test Identity
+      working-directory: core
+      run: cargo test --locked -p cortexflow_identity
+
   test-mcp:
     name: Test MCP
     runs-on: ubuntu-latest
