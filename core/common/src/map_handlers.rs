@@ -8,8 +8,7 @@ use kube::{Api, Client};
 use std::net::Ipv4Addr;
 use std::path::PathBuf;
 use std::str::FromStr;
-use std::sync::Arc;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use tracing::warn;
 use tracing::{error, info};
 
@@ -23,6 +22,7 @@ use tracing::{error, info};
 pub struct BpfMapsData {
     pub bpf_obj_names: Vec<String>,
     pub bpf_obj_map: Vec<Map>,
+    pub bpf: Arc<Mutex<Ebpf>>,
 }
 
 #[cfg(feature = "map-handlers")]
@@ -30,21 +30,25 @@ pub fn init_bpf_maps(
     bpf: Arc<Mutex<Ebpf>>,
     map_names: Vec<String>,
 ) -> Result<BpfMapsData, anyhow::Error> {
-    let mut bpf_new = bpf
-        .lock()
-        .map_err(|e| anyhow::anyhow!("Cannot get value from lock. Reason: {}", e))?;
-
     let mut maps = Vec::new(); // stores bpf_maps_objects
 
-    for name in &map_names {
-        let bpf_map_init = bpf_new
-            .take_map(&name)
-            .ok_or_else(|| anyhow::anyhow!("{} map not found", &name))?;
-        maps.push(bpf_map_init);
+    {
+        let mut bpf_new = bpf
+            .lock()
+            .map_err(|e| anyhow::anyhow!("Cannot get value from lock. Reason: {}", e))?;
+
+        for name in &map_names {
+            let bpf_map_init = bpf_new
+                .take_map(&name)
+                .ok_or_else(|| anyhow::anyhow!("{} map not found", &name))?;
+            maps.push(bpf_map_init);
+        }
     }
+
     Ok(BpfMapsData {
         bpf_obj_names: map_names.clone(),
         bpf_obj_map: maps,
+        bpf,
     })
 }
 
@@ -68,6 +72,7 @@ pub fn map_pinner(maps: BpfMapsData, path: &PathBuf) -> Result<BpfMapsData, Erro
     let mut owned_bpf_maps_data = BpfMapsData {
         bpf_obj_names: Vec::new(),
         bpf_obj_map: Vec::new(),
+        bpf: maps.bpf,
     };
     // an iterator that iterates two iterators simultaneously
     for (map_obj, name) in maps
