@@ -1500,7 +1500,6 @@ dependencies = [
  "aya-ebpf",
  "aya-log-ebpf",
  "bytemuck",
- "which",
 ]
 
 [[package]]

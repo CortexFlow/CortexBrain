@@ -168,7 +168,7 @@ jobs:
         docker system prune -f
     
   build-metrics-alpine:
-    runs-on : alpine-latest 
+    runs-on : ubuntu-latest
     
     steps:
       - name: Checkout code
@@ -182,7 +182,7 @@ jobs:
           cd core
           chmod +x metrics-build-alpine.sh
           echo "🚀 Starting CortexFlow Metrics build..."
-          ./metrics-build-alpine.sh || { echo "❌ Metrics build failed"; exit 1; }4
+          ./metrics-build-alpine.sh || { echo "❌ Metrics build failed"; exit 1; }
           echo "✅ Metrics build completed"
       
       - name: Cleanup artifacts
