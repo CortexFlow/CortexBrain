@@ -12,7 +12,7 @@
 //! 4. Records the observation through [`Metrics::record_*`].
 
 #[cfg(feature = "network-structs")]
-use crate::buffer_type::{PacketLog, TcpPacketRegistry, VethLog};
+use crate::buffer_type::{BlocklistHit, PacketLog, TcpPacketRegistry, VethLog};
 #[cfg(feature = "monitoring-structs")]
 use crate::buffer_type::{
     CpuFrequency, CpuIdle, MemAlloc, PacketLossMetrics, SchedStatRuntime, SchedStatWait,
@@ -143,6 +143,8 @@ pub enum Consumer {
     TcpPacketRegistry {
         tracker: Arc<Mutex<IdentityFlowTracker>>,
     },
+    #[cfg(feature = "network-structs")]
+    BlocklistHit,
     #[cfg(feature = "network-structs")]
     VethLog,
     #[cfg(feature = "monitoring-structs")]
@@ -297,6 +299,51 @@ impl Consumer {
                 {
                     let _ = &tracker;
                 }
+            }
+        }
+    }
+
+    /// Read [`BlocklistHit`] events and record OpenTelemetry observations.
+    ///
+    /// Each event represents a packet dropped by the identity TC classifier
+    /// because its source address matched the blocklist.
+    #[cfg(feature = "network-structs")]
+    pub async fn read_blocklist_hit(
+        buffers: &mut [BytesMut],
+        tot_events: i32,
+        offset: i32,
+        #[cfg(feature = "monitoring-structs")] exporter: &str,
+        #[cfg(feature = "monitoring-structs")] metrics: Arc<Metrics>,
+    ) {
+        use crate::buffer_type::reverse_be_addr;
+
+        for i in offset..tot_events {
+            let vec_bytes = &buffers[i as usize];
+            if vec_bytes.len() < std::mem::size_of::<BlocklistHit>() {
+                error!(
+                    "Corrupted BlocklistHit data. Raw data: {}. Readed {} bytes expected {} bytes",
+                    vec_bytes
+                        .iter()
+                        .map(|b| format!("{:02x}", b))
+                        .collect::<Vec<_>>()
+                        .join(" "),
+                    vec_bytes.len(),
+                    std::mem::size_of::<BlocklistHit>()
+                );
+                continue;
+            }
+            if vec_bytes.len() >= std::mem::size_of::<BlocklistHit>() {
+                let hit: BlocklistHit =
+                    unsafe { std::ptr::read_unaligned(vec_bytes.as_ptr() as *const _) };
+
+                let blocked_ip = reverse_be_addr(hit.src_ip);
+
+                #[cfg(feature = "monitoring-structs")]
+                if exporter == "otlp" {
+                    metrics.record_identity_blocklist_hit(&blocked_ip.to_string());
+                }
+
+                info!("Blocklist hit - blocked_ip: {}", blocked_ip);
             }
         }
     }
@@ -939,6 +986,21 @@ pub async fn read_perf_buffer<T: std::borrow::BorrowMut<aya::maps::MapData>>(
                                     tracker.clone(),
                                 )
                                 .await;
+                            }
+                            #[cfg(feature = "network-structs")]
+                            Consumer::BlocklistHit => {
+                                #[cfg(feature = "monitoring-structs")]
+                                Consumer::read_blocklist_hit(
+                                    &mut buffers,
+                                    tot_events,
+                                    offset,
+                                    "otlp",
+                                    metrics.clone().expect("Metrics required for BlocklistHit"),
+                                )
+                                .await;
+                                #[cfg(not(feature = "monitoring-structs"))]
+                                Consumer::read_blocklist_hit(&mut buffers, tot_events, offset)
+                                    .await;
                             }
                             #[cfg(feature = "network-structs")]
                             Consumer::VethLog => {

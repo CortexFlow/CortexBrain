@@ -43,6 +43,7 @@ services:
       - OTEL_SERVICE_NAME=cortexflow-identity
       - OTEL_RESOURCE_ATTRIBUTES=service.namespace=cortexflow,service.version=0.1.5
       - DEFAULT_MAP_READING_TIME=100
+      - BLOCKLIST_FILE=/etc/cortexbrain/blocklist
     volumes:
       - type: bind
         source: /sys/fs/bpf
@@ -52,6 +53,7 @@ services:
       - /lib/modules:/lib/modules:ro
       - /sys/kernel/debug:/sys/kernel/debug
       - /proc:/host/proc:ro
+      - ./config:/etc/cortexbrain:ro
     networks:
       - cortexflow
 

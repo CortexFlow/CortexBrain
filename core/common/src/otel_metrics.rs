@@ -71,6 +71,9 @@ pub struct Metrics {
 
     /// Unique connections detected by the identity service, partitioned by direction.
     pub identity_connections_total: Counter<u64>,
+
+    /// Packets dropped by the identity blocklist classifier, tagged by blocked IP.
+    pub identity_blocklist_hits_total: Counter<u64>,
 }
 
 // TODO: introduce a metric called total_tcp_packets total_udp_packets
@@ -189,6 +192,11 @@ impl Metrics {
             .with_description(Semantic::IdentityConnectionsTotal.description())
             .build();
 
+        let identity_blocklist_hits_total = meter
+            .u64_counter(Semantic::IdentityBlocklistHitsTotal.title())
+            .with_description(Semantic::IdentityBlocklistHitsTotal.description())
+            .build();
+
         Self {
             events_total,
             socket_events_total,
@@ -207,6 +215,7 @@ impl Metrics {
             ssl_read_bytes,
             ssl_write_bytes,
             identity_connections_total,
+            identity_blocklist_hits_total,
         }
     }
 
@@ -405,5 +414,16 @@ impl Metrics {
         );
 
         self.identity_connections_total.add(1, &attrs);
+    }
+
+    /// Record a packet dropped by the identity blocklist classifier.
+    pub fn record_identity_blocklist_hit(&self, blocked_ip: &str) {
+        let attrs = [KeyValue::new("blocked_ip", blocked_ip.to_string())];
+        debug!(
+            "Building attributes for identity blocklist hit metrics. Attributes: {:?}",
+            attrs
+        );
+
+        self.identity_blocklist_hits_total.add(1, &attrs);
     }
 }

@@ -95,6 +95,15 @@ pub struct TcpPacketRegistry {
 #[cfg(feature = "network-structs")]
 unsafe impl aya::Pod for TcpPacketRegistry {}
 
+#[cfg(feature = "network-structs")]
+#[repr(C)]
+#[derive(Clone, Copy, Zeroable)]
+pub struct BlocklistHit {
+    pub src_ip: u32,
+}
+#[cfg(feature = "network-structs")]
+unsafe impl aya::Pod for BlocklistHit {}
+
 #[cfg(feature = "monitoring-structs")]
 pub const TASK_COMM_LEN: usize = 16;
 #[cfg(feature = "monitoring-structs")]
@@ -231,6 +240,8 @@ pub enum BufferSize {
     VethEvents,
     #[cfg(feature = "network-structs")]
     TcpEvents,
+    #[cfg(feature = "network-structs")]
+    BlocklistHit,
     #[cfg(feature = "monitoring-structs")]
     NetworkMetricsEvents,
     #[cfg(feature = "monitoring-structs")]
@@ -260,6 +271,8 @@ impl BufferSize {
             BufferSize::VethEvents => std::mem::size_of::<VethLog>(),
             #[cfg(feature = "network-structs")]
             BufferSize::TcpEvents => std::mem::size_of::<TcpPacketRegistry>(),
+            #[cfg(feature = "network-structs")]
+            BufferSize::BlocklistHit => std::mem::size_of::<BlocklistHit>(),
             #[cfg(feature = "monitoring-structs")]
             BufferSize::NetworkMetricsEvents => std::mem::size_of::<PacketLossMetrics>(),
             #[cfg(feature = "monitoring-structs")]
@@ -300,6 +313,11 @@ impl BufferSize {
             #[cfg(feature = "network-structs")]
             BufferSize::TcpEvents => {
                 let capacity = self.get_size() * 200;
+                return vec![BytesMut::with_capacity(capacity); tot_cpu];
+            }
+            #[cfg(feature = "network-structs")]
+            BufferSize::BlocklistHit => {
+                let capacity = self.get_size() * 1024;
                 return vec![BytesMut::with_capacity(capacity); tot_cpu];
             }
             #[cfg(feature = "monitoring-structs")]

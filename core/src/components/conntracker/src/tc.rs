@@ -6,8 +6,8 @@ use aya_ebpf::{
 };
 use aya_log_ebpf::info;
 
-use crate::data_structures::{ ConnArray, PacketLog };
-use crate::data_structures::{ EVENTS,BLOCKLIST };
+use crate::data_structures::{ BlocklistHit, ConnArray, PacketLog };
+use crate::data_structures::{ EVENTS,BLOCKLIST,BLOCKLIST_EVENTS };
 use crate::offsets::OFFSETS;
 
 // docs:
@@ -65,14 +65,20 @@ pub fn try_identity_classifier(ctx: TcContext) -> Result<(), i64> {
     let pid: u32 = bpf_get_current_pid_tgid() as u32;
 
     // check if the address is in the blocklist
-    let src_ip_be_bytes: [u8; 4] = src_ip.to_be_bytes(); // transforming the src_ip in big endian bytes
+    // `ctx.load::<u32>` returns the raw packet bytes in host order, so native-endian
+    // conversion restores the octet sequence used as the map key.
+    let src_ip_key: [u8; 4] = src_ip.to_ne_bytes();
 
     // blocklist logic
-    if unsafe { BLOCKLIST.get(&src_ip_be_bytes).is_some() } {
+    if unsafe { BLOCKLIST.get(&src_ip_key).is_some() } {
+        let hit = BlocklistHit { src_ip };
+        unsafe {
+            BLOCKLIST_EVENTS.output(&ctx, &hit, 0);
+        }
         info!(
             &ctx,
             "Blocking address: {}. Reason: Address is in a BLOCKLIST",
-            Ipv4Addr::from(src_ip_be_bytes)
+            Ipv4Addr::from(src_ip_key)
         );
         return Err(1);
     } else {

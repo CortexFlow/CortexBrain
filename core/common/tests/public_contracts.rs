@@ -36,7 +36,7 @@ mod buffer_contracts {
 
 #[cfg(feature = "network-structs")]
 mod network_event_contracts {
-    use cortexbrain_common::buffer_type::{PacketLog, TcpPacketRegistry, VethLog};
+    use cortexbrain_common::buffer_type::{BlocklistHit, PacketLog, TcpPacketRegistry, VethLog};
     use std::mem::{align_of, offset_of, size_of};
 
     fn assert_event_traits<T: aya::Pod + bytemuck::Zeroable + Copy>() {}
@@ -46,6 +46,7 @@ mod network_event_contracts {
         assert_event_traits::<PacketLog>();
         assert_event_traits::<VethLog>();
         assert_event_traits::<TcpPacketRegistry>();
+        assert_event_traits::<BlocklistHit>();
     }
 
     #[test]
@@ -79,6 +80,10 @@ mod network_event_contracts {
         assert_eq!(offset_of!(TcpPacketRegistry, command), 20);
         assert_eq!(offset_of!(TcpPacketRegistry, direction), 36);
         assert_eq!(offset_of!(TcpPacketRegistry, cgroup_id), 40);
+
+        assert_eq!(size_of::<BlocklistHit>(), 4);
+        assert_eq!(align_of::<BlocklistHit>(), 4);
+        assert_eq!(offset_of!(BlocklistHit, src_ip), 0);
     }
 }
 

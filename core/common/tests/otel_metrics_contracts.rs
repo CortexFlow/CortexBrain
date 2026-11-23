@@ -234,3 +234,13 @@ fn identity_connections_are_prefixed_and_partitioned_by_direction() {
                 .any(|attr| attr == &KeyValue::new("direction", "egress"))
     }));
 }
+
+#[test]
+fn identity_blocklist_hits_are_prefixed_and_tagged_by_blocked_ip() {
+    let snapshot = collect(|metrics| {
+        metrics.record_identity_blocklist_hit("192.0.2.10");
+    });
+
+    let attrs = sum(&snapshot, "cortexbrain_identity_blocklist_hits_total", 1);
+    assert!(attrs.contains(&KeyValue::new("blocked_ip", "192.0.2.10")));
+}

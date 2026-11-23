@@ -1,4 +1,3 @@
-use anyhow::Context;
 use anyhow::anyhow;
 use aya::maps::perf::PerfEventArrayBuffer;
 use chrono::Local;
@@ -7,7 +6,7 @@ use cortexbrain_common::buffer_type::PacketLog;
 use cortexbrain_common::buffer_type::PacketLossMetrics;
 use cortexbrain_common::buffer_type::TimeStampMetrics;
 use cortexbrain_common::formatters::{format_ipv4, format_ipv6};
-use cortexbrain_common::map_handlers::load_perf_event_array_from_mapdata;
+use cortexbrain_common::map_handlers::{blocklist_map_path, load_perf_event_array_from_mapdata};
 use std::str::FromStr;
 use std::sync::Mutex;
 use tonic::{Request, Response, Status};
@@ -35,8 +34,6 @@ use crate::agent::{
     RmIpFromBlocklistRequest, RmIpFromBlocklistResponse, VethHashMapResponse, VethResponse,
     agent_server::Agent,
 };
-use crate::constants::PIN_BLOCKLIST_MAP_PATH;
-
 use crate::helpers::comm_to_string;
 use aya::maps::Map;
 use std::net::Ipv4Addr;
@@ -445,8 +442,8 @@ impl Agent for AgentApi {
         let req = request.into_inner();
 
         //open blocklist map
-        let mapdata = MapData::from_pin("/sys/fs/bpf/maps/blocklist_map")
-            .expect("cannot open blocklist_map Mapdata");
+        let mapdata =
+            MapData::from_pin(blocklist_map_path()).expect("cannot open Blocklist Mapdata");
         let blocklist_mapdata = Map::HashMap(mapdata); //load mapdata
         let mut blocklist_map: ayaHashMap<MapData, [u8; 4], [u8; 4]> =
             ayaHashMap::try_from(blocklist_mapdata).unwrap();
@@ -469,10 +466,6 @@ impl Agent for AgentApi {
                 .unwrap();
             info!("CURRENT BLOCKLIST: {:?}", blocklist_map);
         }
-        let _path = std::env::var(PIN_BLOCKLIST_MAP_PATH)
-            .context("Blocklist map path not found!")
-            .unwrap();
-
         //convert the maps with a buffer to match the protobuffer types
         let mut converted_blocklist_map: HashMap<String, String> = HashMap::new();
         for item in blocklist_map.iter() {
@@ -496,8 +489,8 @@ impl Agent for AgentApi {
     ) -> Result<Response<BlocklistResponse>, Status> {
         info!("Returning blocklist hashmap");
         //open blocklist map
-        let mapdata = MapData::from_pin("/sys/fs/bpf/maps/blocklist_map")
-            .expect("cannot open blocklist_map Mapdata");
+        let mapdata =
+            MapData::from_pin(blocklist_map_path()).expect("cannot open Blocklist Mapdata");
         let blocklist_mapdata = Map::HashMap(mapdata); //load mapdata
 
         let blocklist_map: ayaHashMap<MapData, [u8; 4], [u8; 4]> =
@@ -526,8 +519,8 @@ impl Agent for AgentApi {
         let req = request.into_inner();
         info!("Removing ip from blocklist map");
         //open blocklist map
-        let mapdata = MapData::from_pin("/sys/fs/bpf/maps/blocklist_map")
-            .expect("cannot open blocklist_map Mapdata");
+        let mapdata =
+            MapData::from_pin(blocklist_map_path()).expect("cannot open Blocklist Mapdata");
         let blocklist_mapdata = Map::HashMap(mapdata); //load mapdata
         let mut blocklist_map: ayaHashMap<MapData, [u8; 4], [u8; 4]> =
             ayaHashMap::try_from(blocklist_mapdata).unwrap();

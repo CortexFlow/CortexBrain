@@ -84,8 +84,7 @@ COPY --from=ebpf-builder /usr/src/app/target/bpfel-unknown-none/release/conntrac
 
 # Set env vars for your app
 ENV BPF_PATH="/usr/src/cortexbrain-agent/conntracker"
-ENV PIN_MAP_PATH="/sys/fs/bpf/cortexbrain-identity-service/"
-ENV PIN_BLOCKLIST_MAP_PATH="/sys/fs/bpf/cortexbrain-agent/"
+ENV PIN_MAP_PATH="/sys/fs/bpf/maps"
 
 # Default command
 CMD ["agent-api"]

@@ -1,3 +1,6 @@
+use crate::constants::{
+    BLOCKLIST_FILE_ENV, BLOCKLIST_MAP_NAME, DEFAULT_PIN_MAP_PATH, PIN_MAP_PATH,
+};
 use anyhow::Error;
 use anyhow::Ok;
 use aya::Ebpf;
@@ -5,12 +8,12 @@ use aya::maps::HashMap;
 use aya::maps::Map;
 use k8s_openapi::api::core::v1::ConfigMap;
 use kube::{Api, Client};
+use std::collections::HashSet;
 use std::net::Ipv4Addr;
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
-use tracing::warn;
-use tracing::{error, info};
+use tracing::{debug, error, info, warn};
 
 // docs
 //
@@ -96,53 +99,147 @@ pub fn map_pinner(maps: BpfMapsData, path: &PathBuf) -> Result<BpfMapsData, Erro
     Ok(owned_bpf_maps_data) // return a BpfMapsData type 
 }
 
+/// Return the pinned path of the blocklist map.
 #[cfg(feature = "map-handlers")]
-pub async fn populate_blocklist() -> Result<(), Error> {
-    use aya::maps::MapData;
-    // load mapdata from path
+pub fn blocklist_map_path() -> PathBuf {
+    let pin_path = std::env::var(PIN_MAP_PATH)
+        .ok()
+        .filter(|path| !path.trim().is_empty())
+        .unwrap_or_else(|| DEFAULT_PIN_MAP_PATH.to_string());
 
-    let mapdata = MapData::from_pin("/sys/fs/bpf/maps/Blocklist")
-        .map_err(|e| anyhow::anyhow!("Failed to load blocklist_map: {}", e))?;
+    PathBuf::from(pin_path).join(BLOCKLIST_MAP_NAME)
+}
 
-    let map = Map::HashMap(mapdata);
-    let mut blocklist_map = HashMap::<_, [u8; 4], [u8; 4]>::try_from(map)?;
+fn blocklist_changes(
+    current: &HashSet<[u8; 4]>,
+    desired: &HashSet<[u8; 4]>,
+) -> (Vec<[u8; 4]>, Vec<[u8; 4]>) {
+    let added = desired.difference(current).copied().collect();
+    let removed = current.difference(desired).copied().collect();
+    (added, removed)
+}
 
-    let client = Client::try_default()
-        .await
-        .expect("Cannot connect to Kubernetes Client");
+fn parse_blocklist_addresses(raw: &str) -> HashSet<[u8; 4]> {
+    let mut addresses = HashSet::new();
+
+    for line in raw.lines() {
+        let item = line.trim();
+        if item.is_empty() || item.starts_with('#') {
+            continue;
+        }
+        match Ipv4Addr::from_str(item) {
+            std::result::Result::Ok(address) => {
+                addresses.insert(address.octets());
+            }
+            Err(e) => warn!("Invalid blocklist address {:?}: {}", item, e),
+        }
+    }
+
+    addresses
+}
+
+async fn blocklist_from_kubernetes() -> Result<Option<HashSet<[u8; 4]>>, Error> {
+    let client = match Client::try_default().await {
+        std::result::Result::Ok(client) => client,
+        Err(e) => {
+            debug!("Kubernetes API not available: {}", e);
+            return Ok(None);
+        }
+    };
+
+    if let Err(e) = client.apiserver_version().await {
+        debug!("Cannot reach the Kubernetes API server: {}", e);
+        return Ok(None);
+    }
+
     let namespace = "cortexflow";
     let configmap = "cortexbrain-client-config";
-
     let api: Api<ConfigMap> = Api::namespaced(client, namespace);
+
     match api.get(configmap).await {
         std::result::Result::Ok(configs) => {
-            info!("Configmap : {} loaded correctly ", configmap);
-            info!("[CONFIGMAP]: {:?} ", configs);
-            if let Some(data) = configs.data {
-                if let Some(blocklist) = data.get("blocklist") {
-                    let addresses: Vec<String> = blocklist
-                        .lines()
-                        .map(|s| s.trim().to_string())
-                        .filter(|s| !s.is_empty())
-                        .collect();
-                    //String parsing from "x y" to ["x","y"]
-                    if addresses.is_empty() {
-                        warn!("No addresses found in the blocklist. Skipping load");
-                    }
-                    for item in &addresses {
-                        info!("Inserting addresses: {:?}", &item);
-                        let addr = Ipv4Addr::from_str(&item)?.octets();
-                        let _ = blocklist_map.insert(addr, addr, 0);
-                    }
-                }
-            }
-            Ok(())
+            let raw = configs
+                .data
+                .and_then(|data| data.get("blocklist").cloned())
+                .unwrap_or_default();
+            Ok(Some(parse_blocklist_addresses(&raw)))
         }
         std::result::Result::Err(e) => {
             error!("An error occured while reading configmap: {}", e);
-            return Err(e.into());
+            Err(e.into())
         }
     }
+}
+
+/// Synchronise the pinned blocklist map with its configured source.
+///
+/// The Kubernetes ConfigMap is preferred. If Kubernetes is not available, a
+/// local `BLOCKLIST_FILE` is used when configured. Returns `false` when no
+/// source is available and the map was left untouched.
+#[cfg(feature = "map-handlers")]
+pub async fn populate_blocklist() -> Result<bool, Error> {
+    use aya::maps::MapData;
+
+    let desired = match blocklist_from_kubernetes().await? {
+        Some(addresses) => {
+            info!(
+                "Blocklist loaded from ConfigMap ({} entries)",
+                addresses.len()
+            );
+            addresses
+        }
+        None => {
+            let std::result::Result::Ok(path) = std::env::var(BLOCKLIST_FILE_ENV) else {
+                return Ok(false);
+            };
+            if path.trim().is_empty() {
+                return Ok(false);
+            }
+
+            match std::fs::read_to_string(&path) {
+                std::result::Result::Ok(raw) => {
+                    let addresses = parse_blocklist_addresses(&raw);
+                    info!(
+                        "Blocklist loaded from {} ({} entries)",
+                        path,
+                        addresses.len()
+                    );
+                    addresses
+                }
+                Err(e) => {
+                    warn!("Cannot read blocklist file {}: {}", path, e);
+                    return Ok(false);
+                }
+            }
+        }
+    };
+
+    let map_path = blocklist_map_path();
+    let mapdata = MapData::from_pin(&map_path)
+        .map_err(|e| anyhow::anyhow!("Failed to load blocklist map from {:?}: {}", map_path, e))?;
+    let map = Map::HashMap(mapdata);
+    let mut blocklist_map = HashMap::<_, [u8; 4], [u8; 4]>::try_from(map)?;
+
+    let current: HashSet<[u8; 4]> = blocklist_map.keys().filter_map(|key| key.ok()).collect();
+    let (added, removed) = blocklist_changes(&current, &desired);
+
+    for address in &removed {
+        blocklist_map.remove(address)?;
+    }
+    for address in &added {
+        blocklist_map.insert(*address, *address, 0)?;
+    }
+
+    if !added.is_empty() || !removed.is_empty() {
+        info!(
+            "Blocklist updated: {} added, {} removed, {} total",
+            added.len(),
+            removed.len(),
+            desired.len()
+        );
+    }
+
+    Ok(true)
 }
 
 #[cfg(feature = "map-handlers")]
@@ -216,4 +313,38 @@ pub fn map_manager(
         }
     }
     Ok(map_manager)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{blocklist_changes, parse_blocklist_addresses};
+    use std::collections::HashSet;
+    use std::net::Ipv4Addr;
+
+    #[test]
+    fn parses_blocklist_lines_and_skips_invalid_entries() {
+        let raw = "# comment\n\n192.0.2.1\nnot-an-ip\n198.51.100.2\n";
+        let parsed = parse_blocklist_addresses(raw);
+
+        assert_eq!(parsed.len(), 2);
+        assert!(parsed.contains(&Ipv4Addr::new(192, 0, 2, 1).octets()));
+        assert!(parsed.contains(&Ipv4Addr::new(198, 51, 100, 2).octets()));
+    }
+
+    #[test]
+    fn computes_added_and_removed_blocklist_entries() {
+        let current = HashSet::from([
+            Ipv4Addr::new(192, 0, 2, 1).octets(),
+            Ipv4Addr::new(192, 0, 2, 2).octets(),
+        ]);
+        let desired = HashSet::from([
+            Ipv4Addr::new(192, 0, 2, 2).octets(),
+            Ipv4Addr::new(192, 0, 2, 3).octets(),
+        ]);
+
+        let (added, removed) = blocklist_changes(&current, &desired);
+
+        assert_eq!(added, vec![Ipv4Addr::new(192, 0, 2, 3).octets()]);
+        assert_eq!(removed, vec![Ipv4Addr::new(192, 0, 2, 1).octets()]);
+    }
 }

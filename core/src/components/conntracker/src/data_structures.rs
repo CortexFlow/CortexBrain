@@ -58,6 +58,17 @@ pub struct VethLog {
     pub pid: u32,          // 4 bytes: PID that triggered the event
 }
 
+// docs:
+// Packet dropped by the TC classifier because the source address is in the blocklist.
+//
+// src_ip: source address of the blocked packet
+//
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct BlocklistHit {
+    pub src_ip: u32,
+}
+
 pub const DIRECTION_INGRESS: u8 = 0;
 pub const DIRECTION_EGRESS: u8 = 1;
 
@@ -103,6 +114,9 @@ pub static mut BLOCKLIST: HashMap<[u8; 4], [u8; 4]> = HashMap::with_max_entries(
 
 #[map(name = "TcpPacketRegistry", pinning = "by_name")]
 pub static mut PACKET_REGISTRY: PerfEventArray<TcpPacketRegistry> = PerfEventArray::new(0);
+
+#[map(name = "BlocklistEvents", pinning = "by_name")]
+pub static mut BLOCKLIST_EVENTS: PerfEventArray<BlocklistHit> = PerfEventArray::new(0);
 
 #[map(name = "tracked_veth", pinning = "by_name")]
 // This map takes a registry of tracked veth interfaces

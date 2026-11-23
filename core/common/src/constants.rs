@@ -6,6 +6,18 @@ pub const BPF_PATH: &str = "BPF_PATH";
 /// Used for sharing maps between eBPF programs.
 pub const PIN_MAP_PATH: &str = "PIN_MAP_PATH";
 
+/// Default directory where BPF maps are pinned when PIN_MAP_PATH is not set.
+pub const DEFAULT_PIN_MAP_PATH: &str = "/sys/fs/bpf/maps";
+
+/// Name of the pinned blocklist map.
+pub const BLOCKLIST_MAP_NAME: &str = "Blocklist";
+
+/// Environment variable pointing to a local blocklist file (Docker/non-Kubernetes).
+pub const BLOCKLIST_FILE_ENV: &str = "BLOCKLIST_FILE";
+
+/// Default interval between blocklist refreshes.
+pub const DEFAULT_BLOCKLIST_SYNC_INTERVAL_SECS: u64 = 30;
+
 /// Environment variable name for the OpenSSL library path used by SSL uprobes.
 /// When set, this path is used directly. When unset, the library is located
 /// by searching the default system library directories.

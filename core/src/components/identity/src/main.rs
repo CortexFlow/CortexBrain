@@ -45,11 +45,13 @@ use anyhow::{Context, Ok, anyhow};
 use tokio::{fs, signal, sync::RwLock};
 use tracing::{error, info, warn};
 
-// maps created by init_bpf_maps. event_listener requires veth_identity_map, events_map and TcpPacketRegistry
-const REQUIRED_MAPS: [&str; 5] = [
+// maps created by init_bpf_maps. event_listener requires veth_identity_map, events_map,
+// TcpPacketRegistry and BlocklistEvents
+const REQUIRED_MAPS: [&str; 6] = [
     "events_map",
     "veth_identity_map",
     "TcpPacketRegistry",
+    "BlocklistEvents",
     "Blocklist",
     "tracked_veth",
 ];
@@ -180,7 +182,26 @@ impl StartupOperations for IdentityOperations {
     }
 
     async fn blocklist(&self) -> Result<(), anyhow::Error> {
-        populate_blocklist().await
+        if !populate_blocklist().await? {
+            warn!(
+                "Blocklist source unavailable (Kubernetes API and BLOCKLIST_FILE); blocklist sync disabled"
+            );
+        }
+
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(Duration::from_secs(
+                constants::DEFAULT_BLOCKLIST_SYNC_INTERVAL_SECS,
+            ));
+            interval.tick().await;
+            loop {
+                interval.tick().await;
+                if let Err(e) = populate_blocklist().await {
+                    warn!("blocklist refresh failed: {}", e);
+                }
+            }
+        });
+
+        Ok(())
     }
 
     async fn init_classifier(
@@ -486,6 +507,10 @@ async fn event_listener(
         (_perf_net_events_array, perf_net_events_buffers),
         (_tcp_registry_array, tcp_registry_buffers),
     ) = take_listener_maps(&mut maps)?;
+    let (_blocklist_events_array, blocklist_events_buffers) =
+        maps.remove("BlocklistEvents").ok_or_else(|| {
+            anyhow!("Cannot create blocklist events buffer: map BlocklistEvents not found")
+        })?;
 
     let mut cache_obj = ServiceCache::default();
     cache_obj.init();
@@ -526,6 +551,20 @@ async fn event_listener(
                 })
             },
         );
+
+    let _blocklist_events_displayer = {
+        let output = BufferSize::BlocklistHit.set_buffer();
+        tokio::spawn(async move {
+            read_perf_buffer(
+                blocklist_events_buffers,
+                output,
+                Consumer::BlocklistHit,
+                metrics,
+                None,
+            )
+            .await;
+        })
+    };
 
     match wait_for_event_listener(
         veth_events_displayer,
@@ -1034,10 +1073,15 @@ mod tests {
 
     #[test]
     fn required_maps_include_those_used_by_event_listener() {
-        for m in ["veth_identity_map", "events_map", "TcpPacketRegistry"] {
+        for m in [
+            "veth_identity_map",
+            "events_map",
+            "TcpPacketRegistry",
+            "BlocklistEvents",
+        ] {
             assert!(REQUIRED_MAPS.contains(&m), "{} missing", m);
         }
-        assert_eq!(REQUIRED_MAPS.len(), 5);
+        assert_eq!(REQUIRED_MAPS.len(), 6);
     }
 
     #[tokio::test]
