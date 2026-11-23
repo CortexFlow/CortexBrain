@@ -21,7 +21,7 @@ use crate::veth_tracer::{ read_linux_inner_struct, read_linux_inner_value };
 //
 
 //in tcp_v4_recv skb->data
-pub fn try_tcp_analyzer(ctx: ProbeContext) -> Result<u32, i64> {
+pub fn try_tcp_analyzer(ctx: ProbeContext, direction: u8) -> Result<u32, i64> {
     let sk_buff_pointer: *const sk_buff = ctx.arg(0).ok_or(1i64)?;
     // first control: i'm, verifying that the pointer is not null
     if sk_buff_pointer.is_null() {
@@ -72,6 +72,7 @@ pub fn try_tcp_analyzer(ctx: ProbeContext) -> Result<u32, i64> {
             dst_port,
             pid,
             command,
+            direction,
             cgroup_id,
         };
         unsafe {

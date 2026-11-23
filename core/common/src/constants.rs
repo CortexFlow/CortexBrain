@@ -11,4 +11,11 @@ pub const PIN_MAP_PATH: &str = "PIN_MAP_PATH";
 /// by searching the default system library directories.
 pub const LIBSSL_PATH: &str = "LIBSSL_PATH";
 
-pub const DEFAULT_MAP_READING_TIME : &str = "DEFAULT_MAP_READING_TIME";
+pub const DEFAULT_MAP_READING_TIME: &str = "DEFAULT_MAP_READING_TIME";
+
+/// Direction of a connection observed by the identity service.
+pub const CONNECTION_DIRECTION_INGRESS: u8 = 0;
+pub const CONNECTION_DIRECTION_EGRESS: u8 = 1;
+
+/// Idle time after which a previously observed identity flow is considered new again.
+pub const IDENTITY_FLOW_TTL_SECS: u64 = 300;

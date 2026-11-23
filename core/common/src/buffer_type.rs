@@ -89,6 +89,7 @@ pub struct TcpPacketRegistry {
     pub dst_port: u16,
     pub pid: u32,
     pub command: [u8; 16],
+    pub direction: u8,
     pub cgroup_id: u64,
 }
 #[cfg(feature = "network-structs")]

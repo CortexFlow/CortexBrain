@@ -58,6 +58,9 @@ pub struct VethLog {
     pub pid: u32,          // 4 bytes: PID that triggered the event
 }
 
+pub const DIRECTION_INGRESS: u8 = 0;
+pub const DIRECTION_EGRESS: u8 = 1;
+
 // TODO: write documentation about this structure
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
@@ -69,6 +72,7 @@ pub struct TcpPacketRegistry {
     pub dst_port: u16,
     pub pid: u32,
     pub command: [u8; 16],
+    pub direction: u8,
     pub cgroup_id: u64,
 }
 
