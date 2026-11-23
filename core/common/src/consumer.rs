@@ -11,25 +11,101 @@
 //! 3. Builds [`crate::metadata::Metadata`] (with optional Docker/K8s enrichment).
 //! 4. Records the observation through [`Metrics::record_*`].
 
+#[cfg(feature = "network-structs")]
+use crate::buffer_type::{PacketLog, TcpPacketRegistry, VethLog};
 #[cfg(feature = "monitoring-structs")]
 use crate::buffer_type::{
     CpuFrequency, CpuIdle, MemAlloc, PacketLossMetrics, SchedStatRuntime, SchedStatWait,
     TimeStampMetrics,
 };
 use crate::constants::DEFAULT_MAP_READING_TIME;
-#[cfg(feature = "network-structs")]
-use crate::buffer_type::{PacketLog, TcpPacketRegistry, VethLog};
 #[cfg(feature = "monitoring-structs")]
 use crate::metadata::Metadata;
 #[cfg(feature = "monitoring-structs")]
 use crate::otel_metrics::Metrics;
 use crate::service_cache::ServiceCache;
 use bytes::BytesMut;
+#[cfg(feature = "network-structs")]
+use std::collections::HashMap;
 #[cfg(feature = "buffer-reader")]
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
+#[cfg(feature = "network-structs")]
+use std::time::{Duration, Instant};
 #[cfg(feature = "buffer-reader")]
 use tokio::sync::RwLock;
 use tracing::{error, info, warn};
+
+/// Key identifying a single directional flow observed by the identity service.
+#[cfg(feature = "network-structs")]
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
+struct IdentityFlowKey {
+    src_ip: u32,
+    dst_ip: u32,
+    src_port: u16,
+    dst_port: u16,
+    proto: u8,
+    direction: u8,
+}
+
+/// Userspace tracker that de-duplicates identity flows for a configurable TTL.
+///
+/// A flow is considered new when its 5-tuple (plus direction) has not been
+/// observed for at least `ttl`. Active flows refresh their last-seen timestamp
+/// on every observation.
+#[cfg(feature = "network-structs")]
+pub struct IdentityFlowTracker {
+    seen: HashMap<IdentityFlowKey, Instant>,
+    ttl: Duration,
+    observations: u64,
+}
+
+#[cfg(feature = "network-structs")]
+impl IdentityFlowTracker {
+    pub fn new(ttl: Duration) -> Self {
+        Self {
+            seen: HashMap::new(),
+            ttl,
+            observations: 0,
+        }
+    }
+
+    /// Returns `true` when the event starts a flow that was not observed
+    /// within the configured TTL.
+    pub fn observe(&mut self, event: &TcpPacketRegistry) -> bool {
+        self.observe_at(event, Instant::now())
+    }
+
+    fn observe_at(&mut self, event: &TcpPacketRegistry, now: Instant) -> bool {
+        self.observations = self.observations.wrapping_add(1);
+        if self.observations % 1024 == 0 {
+            self.evict_expired(now);
+        }
+
+        let key = IdentityFlowKey {
+            src_ip: event.src_ip,
+            dst_ip: event.dst_ip,
+            src_port: event.src_port,
+            dst_port: event.dst_port,
+            proto: event.proto,
+            direction: event.direction,
+        };
+
+        if let Some(last_seen) = self.seen.get_mut(&key) {
+            if now.saturating_duration_since(*last_seen) < self.ttl {
+                *last_seen = now;
+                return false;
+            }
+        }
+
+        self.seen.insert(key, now);
+        true
+    }
+
+    fn evict_expired(&mut self, now: Instant) {
+        self.seen
+            .retain(|_, last_seen| now.saturating_duration_since(*last_seen) < self.ttl);
+    }
+}
 
 /// Discriminator for perf-buffer event types consumed by the collector.
 ///
@@ -40,7 +116,9 @@ pub enum Consumer {
     #[cfg(feature = "network-structs")]
     PacketLog,
     #[cfg(feature = "network-structs")]
-    TcpPacketRegistry,
+    TcpPacketRegistry {
+        tracker: Arc<Mutex<IdentityFlowTracker>>,
+    },
     #[cfg(feature = "network-structs")]
     VethLog,
     #[cfg(feature = "monitoring-structs")]
@@ -117,7 +195,15 @@ impl Consumer {
     /// Similar to [`read_packet_log`] but additionally prints the command name
     /// and cgroup ID extracted from the eBPF struct.
     #[cfg(feature = "network-structs")]
-    pub async fn read_tcp_registry_log(buffers: &mut [BytesMut], tot_events: i32, offset: i32) {
+    pub async fn read_tcp_registry_log(
+        buffers: &mut [BytesMut],
+        tot_events: i32,
+        offset: i32,
+        tracker: Arc<Mutex<IdentityFlowTracker>>,
+        #[cfg(feature = "monitoring-structs")] exporter: &str,
+        #[cfg(feature = "monitoring-structs")] metrics: Arc<Metrics>,
+        #[cfg(feature = "monitoring-structs")] cache: Option<Arc<RwLock<ServiceCache>>>,
+    ) {
         use crate::buffer_type::{IpProtocols, reverse_be_addr};
 
         for i in offset..tot_events {
@@ -163,6 +249,29 @@ impl Consumer {
                     Err(e) => {
                         error!("Unknown protocol. Data maybe corrupted. Reason:{:?}", e);
                     }
+                }
+
+                #[cfg(feature = "monitoring-structs")]
+                {
+                    let is_new = tracker
+                        .lock()
+                        .map(|mut tracker| tracker.observe(&pl))
+                        .unwrap_or(false);
+
+                    if exporter == "otlp" && is_new {
+                        let mut metadata =
+                            Metadata::from_ebpf(Some(pl.pid), Some(pl.cgroup_id), &pl.command);
+                        if let Some(cache) = &cache {
+                            metadata.enrich(cache).await;
+                        }
+
+                        metrics.record_identity_connection(pl.direction, &metadata);
+                    }
+                }
+
+                #[cfg(not(feature = "monitoring-structs"))]
+                {
+                    let _ = &tracker;
                 }
             }
         }
@@ -763,6 +872,9 @@ pub async fn read_perf_buffer<T: std::borrow::BorrowMut<aya::maps::MapData>>(
     #[cfg(feature = "monitoring-structs")] metrics: Option<Arc<Metrics>>,
     cache: Option<Arc<RwLock<ServiceCache>>>,
 ) {
+    #[cfg(not(feature = "monitoring-structs"))]
+    let _ = &cache;
+
     loop {
         for buf in array_buffers.iter_mut() {
             match buf.read_events(&mut buffers) {
@@ -781,9 +893,28 @@ pub async fn read_perf_buffer<T: std::borrow::BorrowMut<aya::maps::MapData>>(
                                 Consumer::read_packet_log(&mut buffers, tot_events, offset).await
                             }
                             #[cfg(feature = "network-structs")]
-                            Consumer::TcpPacketRegistry => {
-                                Consumer::read_tcp_registry_log(&mut buffers, tot_events, offset)
-                                    .await
+                            Consumer::TcpPacketRegistry { ref tracker } => {
+                                #[cfg(feature = "monitoring-structs")]
+                                Consumer::read_tcp_registry_log(
+                                    &mut buffers,
+                                    tot_events,
+                                    offset,
+                                    tracker.clone(),
+                                    "otlp",
+                                    metrics
+                                        .clone()
+                                        .expect("Metrics required for TcpPacketRegistry"),
+                                    cache.clone(),
+                                )
+                                .await;
+                                #[cfg(not(feature = "monitoring-structs"))]
+                                Consumer::read_tcp_registry_log(
+                                    &mut buffers,
+                                    tot_events,
+                                    offset,
+                                    tracker.clone(),
+                                )
+                                .await;
                             }
                             #[cfg(feature = "network-structs")]
                             Consumer::VethLog => {
@@ -900,6 +1031,40 @@ pub async fn read_perf_buffer<T: std::borrow::BorrowMut<aya::maps::MapData>>(
                 }
             }
         }
-        tokio::time::sleep(std::time::Duration::from_millis(std::env::var(DEFAULT_MAP_READING_TIME).ok().and_then(|v| v.parse::<u64>().ok()).unwrap_or(5000))).await;
+        tokio::time::sleep(std::time::Duration::from_millis(
+            std::env::var(DEFAULT_MAP_READING_TIME)
+                .ok()
+                .and_then(|v| v.parse::<u64>().ok())
+                .unwrap_or(5000),
+        ))
+        .await;
+    }
+}
+
+#[cfg(all(test, feature = "network-structs"))]
+mod tests {
+    use super::*;
+    use bytemuck::Zeroable;
+
+    fn event(src_port: u16, direction: u8) -> TcpPacketRegistry {
+        let mut event = TcpPacketRegistry::zeroed();
+        event.src_ip = 1;
+        event.dst_ip = 2;
+        event.src_port = src_port;
+        event.dst_port = 3;
+        event.proto = 6;
+        event.direction = direction;
+        event
+    }
+
+    #[test]
+    fn flow_tracker_deduplicates_until_the_ttl_expires() {
+        let mut tracker = IdentityFlowTracker::new(Duration::from_secs(60));
+        let now = Instant::now();
+
+        assert!(tracker.observe_at(&event(100, 0), now));
+        assert!(!tracker.observe_at(&event(100, 0), now + Duration::from_secs(1)));
+        assert!(tracker.observe_at(&event(100, 1), now + Duration::from_secs(1)));
+        assert!(tracker.observe_at(&event(100, 0), now + Duration::from_secs(61)));
     }
 }

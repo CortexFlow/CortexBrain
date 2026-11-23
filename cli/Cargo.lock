@@ -427,8 +427,6 @@ checksum = "7f8f80099a98041a3d1622845c271458a2d73e688351bf3cb999266764b81d48"
 [[package]]
 name = "cortexbrain-common"
 version = "0.1.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4a16980b59a1072feb4a503decf19a344b149e3a277b0ba0e5705fa4c8e7cf04"
 dependencies = [
  "anyhow",
  "aya",

@@ -28,26 +28,32 @@ services:
     networks:
       - cortexflow
 
-  #cortexflow-identity:
-  #  image: lorenzotettamanti/cortexflow-identity:0.1.2
-  #  container_name: cortexflow-identity
-  #  stop_signal: SIGINT
-  #  restart: unless-stopped
-  #  privileged: true
-  #  pid: host
-  #  init: true
-  #  command: ["/usr/local/bin/cortexflow-identity-service"]
-  #  volumes:
-  #    - type: bind
-  #      source: /sys/fs/bpf
-  #      target: /sys/fs/bpf
-  #      bind:
-  #        propagation: shared
-  #    - /lib/modules:/lib/modules:ro
-  #    - /sys/kernel/debug:/sys/kernel/debug
-  #    - /proc:/host/proc:ro
-  #  networks:
-  #    - cortexflow
+  cortexflow-identity:
+    image: lorenzotettamanti/cortexflow-identity:0.1.2
+    container_name: cortexflow-identity
+    stop_signal: SIGINT
+    restart: unless-stopped
+    privileged: true
+    pid: host
+    init: true
+    command: ["/usr/local/bin/cortexflow-identity-service"]
+    environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - OTEL_EXPORTER_OTLP_PROTOCOL=grpc
+      - OTEL_SERVICE_NAME=cortexflow-identity
+      - OTEL_RESOURCE_ATTRIBUTES=service.namespace=cortexflow,service.version=0.1.5
+      - DEFAULT_MAP_READING_TIME=100
+    volumes:
+      - type: bind
+        source: /sys/fs/bpf
+        target: /sys/fs/bpf
+        bind:
+          propagation: shared
+      - /lib/modules:/lib/modules:ro
+      - /sys/kernel/debug:/sys/kernel/debug
+      - /proc:/host/proc:ro
+    networks:
+      - cortexflow
 
   otel-collector:
     image: otel/opentelemetry-collector-contrib:0.162.0

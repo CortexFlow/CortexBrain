@@ -77,6 +77,7 @@ mod network_event_contracts {
         assert_eq!(offset_of!(TcpPacketRegistry, dst_port), 14);
         assert_eq!(offset_of!(TcpPacketRegistry, pid), 16);
         assert_eq!(offset_of!(TcpPacketRegistry, command), 20);
+        assert_eq!(offset_of!(TcpPacketRegistry, direction), 36);
         assert_eq!(offset_of!(TcpPacketRegistry, cgroup_id), 40);
     }
 }

@@ -523,31 +523,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "cortexbrain-common"
-version = "0.1.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4a16980b59a1072feb4a503decf19a344b149e3a277b0ba0e5705fa4c8e7cf04"
-dependencies = [
- "anyhow",
- "aya 0.13.1",
- "bytemuck",
- "bytemuck_derive",
- "bytes",
- "k8s-openapi",
- "kube",
- "opentelemetry",
- "opentelemetry-appender-tracing",
- "opentelemetry-otlp",
- "opentelemetry-stdout",
- "opentelemetry_sdk",
- "serde",
- "serde_json",
- "tokio",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
 name = "cortexflow-metrics"
 version = "0.1.1"
 dependencies = [
@@ -556,7 +531,7 @@ dependencies = [
  "aya-log",
  "bytemuck",
  "bytes",
- "cortexbrain-common 0.1.4",
+ "cortexbrain-common",
  "libc",
  "nix 0.31.3",
  "opentelemetry",
@@ -576,7 +551,7 @@ dependencies = [
  "bytemuck",
  "bytemuck_derive",
  "chrono",
- "cortexbrain-common 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
+ "cortexbrain-common",
  "prost",
  "reqwest",
  "tokio",
@@ -599,7 +574,7 @@ dependencies = [
  "bytemuck",
  "bytemuck_derive",
  "bytes",
- "cortexbrain-common 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
+ "cortexbrain-common",
  "k8s-openapi",
  "kube",
  "nix 0.30.1",

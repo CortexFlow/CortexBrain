@@ -5,6 +5,7 @@ use cortexbrain_common::buffer_type::{
     CpuFrequency, CpuIdle, MemAlloc, PacketLossMetrics, SchedStatRuntime, SchedStatWait, SslEvent,
     TimeStampMetrics,
 };
+use cortexbrain_common::constants::{CONNECTION_DIRECTION_EGRESS, CONNECTION_DIRECTION_INGRESS};
 use cortexbrain_common::metadata::Metadata;
 use cortexbrain_common::otel_metrics::Metrics;
 use opentelemetry::KeyValue;
@@ -202,5 +203,34 @@ fn cpu_idle_and_ssl_events_keep_their_dedicated_series() {
     }));
     assert!(points.iter().any(|point| {
         point.value() == 2 && point.attributes().all(|attr| attr.key.as_str() != "cpu_id")
+    }));
+}
+
+#[test]
+fn identity_connections_are_prefixed_and_partitioned_by_direction() {
+    let metadata = Metadata::from_ebpf(Some(10), None, b"proxy");
+    let snapshot = collect(|metrics| {
+        metrics.record_identity_connection(CONNECTION_DIRECTION_INGRESS, &metadata);
+        metrics.record_identity_connection(CONNECTION_DIRECTION_EGRESS, &metadata);
+    });
+
+    let AggregatedMetrics::U64(MetricData::Sum(sum)) =
+        metric(&snapshot, "cortexbrain_identity_connections_total").data()
+    else {
+        panic!("cortexbrain_identity_connections_total should be a u64 counter");
+    };
+    let points: Vec<_> = sum.data_points().collect();
+    assert_eq!(points.len(), 2);
+    assert!(points.iter().any(|point| {
+        point.value() == 1
+            && point
+                .attributes()
+                .any(|attr| attr == &KeyValue::new("direction", "ingress"))
+    }));
+    assert!(points.iter().any(|point| {
+        point.value() == 1
+            && point
+                .attributes()
+                .any(|attr| attr == &KeyValue::new("direction", "egress"))
     }));
 }
