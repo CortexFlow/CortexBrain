@@ -47,6 +47,10 @@ struct IdentityFlowKey {
     direction: u8,
 }
 
+/// Number of observations between expired-flow evictions.
+#[cfg(feature = "network-structs")]
+const EVICTION_INTERVAL: u64 = 1024;
+
 /// Userspace tracker that de-duplicates identity flows for a configurable TTL.
 ///
 /// A flow is considered new when its 5-tuple (plus direction) has not been
@@ -56,7 +60,7 @@ struct IdentityFlowKey {
 pub struct IdentityFlowTracker {
     seen: HashMap<IdentityFlowKey, Instant>,
     ttl: Duration,
-    observations: u64,
+    observations_since_eviction: u64,
 }
 
 #[cfg(feature = "network-structs")]
@@ -65,7 +69,7 @@ impl IdentityFlowTracker {
         Self {
             seen: HashMap::new(),
             ttl,
-            observations: 0,
+            observations_since_eviction: 0,
         }
     }
 
@@ -76,8 +80,9 @@ impl IdentityFlowTracker {
     }
 
     fn observe_at(&mut self, event: &TcpPacketRegistry, now: Instant) -> bool {
-        self.observations = self.observations.wrapping_add(1);
-        if self.observations % 1024 == 0 {
+        self.observations_since_eviction += 1;
+        if self.observations_since_eviction >= EVICTION_INTERVAL {
+            self.observations_since_eviction = 0;
             self.evict_expired(now);
         }
 
