@@ -18,6 +18,8 @@ use crate::buffer_type::{
     CpuFrequency, CpuIdle, MemAlloc, PacketLossMetrics, SchedStatRuntime, SchedStatWait,
     TimeStampMetrics,
 };
+#[cfg(feature = "network-structs")]
+use crate::constants::DEFAULT_IDENTITY_FLOW_CACHE_CAPACITY;
 use crate::constants::DEFAULT_MAP_READING_TIME;
 #[cfg(feature = "monitoring-structs")]
 use crate::metadata::Metadata;
@@ -26,7 +28,9 @@ use crate::otel_metrics::Metrics;
 use crate::service_cache::ServiceCache;
 use bytes::BytesMut;
 #[cfg(feature = "network-structs")]
-use std::collections::HashMap;
+use lru::LruCache;
+#[cfg(feature = "network-structs")]
+use std::num::NonZeroUsize;
 #[cfg(feature = "buffer-reader")]
 use std::sync::{Arc, Mutex};
 #[cfg(feature = "network-structs")]
@@ -47,29 +51,34 @@ struct IdentityFlowKey {
     direction: u8,
 }
 
-/// Number of observations between expired-flow evictions.
-#[cfg(feature = "network-structs")]
-const EVICTION_INTERVAL: u64 = 1024;
-
 /// Userspace tracker that de-duplicates identity flows for a configurable TTL.
 ///
 /// A flow is considered new when its 5-tuple (plus direction) has not been
 /// observed for at least `ttl`. Active flows refresh their last-seen timestamp
-/// on every observation.
+/// on every observation. The tracker holds at most `capacity` flows; when the
+/// cache is full, the least recently used flow is evicted.
 #[cfg(feature = "network-structs")]
 pub struct IdentityFlowTracker {
-    seen: HashMap<IdentityFlowKey, Instant>,
+    // TODO: export cache size, capacity and evictions
+    // (`cortexbrain_identity_flow_cache_*`) as OpenTelemetry instruments.
+    flows: LruCache<IdentityFlowKey, Instant>,
     ttl: Duration,
-    observations_since_eviction: u64,
+    evictions: u64,
 }
 
 #[cfg(feature = "network-structs")]
 impl IdentityFlowTracker {
     pub fn new(ttl: Duration) -> Self {
+        let capacity = NonZeroUsize::new(DEFAULT_IDENTITY_FLOW_CACHE_CAPACITY)
+            .expect("default identity flow cache capacity must be non-zero");
+        Self::with_capacity(ttl, capacity)
+    }
+
+    pub fn with_capacity(ttl: Duration, capacity: NonZeroUsize) -> Self {
         Self {
-            seen: HashMap::new(),
+            flows: LruCache::new(capacity),
             ttl,
-            observations_since_eviction: 0,
+            evictions: 0,
         }
     }
 
@@ -80,12 +89,6 @@ impl IdentityFlowTracker {
     }
 
     fn observe_at(&mut self, event: &TcpPacketRegistry, now: Instant) -> bool {
-        self.observations_since_eviction += 1;
-        if self.observations_since_eviction >= EVICTION_INTERVAL {
-            self.observations_since_eviction = 0;
-            self.evict_expired(now);
-        }
-
         let key = IdentityFlowKey {
             src_ip: event.src_ip,
             dst_ip: event.dst_ip,
@@ -95,20 +98,36 @@ impl IdentityFlowTracker {
             direction: event.direction,
         };
 
-        if let Some(last_seen) = self.seen.get_mut(&key) {
-            if now.saturating_duration_since(*last_seen) < self.ttl {
-                *last_seen = now;
-                return false;
-            }
+        if let Some(last_seen) = self.flows.get_mut(&key) {
+            let expired = now.saturating_duration_since(*last_seen) >= self.ttl;
+            *last_seen = now;
+            return expired;
         }
 
-        self.seen.insert(key, now);
+        if self.flows.push(key, now).is_some() {
+            self.evictions += 1;
+        }
         true
     }
 
-    fn evict_expired(&mut self, now: Instant) {
-        self.seen
-            .retain(|_, last_seen| now.saturating_duration_since(*last_seen) < self.ttl);
+    /// Number of flows currently tracked.
+    pub fn len(&self) -> usize {
+        self.flows.len()
+    }
+
+    /// Whether no flows are currently tracked.
+    pub fn is_empty(&self) -> bool {
+        self.flows.is_empty()
+    }
+
+    /// Maximum number of flows tracked before LRU eviction kicks in.
+    pub fn capacity(&self) -> usize {
+        self.flows.cap().get()
+    }
+
+    /// Total number of flows evicted because the cache was full.
+    pub fn evictions(&self) -> u64 {
+        self.evictions
     }
 }
 
@@ -1062,6 +1081,13 @@ mod tests {
         event
     }
 
+    fn tracker_with_capacity(capacity: usize) -> IdentityFlowTracker {
+        IdentityFlowTracker::with_capacity(
+            Duration::from_secs(60),
+            NonZeroUsize::new(capacity).expect("test capacity must be non-zero"),
+        )
+    }
+
     #[test]
     fn flow_tracker_deduplicates_until_the_ttl_expires() {
         let mut tracker = IdentityFlowTracker::new(Duration::from_secs(60));
@@ -1071,5 +1097,54 @@ mod tests {
         assert!(!tracker.observe_at(&event(100, 0), now + Duration::from_secs(1)));
         assert!(tracker.observe_at(&event(100, 1), now + Duration::from_secs(1)));
         assert!(tracker.observe_at(&event(100, 0), now + Duration::from_secs(61)));
+        assert_eq!(tracker.evictions(), 0);
+    }
+
+    #[test]
+    fn flow_tracker_evicts_the_least_recently_used_flow_at_capacity() {
+        let mut tracker = tracker_with_capacity(2);
+        let now = Instant::now();
+
+        assert!(tracker.observe_at(&event(100, 0), now));
+        assert!(tracker.observe_at(&event(101, 0), now));
+        assert!(!tracker.observe_at(&event(100, 0), now + Duration::from_secs(1)));
+
+        assert!(tracker.observe_at(&event(102, 0), now + Duration::from_secs(2)));
+        assert_eq!(tracker.len(), 2);
+        assert_eq!(tracker.capacity(), 2);
+        assert_eq!(tracker.evictions(), 1);
+        assert!(!tracker.observe_at(&event(100, 0), now + Duration::from_secs(3)));
+
+        assert!(tracker.observe_at(&event(101, 0), now + Duration::from_secs(4)));
+        assert_eq!(tracker.len(), 2);
+        assert_eq!(tracker.evictions(), 2);
+        assert!(!tracker.observe_at(&event(100, 0), now + Duration::from_secs(5)));
+    }
+
+    #[test]
+    fn flow_tracker_evicts_expired_flows_before_active_ones() {
+        let mut tracker = tracker_with_capacity(2);
+        let now = Instant::now();
+
+        assert!(tracker.observe_at(&event(100, 0), now));
+        assert!(tracker.observe_at(&event(101, 0), now + Duration::from_secs(50)));
+        assert!(tracker.observe_at(&event(102, 0), now + Duration::from_secs(61)));
+        assert_eq!(tracker.evictions(), 1);
+
+        assert!(!tracker.observe_at(&event(101, 0), now + Duration::from_secs(61)));
+        assert!(tracker.observe_at(&event(100, 0), now + Duration::from_secs(61)));
+    }
+
+    #[test]
+    fn flow_tracker_never_exceeds_capacity() {
+        let mut tracker = tracker_with_capacity(3);
+        let now = Instant::now();
+
+        for port in 0..100 {
+            tracker.observe_at(&event(port, 0), now);
+            assert!(tracker.len() <= tracker.capacity());
+        }
+        assert_eq!(tracker.len(), 3);
+        assert_eq!(tracker.evictions(), 97);
     }
 }

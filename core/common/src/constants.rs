@@ -19,3 +19,9 @@ pub const CONNECTION_DIRECTION_EGRESS: u8 = 1;
 
 /// Idle time after which a previously observed identity flow is considered new again.
 pub const IDENTITY_FLOW_TTL_SECS: u64 = 300;
+
+/// Environment variable name for the identity flow cache capacity (entries).
+pub const IDENTITY_FLOW_CACHE_CAPACITY: &str = "IDENTITY_FLOW_CACHE_CAPACITY";
+
+/// Default number of identity flows tracked before LRU eviction kicks in.
+pub const DEFAULT_IDENTITY_FLOW_CACHE_CAPACITY: usize = 65_536;

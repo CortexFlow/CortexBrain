@@ -33,6 +33,7 @@ use std::future::Future;
 use std::{
     collections::HashMap,
     convert::TryInto,
+    num::NonZeroUsize,
     path::Path,
     sync::{Arc, Mutex},
     time::Duration,
@@ -74,6 +75,27 @@ fn bpf_map_save_path(env_key: &str) -> Result<std::path::PathBuf, anyhow::Error>
     let path =
         std::env::var(env_key).context(format!("{} environment variable required", env_key))?;
     Ok(std::path::PathBuf::from(path))
+}
+
+fn flow_cache_capacity() -> NonZeroUsize {
+    let default = || {
+        NonZeroUsize::new(constants::DEFAULT_IDENTITY_FLOW_CACHE_CAPACITY)
+            .expect("default flow cache capacity must be non-zero")
+    };
+    let Some(raw) = std::env::var(constants::IDENTITY_FLOW_CACHE_CAPACITY).ok() else {
+        return default();
+    };
+    match raw.parse::<usize>().ok().and_then(NonZeroUsize::new) {
+        Some(capacity) => capacity,
+        None => {
+            warn!(
+                "{} must be a positive integer, using default {}",
+                constants::IDENTITY_FLOW_CACHE_CAPACITY,
+                constants::DEFAULT_IDENTITY_FLOW_CACHE_CAPACITY
+            );
+            default()
+        }
+    }
 }
 
 #[tokio::main]
@@ -372,11 +394,13 @@ fn start_event_consumers<T, H>(
     veth: T,
     network: T,
     tcp: T,
+    flow_cache_capacity: NonZeroUsize,
     mut start: impl FnMut(T, BufferSize, Consumer) -> H,
 ) -> (H, H, H) {
-    let flow_tracker = Arc::new(Mutex::new(IdentityFlowTracker::new(Duration::from_secs(
-        constants::IDENTITY_FLOW_TTL_SECS,
-    ))));
+    let flow_tracker = Arc::new(Mutex::new(IdentityFlowTracker::with_capacity(
+        Duration::from_secs(constants::IDENTITY_FLOW_TTL_SECS),
+        flow_cache_capacity,
+    )));
 
     (
         start(veth, BufferSize::VethEvents, Consumer::VethLog),
@@ -485,11 +509,14 @@ async fn event_listener(
 
     let consumer_metrics = metrics.clone();
     let consumer_cache = Arc::clone(&cache);
+    let cache_capacity = flow_cache_capacity();
+    info!("Identity flow cache capacity: {}", cache_capacity);
     let (veth_events_displayer, net_events_displayer, tcp_registry_events_displayer) =
         start_event_consumers(
             perf_veth_buffers,
             perf_net_events_buffers,
             tcp_registry_buffers,
+            cache_capacity,
             move |buffers, size, consumer| {
                 let output = size.set_buffer();
                 let metrics = consumer_metrics.clone();
@@ -806,8 +833,13 @@ mod tests {
     #[test]
     fn event_listener_starts_consumers_with_matching_buffers() {
         let mut calls = Vec::new();
-        let handles =
-            start_event_consumers("veth", "network", "tcp", |buffers, size, consumer| {
+        let capacity = NonZeroUsize::new(8).expect("capacity must be non-zero");
+        let handles = start_event_consumers(
+            "veth",
+            "network",
+            "tcp",
+            capacity,
+            |buffers, size, consumer| {
                 let correct_pair = matches!(
                     (&size, &consumer),
                     (BufferSize::VethEvents, Consumer::VethLog)
@@ -817,7 +849,8 @@ mod tests {
                 assert!(correct_pair);
                 calls.push(buffers);
                 buffers
-            });
+            },
+        );
         assert_eq!(calls, ["veth", "network", "tcp"]);
         assert_eq!(handles, ("veth", "network", "tcp"));
     }
@@ -976,6 +1009,28 @@ mod tests {
 
     // env vars are process-global, so tests that touch them run one at a time
     static ENV_LOCK: Mutex<()> = Mutex::new(());
+
+    #[test]
+    fn flow_cache_capacity_uses_env_override_or_default() {
+        let _g = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+
+        unsafe { std::env::remove_var(constants::IDENTITY_FLOW_CACHE_CAPACITY) };
+        assert_eq!(
+            flow_cache_capacity().get(),
+            constants::DEFAULT_IDENTITY_FLOW_CACHE_CAPACITY
+        );
+
+        unsafe { std::env::set_var(constants::IDENTITY_FLOW_CACHE_CAPACITY, "0") };
+        assert_eq!(
+            flow_cache_capacity().get(),
+            constants::DEFAULT_IDENTITY_FLOW_CACHE_CAPACITY
+        );
+
+        unsafe { std::env::set_var(constants::IDENTITY_FLOW_CACHE_CAPACITY, "32") };
+        assert_eq!(flow_cache_capacity().get(), 32);
+
+        unsafe { std::env::remove_var(constants::IDENTITY_FLOW_CACHE_CAPACITY) };
+    }
 
     #[test]
     fn required_maps_include_those_used_by_event_listener() {
