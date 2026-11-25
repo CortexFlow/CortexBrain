@@ -13,7 +13,6 @@ repository = "https://github.com/CortexFlow/CortexBrain"
 default = ["struct", "enums"]
 struct = []
 enums = []
-experimental = ["struct", "enums"]
 
 [dependencies]
 aya = "0.13.1"
@@ -28,13 +27,12 @@ tokio = { version = "1.48.0", features = [
 ] }
 tracing = "0.1.41"
 bytemuck = { version = "1.23.0", features = ["derive"] }
-cortexbrain-common = { version="0.1.4", features = [
+cortexbrain-common = { path="../../../common", features = [
     "map-handlers",
     "program-handlers",
     "network-structs",
     "monitoring-structs",
-    "buffer-reader",
-    "experimental"
+    "buffer-reader"
 ] }
 nix = { version = "0.30.1", features = ["net"] }
 kube = { version = "2.0.1", features = ["client"] }

@@ -14,6 +14,7 @@ use crate::buffer_type::{
     CpuFrequency, CpuIdle, MemAlloc, PacketLossMetrics, SchedStatRuntime, SchedStatWait, SslEvent,
     TimeStampMetrics,
 };
+use crate::constants::{CONNECTION_DIRECTION_EGRESS, CONNECTION_DIRECTION_INGRESS};
 use crate::metadata::Metadata;
 use crate::semantic::Semantic;
 use opentelemetry::KeyValue;
@@ -67,9 +68,14 @@ pub struct Metrics {
 
     pub ssl_read_bytes: Gauge<i64>,
     pub ssl_write_bytes: Gauge<i64>,
+
+    /// Unique connections detected by the identity service, partitioned by direction.
+    pub identity_connections_total: Counter<u64>,
+
+    /// Packets dropped by the identity blocklist classifier, tagged by blocked IP.
+    pub identity_blocklist_hits_total: Counter<u64>,
 }
 
-// TODO: add identity metrics with TC classifier packet counts
 // TODO: introduce a metric called total_tcp_packets total_udp_packets
 impl Metrics {
     /// Initialise all instruments backed by the supplied [`Meter`].
@@ -181,6 +187,16 @@ impl Metrics {
             .with_description(Semantic::SslWriteBytes.description())
             .build();
 
+        let identity_connections_total = meter
+            .u64_counter(Semantic::IdentityConnectionsTotal.title())
+            .with_description(Semantic::IdentityConnectionsTotal.description())
+            .build();
+
+        let identity_blocklist_hits_total = meter
+            .u64_counter(Semantic::IdentityBlocklistHitsTotal.title())
+            .with_description(Semantic::IdentityBlocklistHitsTotal.description())
+            .build();
+
         Self {
             events_total,
             socket_events_total,
@@ -198,6 +214,8 @@ impl Metrics {
             cpu_idle_state,
             ssl_read_bytes,
             ssl_write_bytes,
+            identity_connections_total,
+            identity_blocklist_hits_total,
         }
     }
 
@@ -373,5 +391,39 @@ impl Metrics {
 
         self.events_total.add(1, &attrs);
         self.ssl_write_bytes.record(m.size as i64, &attrs);
+    }
+
+    /// Record a new unique connection observed by the identity service.
+    ///
+    /// The `direction` value follows the contract in
+    /// [`crate::constants::CONNECTION_DIRECTION_INGRESS`] and
+    /// [`crate::constants::CONNECTION_DIRECTION_EGRESS`].
+    pub fn record_identity_connection(&self, direction: u8, metadata: &Metadata) {
+        let mut attrs = self.build_attrs(metadata);
+
+        let direction = match direction {
+            CONNECTION_DIRECTION_INGRESS => "ingress",
+            CONNECTION_DIRECTION_EGRESS => "egress",
+            _ => "unknown",
+        };
+        attrs.push(KeyValue::new("direction", direction));
+
+        debug!(
+            "Building attributes for identity connection metrics. Attributes: {:?}",
+            attrs
+        );
+
+        self.identity_connections_total.add(1, &attrs);
+    }
+
+    /// Record a packet dropped by the identity blocklist classifier.
+    pub fn record_identity_blocklist_hit(&self, blocked_ip: &str) {
+        let attrs = [KeyValue::new("blocked_ip", blocked_ip.to_string())];
+        debug!(
+            "Building attributes for identity blocklist hit metrics. Attributes: {:?}",
+            attrs
+        );
+
+        self.identity_blocklist_hits_total.add(1, &attrs);
     }
 }

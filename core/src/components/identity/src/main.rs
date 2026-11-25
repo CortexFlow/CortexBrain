@@ -4,12 +4,10 @@
  *   1. TCP events tracker
  *   2. veth creation and deletion tracker
  *   3. TC (traffic control) tracker
- *   4. [Experimental]: cgroup scanner
  *
  */
 
 mod helpers;
-mod service_discovery;
 
 use crate::helpers::{attach_and_register, get_veth_channels};
 use aya::{
@@ -19,39 +17,41 @@ use aya::{
     util::online_cpus,
 };
 
-#[cfg(feature = "experimental")]
-use crate::helpers::scan_cgroup_cronjob;
-
 use cortexbrain_common::{
     buffer_type::BufferSize,
     constants,
-    consumer::Consumer,
-    consumer::read_perf_buffer,
+    consumer::{Consumer, IdentityFlowTracker, read_perf_buffer},
     logger,
     map_handlers::BpfMapsData,
     map_handlers::{init_bpf_maps, map_manager, map_pinner, populate_blocklist},
+    otel_init,
+    otel_metrics::Metrics,
     program_handlers::load_program,
+    service_cache::ServiceCache,
 };
+use std::future::Future;
 use std::{
     collections::HashMap,
     convert::TryInto,
+    num::NonZeroUsize,
     path::Path,
     sync::{Arc, Mutex},
+    time::Duration,
 };
-#[cfg(not(feature = "experimental"))]
-use std::future::Future;
 
 use anyhow::{Context, Ok, anyhow};
 
 //use std::collections::HashMap;
-use tokio::{fs, signal};
-use tracing::{error, info};
+use tokio::{fs, signal, sync::RwLock};
+use tracing::{error, info, warn};
 
-// maps created by init_bpf_maps. event_listener requires veth_identity_map, events_map and TcpPacketRegistry
-const REQUIRED_MAPS: [&str; 5] = [
+// maps created by init_bpf_maps. event_listener requires veth_identity_map, events_map,
+// TcpPacketRegistry and BlocklistEvents
+const REQUIRED_MAPS: [&str; 6] = [
     "events_map",
     "veth_identity_map",
     "TcpPacketRegistry",
+    "BlocklistEvents",
     "Blocklist",
     "tracked_veth",
 ];
@@ -79,6 +79,27 @@ fn bpf_map_save_path(env_key: &str) -> Result<std::path::PathBuf, anyhow::Error>
     Ok(std::path::PathBuf::from(path))
 }
 
+fn flow_cache_capacity() -> NonZeroUsize {
+    let default = || {
+        NonZeroUsize::new(constants::DEFAULT_IDENTITY_FLOW_CACHE_CAPACITY)
+            .expect("default flow cache capacity must be non-zero")
+    };
+    let Some(raw) = std::env::var(constants::IDENTITY_FLOW_CACHE_CAPACITY).ok() else {
+        return default();
+    };
+    match raw.parse::<usize>().ok().and_then(NonZeroUsize::new) {
+        Some(capacity) => capacity,
+        None => {
+            warn!(
+                "{} must be a positive integer, using default {}",
+                constants::IDENTITY_FLOW_CACHE_CAPACITY,
+                constants::DEFAULT_IDENTITY_FLOW_CACHE_CAPACITY
+            );
+            default()
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
     //init otlè tracing subscriber
@@ -87,11 +108,18 @@ async fn main() -> Result<(), anyhow::Error> {
     info!("Starting identity service...");
     info!("fetching data");
 
+    let meter = otel_init::init_opentelemetry("identity")
+        .context("Failed to initialise OpenTelemetry metrics pipeline")?;
+    let metrics = Arc::new(Metrics::new(&meter));
+
     //init conntracker data path and bpf data
     let bpf = load_bpf_object(constants::BPF_PATH).await?;
     let pin_path = bpf_map_save_path(constants::PIN_MAP_PATH)?;
 
-    if run(bpf, pin_path, &IdentityOperations).await? == Outcome::MapsInitFailed {
+    let outcome = run(bpf, pin_path, &IdentityOperations, Some(metrics)).await;
+    otel_init::shutdown_opentelemetry();
+
+    if outcome? == Outcome::MapsInitFailed {
         let _ = signal::ctrl_c().await;
         let _ = otlp_provider.shutdown();
     }
@@ -119,7 +147,11 @@ trait StartupOperations {
         ifaces: Vec<String>,
     ) -> Result<(), anyhow::Error>;
     async fn init_tcp(&self, bpf: Arc<Mutex<Ebpf>>) -> Result<(), anyhow::Error>;
-    async fn listen(&self, maps: BpfMapsData) -> Result<(), anyhow::Error>;
+    async fn listen(
+        &self,
+        maps: BpfMapsData,
+        metrics: Option<Arc<Metrics>>,
+    ) -> Result<(), anyhow::Error>;
 }
 
 struct IdentityOperations;
@@ -150,7 +182,26 @@ impl StartupOperations for IdentityOperations {
     }
 
     async fn blocklist(&self) -> Result<(), anyhow::Error> {
-        populate_blocklist().await
+        if !populate_blocklist().await? {
+            warn!(
+                "Blocklist source unavailable (Kubernetes API and BLOCKLIST_FILE); blocklist sync disabled"
+            );
+        }
+
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(Duration::from_secs(
+                constants::DEFAULT_BLOCKLIST_SYNC_INTERVAL_SECS,
+            ));
+            interval.tick().await;
+            loop {
+                interval.tick().await;
+                if let Err(e) = populate_blocklist().await {
+                    warn!("blocklist refresh failed: {}", e);
+                }
+            }
+        });
+
+        Ok(())
     }
 
     async fn init_classifier(
@@ -165,8 +216,12 @@ impl StartupOperations for IdentityOperations {
         init_tcp_registry(bpf).await
     }
 
-    async fn listen(&self, maps: BpfMapsData) -> Result<(), anyhow::Error> {
-        event_listener(maps).await
+    async fn listen(
+        &self,
+        maps: BpfMapsData,
+        metrics: Option<Arc<Metrics>>,
+    ) -> Result<(), anyhow::Error> {
+        event_listener(maps, metrics).await
     }
 }
 
@@ -174,6 +229,7 @@ async fn run(
     bpf: Arc<Mutex<Ebpf>>,
     pin_path: std::path::PathBuf,
     ops: &impl StartupOperations,
+    metrics: Option<Arc<Metrics>>,
 ) -> Result<Outcome, anyhow::Error> {
     let map_data = REQUIRED_MAPS.iter().map(|m| m.to_string()).collect();
     match ops.init_maps(bpf.clone(), map_data) {
@@ -207,7 +263,7 @@ async fn run(
                         )?;
                     }
 
-                    ops.listen(maps).await.map_err(|e| {
+                    ops.listen(maps, metrics).await.map_err(|e| {
                         anyhow::anyhow!("Error inizializing event_listener. Reason: {}", e)
                     })?;
                 }
@@ -359,8 +415,14 @@ fn start_event_consumers<T, H>(
     veth: T,
     network: T,
     tcp: T,
+    flow_cache_capacity: NonZeroUsize,
     mut start: impl FnMut(T, BufferSize, Consumer) -> H,
 ) -> (H, H, H) {
+    let flow_tracker = Arc::new(Mutex::new(IdentityFlowTracker::with_capacity(
+        Duration::from_secs(constants::IDENTITY_FLOW_TTL_SECS),
+        flow_cache_capacity,
+    )));
+
     (
         start(veth, BufferSize::VethEvents, Consumer::VethLog),
         start(
@@ -368,11 +430,16 @@ fn start_event_consumers<T, H>(
             BufferSize::ClassifierNetEvents,
             Consumer::PacketLog,
         ),
-        start(tcp, BufferSize::TcpEvents, Consumer::TcpPacketRegistry),
+        start(
+            tcp,
+            BufferSize::TcpEvents,
+            Consumer::TcpPacketRegistry {
+                tracker: flow_tracker,
+            },
+        ),
     )
 }
 
-#[cfg(not(feature = "experimental"))]
 enum ListenerExit {
     Veth(Result<(), tokio::task::JoinError>),
     Network(Result<(), tokio::task::JoinError>),
@@ -380,7 +447,6 @@ enum ListenerExit {
     Shutdown,
 }
 
-#[cfg(not(feature = "experimental"))]
 async fn wait_for_event_listener(
     veth: tokio::task::JoinHandle<()>,
     network: tokio::task::JoinHandle<()>,
@@ -402,7 +468,10 @@ async fn wait_for_event_listener(
 //   perf_veth_array: contains is associated with the network events stored in the veth_map (veth_identity_map)
 //
 //
-async fn event_listener(bpf_maps: BpfMapsData) -> Result<(), anyhow::Error> {
+async fn event_listener(
+    bpf_maps: BpfMapsData,
+    metrics: Option<Arc<Metrics>>,
+) -> Result<(), anyhow::Error> {
     info!("Preparing perf_buffers and perf_arrays");
 
     //TODO: try to change from PerfEventArray to a RingBuffer data structure
@@ -438,26 +507,65 @@ async fn event_listener(bpf_maps: BpfMapsData) -> Result<(), anyhow::Error> {
         (_perf_net_events_array, perf_net_events_buffers),
         (_tcp_registry_array, tcp_registry_buffers),
     ) = take_listener_maps(&mut maps)?;
+    let (_blocklist_events_array, blocklist_events_buffers) =
+        maps.remove("BlocklistEvents").ok_or_else(|| {
+            anyhow!("Cannot create blocklist events buffer: map BlocklistEvents not found")
+        })?;
 
+    let mut cache_obj = ServiceCache::default();
+    cache_obj.init();
+    if let Err(e) = cache_obj.populate_map_with_pod_info().await {
+        warn!("Service cache population failed: {}", e);
+    }
+    let cache = Arc::new(RwLock::new(cache_obj));
+
+    let cache_refresher = Arc::clone(&cache);
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(Duration::from_secs(60));
+        interval.tick().await;
+        loop {
+            interval.tick().await;
+            let mut cache_lock = cache_refresher.write().await;
+            if let Err(e) = cache_lock.populate_map_with_pod_info().await {
+                warn!("Service cache refresh failed: {}", e);
+            }
+        }
+    });
+
+    let consumer_metrics = metrics.clone();
+    let consumer_cache = Arc::clone(&cache);
+    let cache_capacity = flow_cache_capacity();
+    info!("Identity flow cache capacity: {}", cache_capacity);
     let (veth_events_displayer, net_events_displayer, tcp_registry_events_displayer) =
         start_event_consumers(
             perf_veth_buffers,
             perf_net_events_buffers,
             tcp_registry_buffers,
-            |buffers, size, consumer| {
+            cache_capacity,
+            move |buffers, size, consumer| {
                 let output = size.set_buffer();
+                let metrics = consumer_metrics.clone();
+                let cache = Arc::clone(&consumer_cache);
                 tokio::spawn(async move {
-                    read_perf_buffer(buffers, output, consumer, None, None).await;
+                    read_perf_buffer(buffers, output, consumer, metrics, Some(cache)).await;
                 })
             },
         );
 
-    #[cfg(feature = "experimental")]
-    let scan_cgroup_cronjob = tokio::spawn(async move {
-        let _ = scan_cgroup_cronjob(180).await;
-    });
+    let _blocklist_events_displayer = {
+        let output = BufferSize::BlocklistHit.set_buffer();
+        tokio::spawn(async move {
+            read_perf_buffer(
+                blocklist_events_buffers,
+                output,
+                Consumer::BlocklistHit,
+                metrics,
+                None,
+            )
+            .await;
+        })
+    };
 
-    #[cfg(not(feature = "experimental"))]
     match wait_for_event_listener(
         veth_events_displayer,
         net_events_displayer,
@@ -484,40 +592,6 @@ async fn event_listener(bpf_maps: BpfMapsData) -> Result<(), anyhow::Error> {
         ListenerExit::Shutdown => {
             info!("Triggered Exiting...");
         }
-    }
-    #[cfg(feature = "experimental")]
-    tokio::select! {
-         result = scan_cgroup_cronjob=>{
-            match result{
-                Err(e)=>error!("scan_cgroup_cronjob panicked {:?}",e),
-                std::result::Result::Ok(_) => info!("cgroup scan cronjob exited"),
-                }
-            }
-        result = veth_events_displayer=>{
-            match result{
-                Err(e)=>error!("veth_event_displayer panicked {:?}",e),
-                std::result::Result::Ok(_) => info!("Found new veth_event"),
-                }
-        }
-
-        result = net_events_displayer=>{
-           match result{
-                Err(e)=>error!("net_event_displayer panicked {:?}",e),
-               std::result::Result::Ok(_)  => info!("Found new net_event"),
-            }
-        }
-
-        result = tcp_registry_events_displayer => {
-            match result{
-                Err(e)=>error!("tcp_registry_events_displayer panicked {:?}",e),
-                std::result::Result::Ok(_)=>info!("Found new tcp_register event")
-            }
-        }
-
-        _= signal::ctrl_c()=>{
-            info!("Triggered Exiting...");
-        }
-
     }
 
     Ok(())
@@ -722,8 +796,9 @@ mod tests {
         let maps = BpfMapsData {
             bpf_obj_names: vec![],
             bpf_obj_map: vec![],
+            bpf: empty_bpf().expect("minimal eBPF ELF should load"),
         };
-        let err = event_listener(maps).await.unwrap_err();
+        let err = event_listener(maps, None).await.unwrap_err();
         assert!(err.to_string().contains("veth_identity_map"));
     }
 
@@ -733,8 +808,9 @@ mod tests {
         let maps = BpfMapsData {
             bpf_obj_names: vec!["veth_identity_map".to_string()],
             bpf_obj_map: vec![],
+            bpf: empty_bpf().expect("minimal eBPF ELF should load"),
         };
-        let err = event_listener(maps).await.unwrap_err();
+        let err = event_listener(maps, None).await.unwrap_err();
         assert!(err.to_string().contains("veth_identity_map"));
     }
 
@@ -796,22 +872,28 @@ mod tests {
     #[test]
     fn event_listener_starts_consumers_with_matching_buffers() {
         let mut calls = Vec::new();
-        let handles = start_event_consumers("veth", "network", "tcp", |buffers, size, consumer| {
-            let correct_pair = matches!(
-                (&size, &consumer),
-                (BufferSize::VethEvents, Consumer::VethLog)
-                    | (BufferSize::ClassifierNetEvents, Consumer::PacketLog)
-                    | (BufferSize::TcpEvents, Consumer::TcpPacketRegistry)
-            );
-            assert!(correct_pair);
-            calls.push(buffers);
-            buffers
-        });
+        let capacity = NonZeroUsize::new(8).expect("capacity must be non-zero");
+        let handles = start_event_consumers(
+            "veth",
+            "network",
+            "tcp",
+            capacity,
+            |buffers, size, consumer| {
+                let correct_pair = matches!(
+                    (&size, &consumer),
+                    (BufferSize::VethEvents, Consumer::VethLog)
+                        | (BufferSize::ClassifierNetEvents, Consumer::PacketLog)
+                        | (BufferSize::TcpEvents, Consumer::TcpPacketRegistry { .. })
+                );
+                assert!(correct_pair);
+                calls.push(buffers);
+                buffers
+            },
+        );
         assert_eq!(calls, ["veth", "network", "tcp"]);
         assert_eq!(handles, ("veth", "network", "tcp"));
     }
 
-    #[cfg(not(feature = "experimental"))]
     #[tokio::test]
     async fn event_listener_observes_each_consumer_exit_and_shutdown() {
         for exit in ["veth", "network", "tcp", "shutdown"] {
@@ -871,7 +953,10 @@ mod tests {
 
     type Calls = std::cell::RefCell<Vec<(String, String)>>;
 
-    fn recorder(calls: &Calls, fail_on: Option<&str>) -> impl Fn(Arc<Mutex<Ebpf>>, &str, &str) -> Result<(), anyhow::Error> {
+    fn recorder(
+        calls: &Calls,
+        fail_on: Option<&str>,
+    ) -> impl Fn(Arc<Mutex<Ebpf>>, &str, &str) -> Result<(), anyhow::Error> {
         let fail_on = fail_on.map(str::to_string);
         move |_, prog, sym| {
             calls.borrow_mut().push((prog.to_string(), sym.to_string()));
@@ -886,12 +971,17 @@ mod tests {
     async fn init_veth_tracer_loads_both_programs_in_order() {
         let bpf = empty_bpf().expect("minimal eBPF ELF should load");
         let calls = Calls::default();
-        init_veth_tracer_with(bpf, recorder(&calls, None)).await.unwrap();
+        init_veth_tracer_with(bpf, recorder(&calls, None))
+            .await
+            .unwrap();
         assert_eq!(
             *calls.borrow(),
             vec![
                 ("veth_creation_trace".into(), "register_netdevice".into()),
-                ("veth_deletion_trace".into(), "unregister_netdevice_queue".into()),
+                (
+                    "veth_deletion_trace".into(),
+                    "unregister_netdevice_queue".into()
+                ),
             ]
         );
     }
@@ -922,7 +1012,9 @@ mod tests {
     async fn init_tcp_registry_loads_both_programs_in_order() {
         let bpf = empty_bpf().expect("minimal eBPF ELF should load");
         let calls = Calls::default();
-        init_tcp_registry_with(bpf, recorder(&calls, None)).await.unwrap();
+        init_tcp_registry_with(bpf, recorder(&calls, None))
+            .await
+            .unwrap();
         assert_eq!(
             *calls.borrow(),
             vec![
@@ -958,11 +1050,38 @@ mod tests {
     static ENV_LOCK: Mutex<()> = Mutex::new(());
 
     #[test]
+    fn flow_cache_capacity_uses_env_override_or_default() {
+        let _g = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+
+        unsafe { std::env::remove_var(constants::IDENTITY_FLOW_CACHE_CAPACITY) };
+        assert_eq!(
+            flow_cache_capacity().get(),
+            constants::DEFAULT_IDENTITY_FLOW_CACHE_CAPACITY
+        );
+
+        unsafe { std::env::set_var(constants::IDENTITY_FLOW_CACHE_CAPACITY, "0") };
+        assert_eq!(
+            flow_cache_capacity().get(),
+            constants::DEFAULT_IDENTITY_FLOW_CACHE_CAPACITY
+        );
+
+        unsafe { std::env::set_var(constants::IDENTITY_FLOW_CACHE_CAPACITY, "32") };
+        assert_eq!(flow_cache_capacity().get(), 32);
+
+        unsafe { std::env::remove_var(constants::IDENTITY_FLOW_CACHE_CAPACITY) };
+    }
+
+    #[test]
     fn required_maps_include_those_used_by_event_listener() {
-        for m in ["veth_identity_map", "events_map", "TcpPacketRegistry"] {
+        for m in [
+            "veth_identity_map",
+            "events_map",
+            "TcpPacketRegistry",
+            "BlocklistEvents",
+        ] {
             assert!(REQUIRED_MAPS.contains(&m), "{} missing", m);
         }
-        assert_eq!(REQUIRED_MAPS.len(), 5);
+        assert_eq!(REQUIRED_MAPS.len(), 6);
     }
 
     #[tokio::test]
@@ -971,7 +1090,10 @@ mod tests {
         let key = "CF_TEST_BPF_PATH_UNSET";
         unsafe { std::env::remove_var(key) };
         let err = load_bpf_object(key).await.err().unwrap();
-        assert_eq!(err.to_string(), format!("{} environment variable required", key));
+        assert_eq!(
+            err.to_string(),
+            format!("{} environment variable required", key)
+        );
     }
 
     #[tokio::test]
@@ -1011,7 +1133,10 @@ mod tests {
         let key = "CF_TEST_PIN_PATH";
         unsafe { std::env::remove_var(key) };
         let err = bpf_map_save_path(key).unwrap_err();
-        assert_eq!(err.to_string(), format!("{} environment variable required", key));
+        assert_eq!(
+            err.to_string(),
+            format!("{} environment variable required", key)
+        );
 
         unsafe { std::env::set_var(key, "/sys/fs/bpf/maps") };
         assert_eq!(
@@ -1039,7 +1164,7 @@ mod tests {
     impl StartupOperations for MockStartup {
         fn init_maps(
             &self,
-            _: Arc<Mutex<Ebpf>>,
+            bpf: Arc<Mutex<Ebpf>>,
             names: Vec<String>,
         ) -> Result<BpfMapsData, anyhow::Error> {
             assert_eq!(names, REQUIRED_MAPS);
@@ -1047,6 +1172,7 @@ mod tests {
             Ok(BpfMapsData {
                 bpf_obj_names: vec!["test_map".into()],
                 bpf_obj_map: vec![],
+                bpf,
             })
         }
 
@@ -1087,7 +1213,11 @@ mod tests {
             self.step("tcp")
         }
 
-        async fn listen(&self, maps: BpfMapsData) -> Result<(), anyhow::Error> {
+        async fn listen(
+            &self,
+            maps: BpfMapsData,
+            _metrics: Option<Arc<Metrics>>,
+        ) -> Result<(), anyhow::Error> {
             assert_eq!(maps.bpf_obj_names, ["test_map"]);
             self.step("listen")
         }
@@ -1101,7 +1231,7 @@ mod tests {
         };
         let bpf = empty_bpf().expect("minimal eBPF ELF should load");
         assert_eq!(
-            run(bpf, "/test/pin".into(), &ops).await.unwrap(),
+            run(bpf, "/test/pin".into(), &ops, None).await.unwrap(),
             Outcome::Finished
         );
         assert_eq!(
@@ -1141,7 +1271,7 @@ mod tests {
                 fail_at: Some(stage),
             };
             let bpf = empty_bpf().expect("minimal eBPF ELF should load");
-            let result = run(bpf, "/test/pin".into(), &ops).await;
+            let result = run(bpf, "/test/pin".into(), &ops, None).await;
             match *stage {
                 "init_maps" => assert_eq!(result.unwrap(), Outcome::MapsInitFailed),
                 "pin_maps" => assert_eq!(result.unwrap(), Outcome::Finished),

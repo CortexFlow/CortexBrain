@@ -11,25 +11,125 @@
 //! 3. Builds [`crate::metadata::Metadata`] (with optional Docker/K8s enrichment).
 //! 4. Records the observation through [`Metrics::record_*`].
 
+#[cfg(feature = "network-structs")]
+use crate::buffer_type::{BlocklistHit, PacketLog, TcpPacketRegistry, VethLog};
 #[cfg(feature = "monitoring-structs")]
 use crate::buffer_type::{
     CpuFrequency, CpuIdle, MemAlloc, PacketLossMetrics, SchedStatRuntime, SchedStatWait,
     TimeStampMetrics,
 };
-use crate::constants::DEFAULT_MAP_READING_TIME;
 #[cfg(feature = "network-structs")]
-use crate::buffer_type::{PacketLog, TcpPacketRegistry, VethLog};
+use crate::constants::DEFAULT_IDENTITY_FLOW_CACHE_CAPACITY;
+use crate::constants::DEFAULT_MAP_READING_TIME;
 #[cfg(feature = "monitoring-structs")]
 use crate::metadata::Metadata;
 #[cfg(feature = "monitoring-structs")]
 use crate::otel_metrics::Metrics;
 use crate::service_cache::ServiceCache;
 use bytes::BytesMut;
+#[cfg(feature = "network-structs")]
+use lru::LruCache;
+#[cfg(feature = "network-structs")]
+use std::num::NonZeroUsize;
 #[cfg(feature = "buffer-reader")]
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
+#[cfg(feature = "network-structs")]
+use std::time::{Duration, Instant};
 #[cfg(feature = "buffer-reader")]
 use tokio::sync::RwLock;
 use tracing::{error, info, warn};
+
+/// Key identifying a single directional flow observed by the identity service.
+#[cfg(feature = "network-structs")]
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
+struct IdentityFlowKey {
+    src_ip: u32,
+    dst_ip: u32,
+    src_port: u16,
+    dst_port: u16,
+    proto: u8,
+    direction: u8,
+}
+
+/// Userspace tracker that de-duplicates identity flows for a configurable TTL.
+///
+/// A flow is considered new when its 5-tuple (plus direction) has not been
+/// observed for at least `ttl`. Active flows refresh their last-seen timestamp
+/// on every observation. The tracker holds at most `capacity` flows; when the
+/// cache is full, the least recently used flow is evicted.
+#[cfg(feature = "network-structs")]
+pub struct IdentityFlowTracker {
+    // TODO: export cache size, capacity and evictions
+    // (`cortexbrain_identity_flow_cache_*`) as OpenTelemetry instruments.
+    flows: LruCache<IdentityFlowKey, Instant>,
+    ttl: Duration,
+    evictions: u64,
+}
+
+#[cfg(feature = "network-structs")]
+impl IdentityFlowTracker {
+    pub fn new(ttl: Duration) -> Self {
+        let capacity = NonZeroUsize::new(DEFAULT_IDENTITY_FLOW_CACHE_CAPACITY)
+            .expect("default identity flow cache capacity must be non-zero");
+        Self::with_capacity(ttl, capacity)
+    }
+
+    pub fn with_capacity(ttl: Duration, capacity: NonZeroUsize) -> Self {
+        Self {
+            flows: LruCache::new(capacity),
+            ttl,
+            evictions: 0,
+        }
+    }
+
+    /// Returns `true` when the event starts a flow that was not observed
+    /// within the configured TTL.
+    pub fn observe(&mut self, event: &TcpPacketRegistry) -> bool {
+        self.observe_at(event, Instant::now())
+    }
+
+    fn observe_at(&mut self, event: &TcpPacketRegistry, now: Instant) -> bool {
+        let key = IdentityFlowKey {
+            src_ip: event.src_ip,
+            dst_ip: event.dst_ip,
+            src_port: event.src_port,
+            dst_port: event.dst_port,
+            proto: event.proto,
+            direction: event.direction,
+        };
+
+        if let Some(last_seen) = self.flows.get_mut(&key) {
+            let expired = now.saturating_duration_since(*last_seen) >= self.ttl;
+            *last_seen = now;
+            return expired;
+        }
+
+        if self.flows.push(key, now).is_some() {
+            self.evictions += 1;
+        }
+        true
+    }
+
+    /// Number of flows currently tracked.
+    pub fn len(&self) -> usize {
+        self.flows.len()
+    }
+
+    /// Whether no flows are currently tracked.
+    pub fn is_empty(&self) -> bool {
+        self.flows.is_empty()
+    }
+
+    /// Maximum number of flows tracked before LRU eviction kicks in.
+    pub fn capacity(&self) -> usize {
+        self.flows.cap().get()
+    }
+
+    /// Total number of flows evicted because the cache was full.
+    pub fn evictions(&self) -> u64 {
+        self.evictions
+    }
+}
 
 /// Discriminator for perf-buffer event types consumed by the collector.
 ///
@@ -40,7 +140,11 @@ pub enum Consumer {
     #[cfg(feature = "network-structs")]
     PacketLog,
     #[cfg(feature = "network-structs")]
-    TcpPacketRegistry,
+    TcpPacketRegistry {
+        tracker: Arc<Mutex<IdentityFlowTracker>>,
+    },
+    #[cfg(feature = "network-structs")]
+    BlocklistHit,
     #[cfg(feature = "network-structs")]
     VethLog,
     #[cfg(feature = "monitoring-structs")]
@@ -117,7 +221,15 @@ impl Consumer {
     /// Similar to [`read_packet_log`] but additionally prints the command name
     /// and cgroup ID extracted from the eBPF struct.
     #[cfg(feature = "network-structs")]
-    pub async fn read_tcp_registry_log(buffers: &mut [BytesMut], tot_events: i32, offset: i32) {
+    pub async fn read_tcp_registry_log(
+        buffers: &mut [BytesMut],
+        tot_events: i32,
+        offset: i32,
+        tracker: Arc<Mutex<IdentityFlowTracker>>,
+        #[cfg(feature = "monitoring-structs")] exporter: &str,
+        #[cfg(feature = "monitoring-structs")] metrics: Arc<Metrics>,
+        #[cfg(feature = "monitoring-structs")] cache: Option<Arc<RwLock<ServiceCache>>>,
+    ) {
         use crate::buffer_type::{IpProtocols, reverse_be_addr};
 
         for i in offset..tot_events {
@@ -164,6 +276,74 @@ impl Consumer {
                         error!("Unknown protocol. Data maybe corrupted. Reason:{:?}", e);
                     }
                 }
+
+                #[cfg(feature = "monitoring-structs")]
+                {
+                    let is_new = tracker
+                        .lock()
+                        .map(|mut tracker| tracker.observe(&pl))
+                        .unwrap_or(false);
+
+                    if exporter == "otlp" && is_new {
+                        let mut metadata =
+                            Metadata::from_ebpf(Some(pl.pid), Some(pl.cgroup_id), &pl.command);
+                        if let Some(cache) = &cache {
+                            metadata.enrich(cache).await;
+                        }
+
+                        metrics.record_identity_connection(pl.direction, &metadata);
+                    }
+                }
+
+                #[cfg(not(feature = "monitoring-structs"))]
+                {
+                    let _ = &tracker;
+                }
+            }
+        }
+    }
+
+    /// Read [`BlocklistHit`] events and record OpenTelemetry observations.
+    ///
+    /// Each event represents a packet dropped by the identity TC classifier
+    /// because its source address matched the blocklist.
+    #[cfg(feature = "network-structs")]
+    pub async fn read_blocklist_hit(
+        buffers: &mut [BytesMut],
+        tot_events: i32,
+        offset: i32,
+        #[cfg(feature = "monitoring-structs")] exporter: &str,
+        #[cfg(feature = "monitoring-structs")] metrics: Arc<Metrics>,
+    ) {
+        use crate::buffer_type::reverse_be_addr;
+
+        for i in offset..tot_events {
+            let vec_bytes = &buffers[i as usize];
+            if vec_bytes.len() < std::mem::size_of::<BlocklistHit>() {
+                error!(
+                    "Corrupted BlocklistHit data. Raw data: {}. Readed {} bytes expected {} bytes",
+                    vec_bytes
+                        .iter()
+                        .map(|b| format!("{:02x}", b))
+                        .collect::<Vec<_>>()
+                        .join(" "),
+                    vec_bytes.len(),
+                    std::mem::size_of::<BlocklistHit>()
+                );
+                continue;
+            }
+            if vec_bytes.len() >= std::mem::size_of::<BlocklistHit>() {
+                let hit: BlocklistHit =
+                    unsafe { std::ptr::read_unaligned(vec_bytes.as_ptr() as *const _) };
+
+                let blocked_ip = reverse_be_addr(hit.src_ip);
+
+                #[cfg(feature = "monitoring-structs")]
+                if exporter == "otlp" {
+                    metrics.record_identity_blocklist_hit(&blocked_ip.to_string());
+                }
+
+                info!("Blocklist hit - blocked_ip: {}", blocked_ip);
             }
         }
     }
@@ -763,6 +943,9 @@ pub async fn read_perf_buffer<T: std::borrow::BorrowMut<aya::maps::MapData>>(
     #[cfg(feature = "monitoring-structs")] metrics: Option<Arc<Metrics>>,
     cache: Option<Arc<RwLock<ServiceCache>>>,
 ) {
+    #[cfg(not(feature = "monitoring-structs"))]
+    let _ = &cache;
+
     loop {
         for buf in array_buffers.iter_mut() {
             match buf.read_events(&mut buffers) {
@@ -781,9 +964,43 @@ pub async fn read_perf_buffer<T: std::borrow::BorrowMut<aya::maps::MapData>>(
                                 Consumer::read_packet_log(&mut buffers, tot_events, offset).await
                             }
                             #[cfg(feature = "network-structs")]
-                            Consumer::TcpPacketRegistry => {
-                                Consumer::read_tcp_registry_log(&mut buffers, tot_events, offset)
-                                    .await
+                            Consumer::TcpPacketRegistry { ref tracker } => {
+                                #[cfg(feature = "monitoring-structs")]
+                                Consumer::read_tcp_registry_log(
+                                    &mut buffers,
+                                    tot_events,
+                                    offset,
+                                    tracker.clone(),
+                                    "otlp",
+                                    metrics
+                                        .clone()
+                                        .expect("Metrics required for TcpPacketRegistry"),
+                                    cache.clone(),
+                                )
+                                .await;
+                                #[cfg(not(feature = "monitoring-structs"))]
+                                Consumer::read_tcp_registry_log(
+                                    &mut buffers,
+                                    tot_events,
+                                    offset,
+                                    tracker.clone(),
+                                )
+                                .await;
+                            }
+                            #[cfg(feature = "network-structs")]
+                            Consumer::BlocklistHit => {
+                                #[cfg(feature = "monitoring-structs")]
+                                Consumer::read_blocklist_hit(
+                                    &mut buffers,
+                                    tot_events,
+                                    offset,
+                                    "otlp",
+                                    metrics.clone().expect("Metrics required for BlocklistHit"),
+                                )
+                                .await;
+                                #[cfg(not(feature = "monitoring-structs"))]
+                                Consumer::read_blocklist_hit(&mut buffers, tot_events, offset)
+                                    .await;
                             }
                             #[cfg(feature = "network-structs")]
                             Consumer::VethLog => {
@@ -900,6 +1117,96 @@ pub async fn read_perf_buffer<T: std::borrow::BorrowMut<aya::maps::MapData>>(
                 }
             }
         }
-        tokio::time::sleep(std::time::Duration::from_millis(std::env::var(DEFAULT_MAP_READING_TIME).ok().and_then(|v| v.parse::<u64>().ok()).unwrap_or(5000))).await;
+        tokio::time::sleep(std::time::Duration::from_millis(
+            std::env::var(DEFAULT_MAP_READING_TIME)
+                .ok()
+                .and_then(|v| v.parse::<u64>().ok())
+                .unwrap_or(5000),
+        ))
+        .await;
+    }
+}
+
+#[cfg(all(test, feature = "network-structs"))]
+mod tests {
+    use super::*;
+    use bytemuck::Zeroable;
+
+    fn event(src_port: u16, direction: u8) -> TcpPacketRegistry {
+        let mut event = TcpPacketRegistry::zeroed();
+        event.src_ip = 1;
+        event.dst_ip = 2;
+        event.src_port = src_port;
+        event.dst_port = 3;
+        event.proto = 6;
+        event.direction = direction;
+        event
+    }
+
+    fn tracker_with_capacity(capacity: usize) -> IdentityFlowTracker {
+        IdentityFlowTracker::with_capacity(
+            Duration::from_secs(60),
+            NonZeroUsize::new(capacity).expect("test capacity must be non-zero"),
+        )
+    }
+
+    #[test]
+    fn flow_tracker_deduplicates_until_the_ttl_expires() {
+        let mut tracker = IdentityFlowTracker::new(Duration::from_secs(60));
+        let now = Instant::now();
+
+        assert!(tracker.observe_at(&event(100, 0), now));
+        assert!(!tracker.observe_at(&event(100, 0), now + Duration::from_secs(1)));
+        assert!(tracker.observe_at(&event(100, 1), now + Duration::from_secs(1)));
+        assert!(tracker.observe_at(&event(100, 0), now + Duration::from_secs(61)));
+        assert_eq!(tracker.evictions(), 0);
+    }
+
+    #[test]
+    fn flow_tracker_evicts_the_least_recently_used_flow_at_capacity() {
+        let mut tracker = tracker_with_capacity(2);
+        let now = Instant::now();
+
+        assert!(tracker.observe_at(&event(100, 0), now));
+        assert!(tracker.observe_at(&event(101, 0), now));
+        assert!(!tracker.observe_at(&event(100, 0), now + Duration::from_secs(1)));
+
+        assert!(tracker.observe_at(&event(102, 0), now + Duration::from_secs(2)));
+        assert_eq!(tracker.len(), 2);
+        assert_eq!(tracker.capacity(), 2);
+        assert_eq!(tracker.evictions(), 1);
+        assert!(!tracker.observe_at(&event(100, 0), now + Duration::from_secs(3)));
+
+        assert!(tracker.observe_at(&event(101, 0), now + Duration::from_secs(4)));
+        assert_eq!(tracker.len(), 2);
+        assert_eq!(tracker.evictions(), 2);
+        assert!(!tracker.observe_at(&event(100, 0), now + Duration::from_secs(5)));
+    }
+
+    #[test]
+    fn flow_tracker_evicts_expired_flows_before_active_ones() {
+        let mut tracker = tracker_with_capacity(2);
+        let now = Instant::now();
+
+        assert!(tracker.observe_at(&event(100, 0), now));
+        assert!(tracker.observe_at(&event(101, 0), now + Duration::from_secs(50)));
+        assert!(tracker.observe_at(&event(102, 0), now + Duration::from_secs(61)));
+        assert_eq!(tracker.evictions(), 1);
+
+        assert!(!tracker.observe_at(&event(101, 0), now + Duration::from_secs(61)));
+        assert!(tracker.observe_at(&event(100, 0), now + Duration::from_secs(61)));
+    }
+
+    #[test]
+    fn flow_tracker_never_exceeds_capacity() {
+        let mut tracker = tracker_with_capacity(3);
+        let now = Instant::now();
+
+        for port in 0..100 {
+            tracker.observe_at(&event(port, 0), now);
+            assert!(tracker.len() <= tracker.capacity());
+        }
+        assert_eq!(tracker.len(), 3);
+        assert_eq!(tracker.evictions(), 97);
     }
 }

@@ -1,0 +1,4 @@
+# One IPv4 address per line. Empty lines and lines starting with '#' are ignored.
+# Example:
+# 192.0.2.10
+# 198.51.100.25

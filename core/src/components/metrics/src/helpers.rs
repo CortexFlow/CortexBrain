@@ -77,7 +77,7 @@ pub async fn init_metrics_and_cache(
 ) -> Result<(Arc<Metrics>, Arc<tokio::sync::RwLock<ServiceCache>>), anyhow::Error> {
     let metrics = Arc::new(Metrics::new(meter));
 
-    let mut cache_obj = ServiceCache { service_map: None };
+    let mut cache_obj = ServiceCache::default();
     cache_obj.init();
     cache_obj.populate_map_with_pod_info().await?;
     let cache = Arc::new(tokio::sync::RwLock::new(cache_obj));
