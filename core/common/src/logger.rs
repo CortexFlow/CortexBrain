@@ -50,6 +50,9 @@ const OTEL_EXPORTER_OTLP_PROTOCOL: &str = "OTEL_EXPORTER_OTLP_PROTOCOL";
 const DEFAULT_OTLP_GRPC_ENDPOINT: &str = "http://localhost:4317";
 const DEFAULT_OTLP_HTTP_ENDPOINT: &str = "http://localhost:4318";
 const CF_DEBUG_LEVEL: &str = "CF_DEBUG_LEVEL";
+/// Filter for the log records exported over OTLP (stdout keeps using CF_DEBUG_LEVEL).
+const CF_OTLP_LOG_LEVEL: &str = "CF_OTLP_LOG_LEVEL";
+const DEFAULT_OTLP_LOG_LEVEL: &str = "info";
 
 fn resolved_otlp_endpoint() -> String {
     if let Ok(endpoint) = std::env::var(OTEL_EXPORTER_OTLP_ENDPOINT)
@@ -111,9 +114,22 @@ pub fn otlp_logger_init(service_name: String) -> SdkLoggerProvider {
         .with_batch_exporter(exporter)
         .build();
 
-    //maybe we will need some filter later
-    //init otel_filter and layer
-    let otel_layer = OpenTelemetryTracingBridge::new(&provider);
+    // The bridge used to receive every tracing event at every level. That includes
+    // per-event debug lines from the perf-buffer consumers and the exporter's own
+    // transport (hyper, h2, tonic, tower), so each export produced more records to
+    // export. Ship `info` and above by default (CF_OTLP_LOG_LEVEL overrides it) and
+    // never the transport or the SDK itself, as opentelemetry-appender-tracing
+    // recommends.
+    let otel_filter = EnvFilter::new(
+        std::env::var(CF_OTLP_LOG_LEVEL).unwrap_or(DEFAULT_OTLP_LOG_LEVEL.to_string()),
+    )
+    .add_directive("hyper=off".parse().unwrap())
+    .add_directive("h2=off".parse().unwrap())
+    .add_directive("tonic=off".parse().unwrap())
+    .add_directive("tower=off".parse().unwrap())
+    .add_directive("reqwest=off".parse().unwrap())
+    .add_directive("opentelemetry=off".parse().unwrap());
+    let otel_layer = OpenTelemetryTracingBridge::new(&provider).with_filter(otel_filter);
 
     // init fmt filter and layer
     let fmt_filter = EnvFilter::new(std::env::var(CF_DEBUG_LEVEL).unwrap_or("debug".to_string()))
