@@ -70,6 +70,50 @@ pub fn resolve_libssl_path() -> anyhow::Result<Option<String>> {
     Ok(None)
 }
 
+/// Outcome of attaching the optional eBPF probes at startup.
+///
+/// Each probe is recorded instead of being `?`-propagated, so a hook that does not
+/// exist on the running kernel only disables the metrics that depend on it.
+#[derive(Debug, Default)]
+pub struct ProbeAttachments {
+    pub attached: Vec<String>,
+    pub failed: Vec<String>,
+}
+
+impl ProbeAttachments {
+    /// Record the result of attaching `probe`, logging a warning on failure.
+    pub fn record(&mut self, probe: &str, result: Result<(), anyhow::Error>) {
+        match result {
+            Ok(()) => self.attached.push(probe.to_string()),
+            Err(e) => {
+                warn!("{} not attached, continuing without it: {:#}", probe, e);
+                self.failed.push(probe.to_string());
+            }
+        }
+    }
+
+    /// Fail only when nothing at all could be attached.
+    pub fn ensure_any_attached(&self) -> Result<(), anyhow::Error> {
+        if self.attached.is_empty() {
+            return Err(anyhow!(
+                "none of the eBPF probes could be attached (tried: {})",
+                self.failed.join(", ")
+            ));
+        }
+        if self.failed.is_empty() {
+            info!("All {} eBPF probes attached", self.attached.len());
+        } else {
+            warn!(
+                "{} eBPF probes attached, {} skipped: {}",
+                self.attached.len(),
+                self.failed.len(),
+                self.failed.join(", ")
+            );
+        }
+        Ok(())
+    }
+}
+
 /// Initialise the shared OpenTelemetry metrics handle and the Docker/K8s
 /// service cache used by every perf-buffer consumer.
 pub async fn init_metrics_and_cache(
@@ -210,6 +254,15 @@ fn attach_ssl_uprobes(bpf: &Arc<Mutex<Ebpf>>, attached: &mut HashSet<(u64, u64)>
     }
 }
 
+/// Pages per per-CPU perf ring (must be a power of two).
+///
+/// aya defaults to 2 pages (8 KiB): ~340 of the smallest events, ~145 MemAlloc
+/// events. With the reader polling every 100 ms, a tracepoint firing a few thousand
+/// times per second on one CPU overflows that between two polls. 16 pages
+/// (64 KiB per CPU per perf map) kept up with ~10k mmap events/s on one CPU
+/// without drops in testing.
+const PERF_BUFFER_PAGES: usize = 16;
+
 /// Listen for eBPF perf-buffer events and record OpenTelemetry metrics.
 ///
 /// This function bridges the eBPF perf-buffer layer with the OpenTelemetry
@@ -238,17 +291,17 @@ pub async fn event_listener(bpf_maps: BpfMapsData, meter: Meter) -> Result<(), a
 
     for cpu_id in cpu_count {
         for (name, (perf_event_array, perf_event_buffer)) in maps.iter_mut() {
-            let buf = perf_event_array.open(cpu_id, None).map_err(|e| {
-                anyhow!(
-                    "Cannot create perf_event_array buffer from perf_event_array. Reason: {}",
-                    e
-                )
-            })?;
+            let buf = perf_event_array
+                .open(cpu_id, Some(PERF_BUFFER_PAGES))
+                .map_err(|e| {
+                    anyhow!(
+                        "Cannot create perf_event_array buffer from perf_event_array. Reason: {}",
+                        e
+                    )
+                })?;
             info!(
-                "Buffer created for map {:?} on cpu_id {:?}. Buffer size: {}",
-                name,
-                cpu_id,
-                std::mem::size_of_val(&buf)
+                "Buffer created for map {:?} on cpu_id {:?}. Ring size: {} pages",
+                name, cpu_id, PERF_BUFFER_PAGES
             );
             perf_event_buffer.push(buf);
         }
@@ -534,4 +587,43 @@ pub async fn event_listener(bpf_maps: BpfMapsData, meter: Meter) -> Result<(), a
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ProbeAttachments;
+
+    #[test]
+    fn a_failed_probe_does_not_stop_the_others() {
+        let mut probes = ProbeAttachments::default();
+        probes.record("tracepoint power:cpu_idle", Ok(()));
+        probes.record(
+            "tracepoint sched:sched_stat_wait",
+            Err(anyhow::anyhow!("tracepoint does not exist")),
+        );
+        probes.record("tracepoint sched:sched_stat_runtime", Ok(()));
+
+        assert_eq!(
+            probes.attached,
+            ["tracepoint power:cpu_idle", "tracepoint sched:sched_stat_runtime"]
+        );
+        assert_eq!(probes.failed, ["tracepoint sched:sched_stat_wait"]);
+        assert!(probes.ensure_any_attached().is_ok());
+    }
+
+    #[test]
+    fn startup_fails_when_nothing_attached() {
+        let mut probes = ProbeAttachments::default();
+        probes.record("kprobe tcp_v4_connect", Err(anyhow::anyhow!("kprobes disabled")));
+        probes.record("kprobe tcp_v6_connect", Err(anyhow::anyhow!("kprobes disabled")));
+
+        let err = probes.ensure_any_attached().unwrap_err().to_string();
+        assert!(err.contains("kprobe tcp_v4_connect"));
+        assert!(err.contains("kprobe tcp_v6_connect"));
+    }
+
+    #[test]
+    fn no_probes_recorded_is_an_error() {
+        assert!(ProbeAttachments::default().ensure_any_attached().is_err());
+    }
 }
