@@ -19,7 +19,7 @@ use std::{
 use tracing::{error, info};
 mod helpers;
 mod otel_init;
-use crate::helpers::{event_listener, resolve_libssl_path};
+use crate::helpers::{ProbeAttachments, event_listener, resolve_libssl_path};
 use crate::otel_init::{init_opentelemetry, shutdown_opentelemetry};
 
 use cortexbrain_common::{
@@ -83,122 +83,134 @@ async fn main() -> Result<(), anyhow::Error> {
                 Ok(maps) => {
                     info!("BPF maps pinned successfully to {}", bpf_map_save_path);
 
+                    // Every probe is optional: a kernel without CONFIG_SCHEDSTATS has no
+                    // sched:sched_stat_wait tracepoint, a static function can be inlined
+                    // away, kprobes can be disabled. One missing hook must not take the
+                    // other metrics down with it, so failures are logged and skipped.
+                    let mut probes = ProbeAttachments::default();
                     {
-                        load_program(
-                            bpf.clone(),
-                            "packet_loss_tracer",
-                            "tcp_identify_packet_loss",
-                        )
-                        .context(
-                            "An error occurred during the execution of load_program function",
-                        )?;
-
-                        load_program(tcp_bpf, "tcp_v4_connect", "tcp_v4_connect")
-                            .context("An error occurred during the execution of load_and_attach_tcp_programs function")?;
-
-                        load_program(tcp_v6_bpf, "tcp_v6_connect", "tcp_v6_connect")
-                            .context("An error occurred during the execution of load_and_attach_tcp_programs function")?;
-
-                        load_program(tcp_rev_bpf, "tcp_latency_monitor", "tcp_rcv_state_process")
-                            .context(
-                            "An error occurred during the execution of load_program function",
-                        )?;
-                        load_tracepoint_program(
-                            cpu_frequency,
-                            "trace_cpu_frequency",
-                            "percpu",
-                            "percpu_alloc_percpu",
-                        )
-                        .context(
-                            "An error occurred during the execution of load_program function",
-                        )?;
-                        load_tracepoint_program(
-                            cpu_idle_bpf,
-                            "trace_cpu_idle",
-                            "power",
-                            "cpu_idle",
-                        )
-                        .context(
-                            "An error occurred during the execution of load_program function",
-                        )?;
-                        load_tracepoint_program(
-                            mem_alloc_bpf,
-                            "trace_enter_mmap",
-                            "syscalls",
-                            "sys_enter_mmap",
-                        )
-                        .context(
-                            "An error occurred during the execution of load_program function",
-                        )?;
-                        load_tracepoint_program(
-                            sched_stat_wait_bpf,
-                            "trace_sched_stat_wait",
-                            "sched",
-                            "sched_stat_wait",
-                        )
-                        .context(
-                            "An error occurred during the execution of load_program function",
-                        )?;
-                        load_tracepoint_program(
-                            sched_stat_runtime_bpf,
-                            "trace_sched_stat_runtime",
-                            "sched",
-                            "sched_stat_runtime",
-                        )
-                        .context(
-                            "An error occurred during the execution of load_program function",
-                        )?;
+                        probes.record(
+                            "kprobe tcp_identify_packet_loss",
+                            load_program(
+                                bpf.clone(),
+                                "packet_loss_tracer",
+                                "tcp_identify_packet_loss",
+                            ),
+                        );
+                        probes.record(
+                            "kprobe tcp_v4_connect",
+                            load_program(tcp_bpf, "tcp_v4_connect", "tcp_v4_connect"),
+                        );
+                        probes.record(
+                            "kprobe tcp_v6_connect",
+                            load_program(tcp_v6_bpf, "tcp_v6_connect", "tcp_v6_connect"),
+                        );
+                        probes.record(
+                            "kprobe tcp_rcv_state_process",
+                            load_program(
+                                tcp_rev_bpf,
+                                "tcp_latency_monitor",
+                                "tcp_rcv_state_process",
+                            ),
+                        );
+                        probes.record(
+                            "tracepoint percpu:percpu_alloc_percpu",
+                            load_tracepoint_program(
+                                cpu_frequency,
+                                "trace_cpu_frequency",
+                                "percpu",
+                                "percpu_alloc_percpu",
+                            ),
+                        );
+                        probes.record(
+                            "tracepoint power:cpu_idle",
+                            load_tracepoint_program(
+                                cpu_idle_bpf,
+                                "trace_cpu_idle",
+                                "power",
+                                "cpu_idle",
+                            ),
+                        );
+                        probes.record(
+                            "tracepoint syscalls:sys_enter_mmap",
+                            load_tracepoint_program(
+                                mem_alloc_bpf,
+                                "trace_enter_mmap",
+                                "syscalls",
+                                "sys_enter_mmap",
+                            ),
+                        );
+                        probes.record(
+                            "tracepoint sched:sched_stat_wait",
+                            load_tracepoint_program(
+                                sched_stat_wait_bpf,
+                                "trace_sched_stat_wait",
+                                "sched",
+                                "sched_stat_wait",
+                            ),
+                        );
+                        probes.record(
+                            "tracepoint sched:sched_stat_runtime",
+                            load_tracepoint_program(
+                                sched_stat_runtime_bpf,
+                                "trace_sched_stat_runtime",
+                                "sched",
+                                "sched_stat_runtime",
+                            ),
+                        );
                         match resolve_libssl_path()? {
                             Some(ssl_lib_path) => {
-                                load_uprobe_program(
-                                    ssl_read_bpf,
-                                    "ssl_read",
-                                    "SSL_read",
-                                    &ssl_lib_path,
-                                    None,
-                                )
-                                .context(
-                                    "An error occurred while attaching the ssl_read uprobe",
-                                )?;
-
-                                load_uprobe_program(
-                                    ssl_read_ret_bpf,
-                                    "ssl_read_ret",
-                                    "SSL_read",
-                                    &ssl_lib_path,
-                                    None,
-                                )
-                                .context(
-                                    "An error occurred while attaching the ssl_read_ret uprobe",
-                                )?;
-
-                                load_uprobe_program(
-                                    ssl_write_bpf,
-                                    "ssl_write",
-                                    "SSL_write",
-                                    &ssl_lib_path,
-                                    None,
-                                )
-                                .context(
-                                    "An error occurred while attaching the ssl_write uprobe",
-                                )?;
-
-                                load_uprobe_program(
-                                    ssl_write_ret_bpf,
-                                    "ssl_write_ret",
-                                    "SSL_write",
-                                    &ssl_lib_path,
-                                    None,
-                                )
-                                .context(
-                                    "An error occurred while attaching the ssl_write_ret uprobe",
-                                )?;
+                                probes.record(
+                                    "uprobe SSL_read",
+                                    load_uprobe_program(
+                                        ssl_read_bpf,
+                                        "ssl_read",
+                                        "SSL_read",
+                                        &ssl_lib_path,
+                                        None,
+                                    ),
+                                );
+                                probes.record(
+                                    "uretprobe SSL_read",
+                                    load_uprobe_program(
+                                        ssl_read_ret_bpf,
+                                        "ssl_read_ret",
+                                        "SSL_read",
+                                        &ssl_lib_path,
+                                        None,
+                                    ),
+                                );
+                                probes.record(
+                                    "uprobe SSL_write",
+                                    load_uprobe_program(
+                                        ssl_write_bpf,
+                                        "ssl_write",
+                                        "SSL_write",
+                                        &ssl_lib_path,
+                                        None,
+                                    ),
+                                );
+                                probes.record(
+                                    "uretprobe SSL_write",
+                                    load_uprobe_program(
+                                        ssl_write_ret_bpf,
+                                        "ssl_write_ret",
+                                        "SSL_write",
+                                        &ssl_lib_path,
+                                        None,
+                                    ),
+                                );
                             }
                             None => {
                                 info!("OpenSSL library not found; skipping SSL uprobe tracing");
                             }
                         }
+                    }
 
+                    if let Err(e) = probes.ensure_any_attached() {
+                        error!("{:?}", e);
+                        shutdown_opentelemetry();
+                        return Err(e);
                     }
 
                     // Hand off to the async event consumer
