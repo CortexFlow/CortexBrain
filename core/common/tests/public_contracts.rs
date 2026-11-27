@@ -160,3 +160,59 @@ mod monitoring_event_contracts {
         assert_eq!(offset_of!(SslEvent, requested), 33);
     }
 }
+
+#[cfg(all(
+    feature = "buffer-reader",
+    any(feature = "network-structs", feature = "monitoring-structs")
+))]
+mod read_buffer_contracts {
+    use cortexbrain_common::buffer_type::BufferSize;
+
+    fn all_presets() -> Vec<BufferSize> {
+        vec![
+            #[cfg(feature = "network-structs")]
+            BufferSize::ClassifierNetEvents,
+            #[cfg(feature = "network-structs")]
+            BufferSize::VethEvents,
+            #[cfg(feature = "network-structs")]
+            BufferSize::TcpEvents,
+            #[cfg(feature = "monitoring-structs")]
+            BufferSize::NetworkMetricsEvents,
+            #[cfg(feature = "monitoring-structs")]
+            BufferSize::TimeMetricsEvents,
+            #[cfg(feature = "monitoring-structs")]
+            BufferSize::CpuFrequency,
+            #[cfg(feature = "monitoring-structs")]
+            BufferSize::MemAlloc,
+            #[cfg(feature = "monitoring-structs")]
+            BufferSize::SchedStatWait,
+            #[cfg(feature = "monitoring-structs")]
+            BufferSize::SchedStatRuntime,
+            #[cfg(feature = "monitoring-structs")]
+            BufferSize::CpuIdle,
+            #[cfg(feature = "monitoring-structs")]
+            BufferSize::SslEvents,
+        ]
+    }
+
+    // `PerfEventArrayBuffer::read_events` copies one event into each `BytesMut`, so the
+    // number of scratch buffers is the number of events a single read can return.
+    #[test]
+    fn read_batches_hold_more_than_one_event() {
+        for preset in all_presets() {
+            let buffers = preset.set_buffer();
+            assert_eq!(buffers.len(), preset.batch_len());
+            assert!(buffers.len() >= 100, "batch of {} is too small", buffers.len());
+        }
+    }
+
+    #[test]
+    fn every_scratch_buffer_can_hold_one_event() {
+        for preset in all_presets() {
+            for buffer in preset.set_buffer() {
+                assert!(buffer.is_empty());
+                assert!(buffer.capacity() >= preset.get_size());
+            }
+        }
+    }
+}
