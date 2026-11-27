@@ -3,7 +3,6 @@ use aya_ebpf::{
     helpers::{bpf_get_current_pid_tgid, generated::bpf_get_current_cgroup_id},
     programs::TracePointContext,
 };
-use aya_log_ebpf::info;
 
 use crate::data_structures::{CPU_FREQUENCY, CPU_IDLE, CPU_IDLE_LAST_STATE, CpuFrequency, CpuIdle};
 
@@ -14,14 +13,22 @@ pub fn cpu_idle(ctx: TracePointContext) -> Result<(), i64> {
     let cpu_id: u32 = unsafe { ctx.read_at(cpu_id_offset) }?;
     let cgroup_id = unsafe { bpf_get_current_cgroup_id() };
 
-    let map_ptr = unsafe { &raw mut CPU_IDLE_LAST_STATE };
+    // power:cpu_idle fires twice per idle period: once with the C-state being entered
+    // and once with PWR_EVENT_EXIT ((u32)-1) when the CPU wakes up.
+    // Only C-state changes are reported, so skip:
+    //      - exit events (state == PWR_EVENT_EXIT)
+    //      - entries into the same state as the last reported one
+    // The check used to compare `last_state` against PWR_EVENT_EXIT instead of `state`:
+    // the first exit event was stored as the last state, after which every later
+    // event on that CPU matched and nothing was emitted again.
+    if state == PWR_EVENT_EXIT {
+        return Ok(());
+    }
 
-    // skip the data when:
-    //      - last_state is equal to the current state
-    //      - last_state is equal to 4294967295 or -1. This codes means that the cpu is exiting from the current state and entering a new state
+    let map_ptr = unsafe { &raw mut CPU_IDLE_LAST_STATE };
     let emit = match unsafe { (*map_ptr).get(&cpu_id) } {
-        Some(last_state) if (*last_state == state) || (*last_state == 4294967295) => false,
-        _ => true,
+        Some(last_state) => *last_state != state,
+        None => true,
     };
 
     if emit {
@@ -30,9 +37,11 @@ pub fn cpu_idle(ctx: TracePointContext) -> Result<(), i64> {
         unsafe { CPU_IDLE.output(&ctx, &event, 0) };
     }
 
-    info!(&ctx, "CPU idle: State: {} cpu_id: {}", state, cpu_id);
     Ok(())
 }
+
+/// `state` value of power:cpu_idle when a CPU leaves its idle state.
+const PWR_EVENT_EXIT: u32 = u32::MAX;
 
 pub fn per_cpu_bytes_alloc(ctx: &TracePointContext) -> Result<((u32, u32, [u8; 16])), i64> {
     let bytes_alloc_offset = 64;
