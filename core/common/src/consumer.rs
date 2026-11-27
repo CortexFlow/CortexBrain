@@ -29,7 +29,11 @@ use bytes::BytesMut;
 use std::sync::Arc;
 #[cfg(feature = "buffer-reader")]
 use tokio::sync::RwLock;
-use tracing::{error, info, warn};
+#[cfg(feature = "monitoring-structs")]
+use tracing::debug;
+#[cfg(feature = "network-structs")]
+use tracing::info;
+use tracing::{error, warn};
 
 /// Discriminator for perf-buffer event types consumed by the collector.
 ///
@@ -320,7 +324,7 @@ impl Consumer {
                 let sk_ack_backlog = packet_loss.sk_ack_backlog;
                 let sk_receive_buffer_size = packet_loss.sk_receive_buffer_size;
 
-                info!(
+                debug!(
                     "tgid: {}, comm: {}, ts_us: {}, sk_drops: {}, sk_err: {}, sk_err_soft: {}, sk_backlog_len: {}, 
                     sk_write_memory_queued: {}, sk_ack_backlog: {}, sk_receive_buffer_size: {}",
                     tgid,
@@ -389,7 +393,7 @@ impl Consumer {
                 let lport = time_stamp_event.lport;
                 let dport_be = time_stamp_event.dport_be;
                 let af = time_stamp_event.af;
-                info!(
+                debug!(
                     "TimeStampEvent - delta_us: {}, ts_us: {}, tgid: {}, comm: {}, lport: {}, dport_be: {}, af: {}",
                     delta_us, ts_us, tgid, comm, lport, dport_be, af
                 );
@@ -442,7 +446,7 @@ impl Consumer {
                 let bytes_alloc = cpu_freq_metrics.bytes_alloc;
                 let pid = cpu_freq_metrics.pid;
                 let command = cpu_freq_metrics.command;
-                info!(
+                debug!(
                     "Cpu Bytes alloc: {} pid : {} command: {:?}",
                     bytes_alloc, pid, command
                 );
@@ -497,7 +501,7 @@ impl Consumer {
                 let addr = mem_alloc.addr;
                 let length = mem_alloc.length;
 
-                info!(
+                debug!(
                     "MemAlloc - tgid: {}, command: {}, addr: {}, length: {}",
                     tgid, command, addr, length
                 );
@@ -551,7 +555,7 @@ impl Consumer {
                 let command = String::from_utf8_lossy(&sched_stat_wait.command);
                 let delay = sched_stat_wait.delay;
 
-                info!(
+                debug!(
                     "SchedStatWait - tgid: {}, command: {}, delay: {}",
                     tgid, command, delay
                 );
@@ -605,7 +609,7 @@ impl Consumer {
                 let command = String::from_utf8_lossy(&sched_stat_runtime.command);
                 let runtime = sched_stat_runtime.runtime;
 
-                info!(
+                debug!(
                     "SchedStatRuntime - tgid: {}, command: {}, runtime: {}",
                     tgid, command, runtime
                 );
@@ -653,7 +657,7 @@ impl Consumer {
                 let cpu_id = cpu_idle.cpu_id;
                 let state = cpu_idle.state;
 
-                info!(
+                debug!(
                     "CpuIdle state changed - cpu_id: {}, state: {}",
                     cpu_id, state
                 );
@@ -709,7 +713,7 @@ impl Consumer {
                             let size = ssl_event.size;
                             let requested = ssl_event.requested;
 
-                            info!(
+                            debug!(
                                 "SSL event: - tgid: {},- command : {}, - direction: {}, - size: {} , - requested : {}",
                                 tgid, command, direction, size, requested
                             );
@@ -730,7 +734,7 @@ impl Consumer {
                             let size = ssl_event.size;
                             let requested = ssl_event.requested;
 
-                            info!(
+                            debug!(
                                 "SSL event: - tgid: {},- command : {}, - direction: {}, - size: {} , - requested : {}",
                                 tgid, command, direction, size, requested
                             );
@@ -744,15 +748,50 @@ impl Consumer {
     }
 }
 
+/// Poll interval used when `DEFAULT_MAP_READING_TIME` is not set, in milliseconds.
+#[cfg(feature = "buffer-reader")]
+pub const DEFAULT_MAP_READING_INTERVAL_MS: u64 = 100;
+
+/// Upper bound on `read_events` calls per CPU ring in a single poll, so one busy CPU
+/// cannot keep the reader away from the others (or from the Tokio scheduler) forever.
+#[cfg(feature = "buffer-reader")]
+const MAX_READS_PER_RING_PER_POLL: usize = 64;
+
+/// How often the "lost events" warning may be logged.
+#[cfg(feature = "buffer-reader")]
+const LOST_EVENTS_WARNING_INTERVAL: std::time::Duration = std::time::Duration::from_secs(10);
+
+/// Interval between two polls of the perf buffers.
+///
+/// Read from the `DEFAULT_MAP_READING_TIME` environment variable (milliseconds).
+/// Falls back to [`DEFAULT_MAP_READING_INTERVAL_MS`] when the variable is unset,
+/// not a number, or `0` (a zero interval would turn the reader into a busy loop).
+#[cfg(feature = "buffer-reader")]
+pub fn map_reading_interval() -> std::time::Duration {
+    parse_map_reading_interval(std::env::var(DEFAULT_MAP_READING_TIME).ok().as_deref())
+}
+
+#[cfg(feature = "buffer-reader")]
+fn parse_map_reading_interval(value: Option<&str>) -> std::time::Duration {
+    let millis = value
+        .and_then(|v| v.trim().parse::<u64>().ok())
+        .filter(|ms| *ms > 0)
+        .unwrap_or(DEFAULT_MAP_READING_INTERVAL_MS);
+    std::time::Duration::from_millis(millis)
+}
+
 /// Read perf-buffer events in a loop and dispatch to the appropriate [`Consumer`] handler.
 ///
 /// This function runs indefinitely (or until the process receives `SIGINT`).
-/// It polls every CPU buffer every 100 ms, reads available events, and routes
-/// them to the matching `Consumer::read_*` method.
+/// Every [`map_reading_interval`] (100 ms by default) it drains every per-CPU ring,
+/// `buffers.len()` events at a time, and routes the events to the matching
+/// `Consumer::read_*` method. Events dropped by the kernel because a ring filled up
+/// are reported with a rate-limited warning.
 ///
 /// # Arguments
 /// - `array_buffers` — per-CPU `PerfEventArrayBuffer` handles opened by [`fill_buffers`].
 /// - `buffers` — pre-allocated `BytesMut` scratch space sized by [`BufferSize::set_buffer`].
+///   Its length is the read batch: one event is copied into each buffer.
 /// - `consumer` — discriminator that selects which `read_*` method to invoke.
 /// - `metrics` — optional [`Metrics`] handle; required when `consumer` is a monitoring variant.
 #[cfg(feature = "buffer-reader")]
@@ -763,13 +802,27 @@ pub async fn read_perf_buffer<T: std::borrow::BorrowMut<aya::maps::MapData>>(
     #[cfg(feature = "monitoring-structs")] metrics: Option<Arc<Metrics>>,
     cache: Option<Arc<RwLock<ServiceCache>>>,
 ) {
+    let interval = map_reading_interval();
+    let mut lost_since_warning: usize = 0;
+    let mut last_warning = std::time::Instant::now();
+
     loop {
-        for buf in array_buffers.iter_mut() {
+        // `read_events` stops as soon as `buffers` is full, so each ring is read
+        // repeatedly until it is empty (or MAX_READS_PER_RING_PER_POLL is reached)
+        // before moving on to the next CPU.
+        let mut ring = 0;
+        let mut reads = 0;
+        while ring < array_buffers.len() {
+            let buf = &mut array_buffers[ring];
+            if reads == MAX_READS_PER_RING_PER_POLL || !buf.readable() {
+                ring += 1;
+                reads = 0;
+                continue;
+            }
+            reads += 1;
             match buf.read_events(&mut buffers) {
                 Ok(events) => {
-                    if events.lost > 0 {
-                        tracing::debug!("Lost events: {} ", events.lost);
-                    }
+                    lost_since_warning += events.lost;
                     if events.read > 0 {
                         tracing::debug!("Readed events: {}", events.read);
                         let offset = 0;
@@ -897,9 +950,51 @@ pub async fn read_perf_buffer<T: std::borrow::BorrowMut<aya::maps::MapData>>(
                 }
                 Err(e) => {
                     error!("Cannot read events from buffer. Reason: {} ", e);
+                    // move on to the next ring
+                    reads = MAX_READS_PER_RING_PER_POLL;
                 }
             }
         }
-        tokio::time::sleep(std::time::Duration::from_millis(std::env::var(DEFAULT_MAP_READING_TIME).ok().and_then(|v| v.parse::<u64>().ok()).unwrap_or(5000))).await;
+
+        if lost_since_warning > 0 && last_warning.elapsed() >= LOST_EVENTS_WARNING_INTERVAL {
+            warn!(
+                "{} events were dropped by the kernel in the last {}s because a perf buffer filled up before it was read",
+                lost_since_warning,
+                last_warning.elapsed().as_secs()
+            );
+            lost_since_warning = 0;
+            last_warning = std::time::Instant::now();
+        }
+
+        tokio::time::sleep(interval).await;
+    }
+}
+
+#[cfg(all(test, feature = "buffer-reader"))]
+mod read_interval_tests {
+    use super::{DEFAULT_MAP_READING_INTERVAL_MS, parse_map_reading_interval};
+    use std::time::Duration;
+
+    #[test]
+    fn interval_defaults_to_100ms() {
+        assert_eq!(DEFAULT_MAP_READING_INTERVAL_MS, 100);
+        assert_eq!(parse_map_reading_interval(None), Duration::from_millis(100));
+    }
+
+    #[test]
+    fn interval_is_read_from_the_environment_value() {
+        assert_eq!(parse_map_reading_interval(Some("250")), Duration::from_millis(250));
+        assert_eq!(parse_map_reading_interval(Some(" 5000 ")), Duration::from_millis(5000));
+    }
+
+    #[test]
+    fn invalid_or_zero_values_fall_back_to_the_default() {
+        for value in ["", "abc", "-1", "0", "1.5"] {
+            assert_eq!(
+                parse_map_reading_interval(Some(value)),
+                Duration::from_millis(DEFAULT_MAP_READING_INTERVAL_MS),
+                "value {value:?}"
+            );
+        }
     }
 }

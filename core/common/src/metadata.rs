@@ -1,9 +1,10 @@
-use anyhow::Error;
 use kube::Client;
+use std::collections::HashMap;
 use std::fs;
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, OnceLock};
+use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
 use tracing::{debug, info};
 
@@ -80,16 +81,16 @@ impl Metadata {
         cgroup_id: u64,
         cache: &Arc<RwLock<ServiceCache>>,
     ) -> bool {
-        let Some(cgroup_path) = find_cgroup_path_by_id(cgroup_id) else {
+        let Some(cgroup_path) = cached_cgroup_path_by_id(cgroup_id) else {
             debug!(
                 "cgroup_id {} not found under {}",
-                cgroup_id, "/host/sys/fs/cgroup"
+                cgroup_id, CGROUP_ROOT
             );
             return false;
         };
 
         if let Some(id) = extract_pod_uid(cgroup_path.to_string_lossy().to_string())
-            && Client::try_default().await.is_ok()
+            && kubernetes_available().await
         {
             self.container_id = Some(id.clone());
             debug!(
@@ -151,6 +152,7 @@ impl Metadata {
                     Some(cached_data) => {
                         self.container_name = Some(cached_data[0].clone());
                         self.namespace = Some(cached_data[1].clone());
+                        return true;
                     }
                     None => match resolve_docker_name(&id) {
                         Some(name) => {
@@ -219,56 +221,113 @@ fn resolve_docker_name(container_id: &str) -> Option<String> {
     Some(image_name.to_string())
 }
 
-/// Helper function to extract the pod name, called 'target' from a vector of splits ['','','']
-fn extract_target_from_splits(splits: Vec<&str>, target: &str) -> Result<usize, Error> {
-    for (index, split) in splits.iter().enumerate() {
-        // find the split that contains the word 'pod'
-        if split.contains(target) {
-            debug!("Target index; {}", index);
-            return Ok(index);
+fn extract_pod_uid(cgroup_path: String) -> Option<String> {
+    // Pod cgroups come in two shapes, depending on the kubelet cgroup driver:
+    //
+    // systemd driver (one slice per pod; Guaranteed pods have no QoS level):
+    //   /kubepods.slice/kubepods-besteffort.slice/kubepods-besteffort-pod93580201_87d5_44e6_9779_f6153ca17637.slice
+    //   /kubepods.slice/kubepods-burstable.slice/kubepods-burstable-poddd3a1c6b_af40_41b1_8e1c_9e31fe8d96cb.slice
+    //   /kubepods.slice/kubepods-pod93580201_87d5_44e6_9779_f6153ca17637.slice
+    //   (kind/minikube nest the same names under kubelet.slice/kubelet-kubepods.slice)
+    //
+    // cgroupfs driver:
+    //   /kubepods/besteffort/pod93580201-87d5-44e6-9779-f6153ca17637/<container id>
+    //   /kubepods/pod93580201-87d5-44e6-9779-f6153ca17637/<container id>
+    //
+    // Static pods use the 32-hex-digit config hash instead of a UID; ServiceCache keys
+    // them by that hash, so it is returned as is.
+    for segment in cgroup_path.split('/') {
+        let candidate = if let Some(slice) = segment.strip_suffix(".slice") {
+            match slice.rfind("-pod") {
+                Some(idx) => &slice[idx + "-pod".len()..],
+                None => continue,
+            }
+        } else if let Some(rest) = segment.strip_prefix("pod") {
+            rest
+        } else {
+            continue;
+        };
+
+        let uid = candidate.replace('_', "-");
+        if is_pod_uid(&uid) {
+            debug!("Extracted pod uid {} from cgroup path {}", uid, cgroup_path);
+            return Some(uid);
         }
     }
-    Err(Error::msg("'-pod' word not found in split"))
+    debug!("No pod uid in cgroup path {}", cgroup_path);
+    None
 }
 
-fn extract_pod_uid(cgroup_path: String) -> Option<String> {
-    // example of cgroup path:
-    // /sys/fs/cgroup/kubelet.slice/kubelet-kubepods.slice/kubelet-kubepods-besteffort.slice/kubelet-kubepods-besteffort-pod93580201_87d5_44e6_9779_f6153ca17637.slice
-    // or
-    // /sys/fs/cgroup/kubelet.slice/kubelet-kubepods.slice/kubelet-kubepods-burstable.slice/kubelet-kubepods-burstable-poddd3a1c6b_af40_41b1_8e1c_9e31fe8d96cb.slice
-
-    // split the path by "/"
-    let splits: Vec<&str> = cgroup_path.split("/").collect();
-    debug!("Debugging splits: {:?}", &splits);
-
-    let index = extract_target_from_splits(splits.clone(), "-pod").ok();
-
-    match index {
-        Some(idx) => {
-            let pod_split = splits[idx]
-                .trim_start_matches("kubelet-kubepods-besteffort-")
-                .trim_start_matches("kubelet-kubepods-burstable-")
-                .trim_start_matches("kubepods-besteffort-")
-                .trim_start_matches("kubepods-burstable-");
-
-            let uid_ = pod_split
-                .trim_start_matches("pod")
-                .trim_end_matches(".slice"); //return uids with underscore (_) [ex.dd3a1c6b_af40_41b1_8e1c_9e31fe8d96cb]
-
-            let uid = Some(uid_.replace("_", "-"));
-            uid
+/// A pod UID (8-4-4-4-12 hex digits) or a static pod config hash (32 hex digits).
+fn is_pod_uid(candidate: &str) -> bool {
+    let is_hex = |part: &str| !part.is_empty() && part.chars().all(|c| c.is_ascii_hexdigit());
+    let groups: Vec<&str> = candidate.split('-').collect();
+    match groups.as_slice() {
+        [hash] => hash.len() == 32 && is_hex(hash),
+        [a, b, c, d, e] => {
+            [a.len(), b.len(), c.len(), d.len(), e.len()] == [8, 4, 4, 4, 12]
+                && groups.iter().all(|g| is_hex(g))
         }
-        None => {
-            debug!("Index returned a value of None");
-            None
-        }
+        _ => false,
     }
+}
+
+/// Where the host cgroup hierarchy is mounted inside the agent container.
+const CGROUP_ROOT: &str = "/host/sys/fs/cgroup";
+
+/// Maximum number of memoized cgroup_id -> path lookups before the memo is reset.
+const CGROUP_PATH_MEMO_CAPACITY: usize = 16_384;
+
+/// How long a failed cgroup_id lookup is remembered before the hierarchy is walked again.
+const CGROUP_PATH_MISS_TTL: Duration = Duration::from_secs(30);
+
+/// Memoized [`find_cgroup_path_by_id`].
+///
+/// The lookup walks the whole cgroup hierarchy (one `stat` per cgroup) and used to run
+/// for every eBPF event. Hits are kept until the memo is full; misses are retried
+/// after [`CGROUP_PATH_MISS_TTL`] so cgroups created later are still found.
+fn cached_cgroup_path_by_id(cgroup_id: u64) -> Option<PathBuf> {
+    static MEMO: OnceLock<Mutex<HashMap<u64, (Option<PathBuf>, Instant)>>> = OnceLock::new();
+    let memo = MEMO.get_or_init(|| Mutex::new(HashMap::new()));
+
+    if let Ok(entries) = memo.lock()
+        && let Some((path, looked_up_at)) = entries.get(&cgroup_id)
+        && (path.is_some() || looked_up_at.elapsed() < CGROUP_PATH_MISS_TTL)
+    {
+        return path.clone();
+    }
+
+    // walk without holding the lock
+    let path = find_cgroup_path_by_id(cgroup_id);
+
+    if let Ok(mut entries) = memo.lock() {
+        if entries.len() >= CGROUP_PATH_MEMO_CAPACITY {
+            entries.clear();
+        }
+        entries.insert(cgroup_id, (path.clone(), Instant::now()));
+    }
+    path
+}
+
+/// Whether a Kubernetes client configuration is available.
+///
+/// Building a `kube::Client` reads the kubeconfig or the in-cluster service account
+/// and sets up TLS; it used to happen once per eBPF event. The answer does not change
+/// while the agent runs, so it is computed once.
+async fn kubernetes_available() -> bool {
+    static AVAILABLE: tokio::sync::OnceCell<bool> = tokio::sync::OnceCell::const_new();
+    *AVAILABLE
+        .get_or_init(|| async { Client::try_default().await.is_ok() })
+        .await
 }
 
 /// Scans /sys/fs/cgroup recursively and return the path of the directory that
 /// matches cgroup_id. This lookup is guaranteed because of the structure of the cgroup v2 in linux
 fn find_cgroup_path_by_id(cgroup_id: u64) -> Option<PathBuf> {
-    let root = Path::new("/host/sys/fs/cgroup");
+    find_cgroup_path_by_id_in(Path::new(CGROUP_ROOT), cgroup_id)
+}
+
+fn find_cgroup_path_by_id_in(root: &Path, cgroup_id: u64) -> Option<PathBuf> {
     let mut stack = vec![root.to_path_buf()];
 
     while let Some(dir) = stack.pop() {
@@ -295,13 +354,9 @@ fn find_cgroup_path_by_id(cgroup_id: u64) -> Option<PathBuf> {
 }
 
 fn get_cgroup_info(tgid: u32) -> Option<String> {
-    let cgroup_info = match fs::read_to_string(format!("/proc/{}/cgroup", tgid)) {
-        Ok(s) => return Some(s),
-        Err(e) => {
-            debug!("Cannot read /proc/{}/cgroup: {}", tgid, e);
-            return None;
-        }
-    };
+    fs::read_to_string(format!("/proc/{}/cgroup", tgid))
+        .map_err(|e| debug!("Cannot read /proc/{}/cgroup: {}", tgid, e))
+        .ok()
 }
 
 #[cfg(test)]
@@ -341,6 +396,7 @@ mod tests {
         assert_eq!(extract_container_id_from_path(path), None);
     }
     #[test]
+    #[ignore = "needs a running Docker daemon and read access to /var/lib/docker"]
     fn resolve_docker_name_test() {
         use std::process::Command;
         // create a docker container from a testing image
@@ -361,5 +417,106 @@ mod tests {
 
         assert_eq!(docker_container_name, Some("busybox:latest".to_string()))
     }
-    // TODO: missing tests for extract_pod_uid, extract_target_from_splits, try_resolve_docker, try_resolve_k8s, enrich.
+    #[test]
+    fn extract_pod_uid_systemd_qos_slices() {
+        for (path, uid) in [
+            (
+                "/sys/fs/cgroup/kubelet.slice/kubelet-kubepods.slice/kubelet-kubepods-besteffort.slice/kubelet-kubepods-besteffort-pod93580201_87d5_44e6_9779_f6153ca17637.slice",
+                "93580201-87d5-44e6-9779-f6153ca17637",
+            ),
+            (
+                "/sys/fs/cgroup/kubelet.slice/kubelet-kubepods.slice/kubelet-kubepods-burstable.slice/kubelet-kubepods-burstable-poddd3a1c6b_af40_41b1_8e1c_9e31fe8d96cb.slice",
+                "dd3a1c6b-af40-41b1-8e1c-9e31fe8d96cb",
+            ),
+            (
+                "/host/sys/fs/cgroup/kubepods.slice/kubepods-besteffort.slice/kubepods-besteffort-podb8701d38_3791_422d_ad15_890ad1a0844b.slice/cri-containerd-abc123.scope",
+                "b8701d38-3791-422d-ad15-890ad1a0844b",
+            ),
+        ] {
+            assert_eq!(extract_pod_uid(path.to_string()).as_deref(), Some(uid), "{path}");
+        }
+    }
+
+    // Guaranteed pods have no QoS slice: kubepods-pod<uid>.slice sits directly under kubepods.slice.
+    #[test]
+    fn extract_pod_uid_guaranteed_pod() {
+        assert_eq!(
+            extract_pod_uid(
+                "/host/sys/fs/cgroup/kubepods.slice/kubepods-pod93580201_87d5_44e6_9779_f6153ca17637.slice/cri-containerd-abc.scope".to_string()
+            )
+            .as_deref(),
+            Some("93580201-87d5-44e6-9779-f6153ca17637")
+        );
+        assert_eq!(
+            extract_pod_uid(
+                "/sys/fs/cgroup/kubelet.slice/kubelet-kubepods.slice/kubelet-kubepods-pod93580201_87d5_44e6_9779_f6153ca17637.slice".to_string()
+            )
+            .as_deref(),
+            Some("93580201-87d5-44e6-9779-f6153ca17637")
+        );
+    }
+
+    #[test]
+    fn extract_pod_uid_cgroupfs_driver() {
+        assert_eq!(
+            extract_pod_uid(
+                "/host/sys/fs/cgroup/kubepods/besteffort/pod93580201-87d5-44e6-9779-f6153ca17637/0123abcd".to_string()
+            )
+            .as_deref(),
+            Some("93580201-87d5-44e6-9779-f6153ca17637")
+        );
+        assert_eq!(
+            extract_pod_uid(
+                "/host/sys/fs/cgroup/kubepods/pod93580201-87d5-44e6-9779-f6153ca17637".to_string()
+            )
+            .as_deref(),
+            Some("93580201-87d5-44e6-9779-f6153ca17637")
+        );
+    }
+
+    // ServiceCache keys static pods by their kubernetes.io/config.hash.
+    #[test]
+    fn extract_pod_uid_static_pod_config_hash() {
+        assert_eq!(
+            extract_pod_uid(
+                "/host/sys/fs/cgroup/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-pod2d6c8d3e9b0f4a1c8e7d6c5b4a3f2e1d.slice".to_string()
+            )
+            .as_deref(),
+            Some("2d6c8d3e9b0f4a1c8e7d6c5b4a3f2e1d")
+        );
+    }
+
+    #[test]
+    fn extract_pod_uid_rejects_non_pod_paths() {
+        for path in [
+            "/sys/fs/cgroup/system.slice/docker-13abd64c0ba349975a762476c9703b642d18077eabeb3aa1d941132048afc861.scope",
+            "/sys/fs/cgroup/kubepods.slice/kubepods-besteffort.slice",
+            "/sys/fs/cgroup/system.slice/podman-1234.scope",
+            "/sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/app.slice/pod-manager.slice",
+            "/sys/fs/cgroup/podcast/pod123",
+            "",
+            "/",
+        ] {
+            assert_eq!(extract_pod_uid(path.to_string()), None, "{path}");
+        }
+    }
+
+    #[test]
+    fn find_cgroup_path_by_id_walks_nested_directories() {
+        let root = std::env::temp_dir().join(format!("cortexbrain-cgroup-test-{}", std::process::id()));
+        let target = root.join("kubepods.slice/kubepods-pod93580201_87d5_44e6_9779_f6153ca17637.slice/cri-containerd-abc.scope");
+        fs::create_dir_all(&target).unwrap();
+        fs::create_dir_all(root.join("system.slice/docker-1.scope")).unwrap();
+        let ino = fs::metadata(&target).unwrap().ino();
+
+        assert_eq!(find_cgroup_path_by_id_in(&root, ino), Some(target.clone()));
+        assert_eq!(
+            extract_pod_uid(target.to_string_lossy().to_string()).as_deref(),
+            Some("93580201-87d5-44e6-9779-f6153ca17637")
+        );
+        assert_eq!(find_cgroup_path_by_id_in(&root, u64::MAX), None);
+        assert_eq!(find_cgroup_path_by_id_in(&root.join("missing"), ino), None);
+
+        fs::remove_dir_all(&root).unwrap();
+    }
 }

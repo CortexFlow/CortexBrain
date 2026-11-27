@@ -1,6 +1,6 @@
 use aya_ebpf::{
     macros::map,
-    maps::{HashMap, LruPerCpuHashMap, PerfEventArray},
+    maps::{HashMap, LruHashMap, LruPerCpuHashMap, PerfEventArray},
 };
 
 pub const TASK_COMM_LEN: usize = 16;
@@ -105,10 +105,14 @@ pub struct SslEvent {
     pub cgroup_id: u64,
 }
 
-// Map: connect-start timestamp by socket pointer
+// Map: connect-start timestamp by socket pointer.
+// LRU: entries are only removed when tcp_rcv_state_process sees the SYN-ACK, so a
+// connect() that fails or times out would leave its entry behind. With a plain
+// HashMap the map fills up after 4096 such connections and every later insert
+// fails, silently ending the latency metric.
 #[map(name = "time_stamp_start")]
-pub static mut TIME_STAMP_START: HashMap<*mut core::ffi::c_void, TimeStampStartInfo> =
-    HashMap::<*mut core::ffi::c_void, TimeStampStartInfo>::with_max_entries(4096, 0);
+pub static mut TIME_STAMP_START: LruHashMap<*mut core::ffi::c_void, TimeStampStartInfo> =
+    LruHashMap::<*mut core::ffi::c_void, TimeStampStartInfo>::with_max_entries(4096, 0);
 
 // Perf event channel for emitting Event to userspace
 #[map(name = "time_stamp_events")]
@@ -137,9 +141,11 @@ pub static CPU_IDLE: PerfEventArray<CpuIdle> = PerfEventArray::new(0);
 pub static mut CPU_IDLE_LAST_STATE: HashMap<u32, u32> =
     HashMap::<u32, u32>::with_max_entries(256, 0);
 
+// LRU for the same reason: a thread that dies between SSL_read/SSL_write entry
+// and return never removes its entry.
 #[map(name = "ssl_ctx_map")]
-pub static mut SSL_CTX_MAP: HashMap<u64, i32> =
-    HashMap::<u64, i32>::with_max_entries(4096, 0);
+pub static mut SSL_CTX_MAP: LruHashMap<u64, i32> =
+    LruHashMap::<u64, i32>::with_max_entries(4096, 0);
 
 #[map(name = "ssl_events")]
 pub static SSL_EVENTS: PerfEventArray<SslEvent> = PerfEventArray::new(0);

@@ -182,7 +182,7 @@ async fn install_simple_example_component() -> Result<(), CliError> {
             );
             download_installation_files(
                 InstallationType::SimpleExample(
-                    "https://raw.githubusercontent.com/CortexFlow/CortexBrain/refs/heads/feature/ebpf-core/core/src/testing/deploy-test-pod.yaml".to_string()
+                    "https://raw.githubusercontent.com/CortexFlow/CortexBrain/refs/heads/main/core/src/testing/deploy-test-pod.yaml".to_string()
                 )
             )?;
             thread::sleep(Duration::from_secs(1));

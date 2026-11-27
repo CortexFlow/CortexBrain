@@ -218,10 +218,12 @@ pub fn reverse_be_addr(addr: u32) -> Ipv4Addr {
     Ipv4Addr::new(a, b, c, d)
 }
 
-/// Buffer size presets for per-CPU perf-buffer allocation.
+/// Buffer size presets for perf-buffer reads.
 ///
-/// Each variant carries a multiplier that determines how many struct-sized
-/// slots are pre-allocated per CPU in [`BufferSize::set_buffer`].
+/// Each variant carries a batch length ([`BufferSize::batch_len`]): the number of
+/// struct-sized scratch buffers allocated by [`BufferSize::set_buffer`], i.e. the
+/// maximum number of events copied out of a per-CPU ring by a single
+/// `PerfEventArrayBuffer::read_events` call.
 #[cfg(feature = "buffer-reader")]
 pub enum BufferSize {
     #[cfg(feature = "network-structs")]
@@ -278,70 +280,47 @@ impl BufferSize {
         }
     }
 
-    /// Allocate one `BytesMut` per CPU with capacity tuned to the event type.
-    pub fn set_buffer(&self) -> Vec<BytesMut> {
-        use aya::util::online_cpus;
-
-        let tot_cpu = online_cpus().iter().len();
-
-        // TODO: finish buffer size calculations
+    /// Maximum number of events read from a per-CPU ring in one `read_events` call.
+    pub fn batch_len(&self) -> usize {
         match self {
             #[cfg(feature = "network-structs")]
-            BufferSize::ClassifierNetEvents => {
-                let capacity = self.get_size() * 200;
-                return vec![BytesMut::with_capacity(capacity); tot_cpu];
-            }
+            BufferSize::ClassifierNetEvents => 200,
             #[cfg(feature = "network-structs")]
-            BufferSize::VethEvents => {
-                let capacity = self.get_size() * 100;
-                return vec![BytesMut::with_capacity(capacity); tot_cpu];
-            }
+            BufferSize::VethEvents => 100,
             #[cfg(feature = "network-structs")]
-            BufferSize::TcpEvents => {
-                let capacity = self.get_size() * 200;
-                return vec![BytesMut::with_capacity(capacity); tot_cpu];
-            }
+            BufferSize::TcpEvents => 200,
             #[cfg(feature = "monitoring-structs")]
-            BufferSize::NetworkMetricsEvents => {
-                let capacity = self.get_size() * 1024;
-                return vec![BytesMut::with_capacity(capacity); tot_cpu];
-            }
+            BufferSize::NetworkMetricsEvents => 1024,
             #[cfg(feature = "monitoring-structs")]
-            BufferSize::TimeMetricsEvents => {
-                let capacity = self.get_size() * 1024;
-                return vec![BytesMut::with_capacity(capacity); tot_cpu];
-            }
+            BufferSize::TimeMetricsEvents => 1024,
             #[cfg(feature = "monitoring-structs")]
-            BufferSize::CpuFrequency => {
-                let capacity = self.get_size() * 1024;
-                return vec![BytesMut::with_capacity(capacity); tot_cpu];
-            }
+            BufferSize::CpuFrequency => 1024,
             #[cfg(feature = "monitoring-structs")]
-            BufferSize::MemAlloc => {
-                let capacity = self.get_size() * 1024;
-                return vec![BytesMut::with_capacity(capacity); tot_cpu];
-            }
+            BufferSize::MemAlloc => 1024,
             #[cfg(feature = "monitoring-structs")]
-            BufferSize::SchedStatWait => {
-                let capacity = self.get_size() * 1024;
-                return vec![BytesMut::with_capacity(capacity); tot_cpu];
-            }
+            BufferSize::SchedStatWait => 1024,
             #[cfg(feature = "monitoring-structs")]
-            BufferSize::SchedStatRuntime => {
-                let capacity = self.get_size() * 1024;
-                return vec![BytesMut::with_capacity(capacity); tot_cpu];
-            }
+            BufferSize::SchedStatRuntime => 1024,
             #[cfg(feature = "monitoring-structs")]
-            BufferSize::CpuIdle => {
-                let capacity = self.get_size() * 1024;
-                return vec![BytesMut::with_capacity(capacity); tot_cpu];
-            }
+            BufferSize::CpuIdle => 1024,
             #[cfg(feature = "monitoring-structs")]
-            BufferSize::SslEvents => {
-                let capacity = self.get_size() * 1024;
-                return vec![BytesMut::with_capacity(capacity); tot_cpu];
-            }
+            BufferSize::SslEvents => 1024,
         }
+    }
+
+    /// Allocate the scratch buffers passed to `PerfEventArrayBuffer::read_events`.
+    ///
+    /// `read_events` copies exactly one event into each `BytesMut` it is given, so the
+    /// length of the returned vector is the read batch, not a per-CPU count. Each
+    /// buffer is sized for a single event.
+    ///
+    /// This used to return `online_cpus().iter().len()` buffers. `online_cpus()` returns
+    /// a `Result<Vec<u32>, _>`, and `Result::iter()` yields at most one item, so every
+    /// consumer was reading one event per CPU per poll.
+    pub fn set_buffer(&self) -> Vec<BytesMut> {
+        (0..self.batch_len())
+            .map(|_| BytesMut::with_capacity(self.get_size()))
+            .collect()
     }
 }
 
