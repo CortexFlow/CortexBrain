@@ -49,7 +49,11 @@ jobs:
 
     - name: Test cortexbrain-common public contracts
       working-directory: core
-      run: cargo test --locked -p cortexbrain-common --test public_contracts --no-default-features --features network-structs,monitoring-structs
+      run: cargo test --locked -p cortexbrain-common --test public_contracts --no-default-features --features network-structs,monitoring-structs,buffer-reader
+
+    - name: Test cortexbrain-common unit tests
+      working-directory: core
+      run: cargo test --locked -p cortexbrain-common --lib --no-default-features --features network-structs,monitoring-structs,buffer-reader
 
     - name: Test cortexbrain-common OpenTelemetry metrics
       working-directory: core
@@ -81,6 +85,18 @@ jobs:
     - name: Test Identity
       working-directory: core
       run: cargo test --locked -p cortexflow_identity
+
+  test-metrics:
+    name: Test Metrics
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Test Metrics
+      working-directory: core
+      run: cargo test --locked -p cortexflow-metrics
 
   test-mcp:
     name: Test MCP
